@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ISOMETRICA — Simulador de Ciudad Minimalista 2.5D</title>
+  <meta name="description" content="Simulador de ciudad minimalista en perspectiva isométrica 2.5D. Gestiona la demografía, economía laboral y seguridad como alcalde, equilibra la contratación masiva y calificada, e investiga tecnologías para mitigar desastres naturales.">
+  <meta name="theme-color" content="#1e293b">
+
+  <!-- Favicon SVG en línea para cero dependencias externas -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,15 85,35 50,55 15,35' fill='%2338bdf8'/><polygon points='15,35 50,55 50,90 15,70' fill='%230284c7'/><polygon points='50,55 85,35 85,70 50,90' fill='%230369a1'/></svg>">
+
+  <!-- Hojas de Estilo -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Canvas Principal del Juego 2.5D -->
+  <canvas id="city-canvas"></canvas>
+
+  <!-- BANNER DE ALERTA DE CATÁSTROFE / ALERTA TEMPRANA -->
+  <div id="alert-banner" class="alert-banner">
+    <!-- Rellenado dinámicamente -->
+  </div>
+
+  <!-- INDICADOR DE AUTOGUARDADO EN DISPOSITIVO -->
+  <div id="save-indicator" class="save-indicator">
+    <span class="save-dot"></span>
+    <span>Guardado en almacenamiento local</span>
+  </div>
+
+  <!-- PANEL SUPERIOR: HUD DEL ALCALDE -->
+  <header id="mayor-hud" class="hud-panel top-hud">
+    <div class="hud-brand">
+      <span class="logo-cube">📐</span>
+      <div class="brand-text">
+        <h1 class="game-title">ISOMETRICA</h1>
+        <span class="game-subtitle">Alcaldía Urbana</span>
+      </div>
+    </div>
+
+    <!-- Indicadores de los Tres Pilares: Demografía, Economía Laboral y Seguridad -->
+    <div class="hud-metrics">
+      <!-- Finanzas y Tesorería -->
+      <div class="metric-group" title="Tesorería municipal y flujo neto diario">
+        <span class="metric-icon">💰</span>
+        <div class="metric-values">
+          <span class="stat-value" id="stat-funds">$3,500</span>
+          <span class="stat-delta positive" id="stat-cashflow">+$0/d</span>
+        </div>
+      </div>
+
+      <!-- Pilar 1: Demografía y Población -->
+      <div class="metric-group" title="Habitantes actuales y capacidad residencial">
+        <span class="metric-icon">👥</span>
+        <div class="metric-values">
+          <div class="metric-line">
+            <span class="stat-value" id="stat-population">0</span>
+            <span class="stat-sub" id="stat-capacity">/ 0</span>
+          </div>
+          <div class="mini-bar-bg">
+            <div id="bar-happiness" class="progress-fill good" style="width: 75%;"></div>
+          </div>
+        </div>
+        <span class="metric-badge" id="stat-happiness" title="Índice de Felicidad">75%</span>
+      </div>
+
+      <!-- Pilar 2: Economía Laboral -->
+      <div class="metric-group" title="Tasa de Desempleo (Fuerza laboral en búsqueda de empleo)">
+        <span class="metric-icon">💼</span>
+        <div class="metric-values">
+          <span class="stat-label">Desempleo</span>
+          <span class="stat-value positive" id="stat-unemployment">0%</span>
+        </div>
+      </div>
+
+      <!-- Pilar 3: Seguridad Ciudadana -->
+      <div class="metric-group" title="Índice de Seguridad Urbana y Resiliencia">
+        <span class="metric-icon">🛡️</span>
+        <div class="metric-values">
+          <span class="stat-label">Seguridad</span>
+          <div class="mini-bar-bg">
+            <div id="bar-security" class="progress-fill good" style="width: 80%;"></div>
+          </div>
+        </div>
+        <span class="metric-badge" id="stat-security">80%</span>
+      </div>
+
+      <!-- Huella de Carbono y Polución -->
+      <div class="metric-group" title="Nivel de Emisiones Atmosféricas y Polución">
+        <span class="metric-icon">🌫️</span>
+        <div class="metric-values">
+          <span class="stat-label">Polución</span>
+          <div class="mini-bar-bg">
+            <div id="bar-pollution" class="progress-fill good" style="width: 10%;"></div>
+          </div>
+        </div>
+        <span class="metric-badge" id="stat-pollution">5 ppm</span>
+      </div>
+
+      <!-- Puntos de Investigación Científica -->
+      <div class="metric-group" title="Puntos de Investigación (RP) para tecnologías de mitigación">
+        <span class="metric-icon">🔬</span>
+        <div class="metric-values">
+          <span class="stat-label">Ciencia</span>
+          <span class="stat-value tech-color" id="stat-research">50 RP</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control de Tiempo y Simulación -->
+    <div class="hud-controls">
+      <div class="time-box">
+        <span id="stat-day" class="day-counter">Día 1</span>
+        <div class="speed-buttons">
+          <button class="btn-icon" data-speed="0" title="Pausar (Espacio)">⏸️</button>
+          <button class="btn-icon active" data-speed="1" title="Velocidad Normal">▶️</button>
+          <button class="btn-icon" data-speed="2" title="Avance Rápido">⏩</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- BOTONES FLOTANTES DE GESTIÓN MUNICIPAL (LADO DERECHO) -->
+  <aside class="mayor-actions-panel">
+    <button class="action-btn" data-open-modal="corporations" title="Empresas y Políticas de Contratación">
+      <span class="action-icon">🏭</span>
+      <span class="action-label">Empresas</span>
+    </button>
+    <button class="action-btn" data-open-modal="research" title="Árbol de Investigación Científica">
+      <span class="action-icon">🔬</span>
+      <span class="action-label">Ciencia</span>
+    </button>
+    <button class="action-btn" data-open-modal="disasters" title="Centro de Monitoreo de Desastres y Reparaciones">
+      <span class="action-icon">🌋</span>
+      <span class="action-label">Desastres</span>
+    </button>
+    <button class="action-btn" data-open-modal="settings" title="Guardado y Gestión de Ciudad">
+      <span class="action-icon">💾</span>
+      <span class="action-label">Partida</span>
+    </button>
+    <button id="btn-center-map" class="action-btn action-minor" title="Centrar Ciudad">
+      <span class="action-icon">🎯</span>
+    </button>
+    <button id="btn-toggle-audio" class="action-btn action-minor" title="Silenciar / Activar Sonido">
+      <span class="action-icon">🔊</span>
+    </button>
+  </aside>
+
+  <!-- PANEL INFERIOR: DOCK DE CONSTRUCCIÓN Y HERRAMIENTAS -->
+  <nav class="construction-dock">
+    <div class="dock-category-tabs">
+      <button class="cat-tab active" data-category="all">Todos</button>
+      <button class="cat-tab" data-category="infra">Vías</button>
+      <button class="cat-tab" data-category="residential">Hogares</button>
+      <button class="cat-tab" data-category="commercial">Comercio</button>
+      <button class="cat-tab" data-category="industrial">Empresas</button>
+      <button class="cat-tab" data-category="service">Servicios</button>
+    </div>
+
+    <div id="construction-toolbar" class="dock-items-scroll">
+      <!-- Generado dinámicamente por UIManager -->
+    </div>
+  </nav>
+
+  <!-- CONTENEDOR DE TOASTS INFORMATIVOS -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- VELO PARA DIÁLOGOS MODALES -->
+  <div id="modal-overlay" class="modal-overlay"></div>
+
+  <!-- MODAL 1: DOS RAMAS DE CRECIMIENTO EMPRESARIAL -->
+  <div id="modal-corporations" class="game-modal">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-emoji">🏭</span>
+        <h2>Ramas Empresariales y Políticas del Alcalde</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div id="modal-corporations-body" class="modal-body">
+      <!-- Rellenado por UIManager -->
+    </div>
+  </div>
+
+  <!-- MODAL 2: ÁRBOL DE INVESTIGACIÓN CIENTÍFICA -->
+  <div id="modal-research" class="game-modal">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-emoji">🔬</span>
+        <h2>Investigación Científica y Tecnológica</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div id="modal-research-body" class="modal-body">
+      <!-- Rellenado por UIManager -->
+    </div>
+  </div>
+
+  <!-- MODAL 3: GESTIÓN DE DESASTRES Y RESILIENCIA -->
+  <div id="modal-disasters" class="game-modal">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-emoji">🌋</span>
+        <h2>Monitoreo de Desastres Naturales</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div id="modal-disasters-body" class="modal-body">
+      <!-- Rellenado por UIManager -->
+    </div>
+  </div>
+
+  <!-- MODAL 4: PARTIDA, AUTOGUARDADO Y AJUSTES -->
+  <div id="modal-settings" class="game-modal">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-emoji">💾</span>
+        <h2>Almacenamiento y Gestión de la Ciudad</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-card">
+        <h3>Autoguardado en Dispositivo</h3>
+        <p>Tu ciudad se autoguarda automáticamente cada 30 segundos en el almacenamiento local (LocalStorage) de tu navegador para que nunca pierdas tu progreso al recargar la página.</p>
+        <div class="settings-actions">
+          <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora Mismo</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Copia de Seguridad y Transferencia</h3>
+        <p>Exporta tu ciudad como archivo JSON para llevarla a otro dispositivo o compártela con otros alcaldes.</p>
+        <div class="settings-actions">
+          <button id="btn-export-city" class="btn-secondary">📁 Exportar Ciudad (.json)</button>
+          <label class="btn-secondary file-label">
+            📥 Importar Ciudad (.json)
+            <input type="file" id="file-import-city" accept=".json" style="display: none;">
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-card danger-card">
+        <h3>Zona de Demolición Total</h3>
+        <p>Reiniciar la ciudad borrará todos los datos guardados e iniciará un nuevo mandato con la partida por defecto.</p>
+        <button id="btn-reset-city" class="btn-danger">⚠️ Nueva Ciudad (Reiniciar Mandato)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts del Juego como Módulos ES6 -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
