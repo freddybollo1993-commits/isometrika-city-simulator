@@ -23,6 +23,7 @@ export class Simulation {
     this.happiness = CONFIG.SIMULATION.INITIAL_HAPPINESS;
     this.security = CONFIG.SIMULATION.INITIAL_SECURITY;
     this.pollution = CONFIG.SIMULATION.INITIAL_POLLUTION;
+    this.education = 20; // Nivel educativo base de la población (0 - 100%)
 
     // Métricas laborales
     this.workforce = 0;
@@ -65,6 +66,7 @@ export class Simulation {
     let policeCoveredCount = 0;
     let parkHappinessBonus = 0;
     let hospitalCoverage = 0;
+    let educationBoost = 0;
     let damagedCount = 0;
 
     const policeStations = [];
@@ -96,6 +98,8 @@ export class Simulation {
           parkHappinessBonus += def.happinessBoost || 5;
         } else if (def.id === 'service_hospital') {
           hospitalCoverage += def.healthBoost || 10;
+        } else if (def.id === 'service_school') {
+          educationBoost += (def.educationBoost || 22) * healthFactor;
         } else if (def.id === 'service_research') {
           researchGen += (def.researchPoints || 10) * healthFactor;
         }
@@ -106,6 +110,9 @@ export class Simulation {
     this.commercialJobs = commercialJobs;
     this.tileCount = totalTilesWithBuildings;
 
+    // Actualizar nivel educativo de la ciudadanía
+    this.education = Math.min(100, Math.max(10, Math.round(15 + educationBoost + (researchGen * 0.25))));
+
     // 2. ACTUALIZACIÓN DE LAS DOS RAMAS CORPORATIVAS
     const corpResult = this.corporations.update(
       this.grid,
@@ -114,6 +121,7 @@ export class Simulation {
         population: this.population,
         commercialJobs: this.commercialJobs,
         pollution: this.pollution,
+        education: this.education,
       },
       this.policies,
       this.research
@@ -153,6 +161,9 @@ export class Simulation {
     // Efecto de parques y áreas verdes
     calcHappiness += Math.min(25, parkHappinessBonus * 0.5);
 
+    // Efecto de educación y cultura cívica
+    calcHappiness += Math.min(15, this.education * 0.16);
+
     // Efecto de daños estructurales por catástrofes
     if (damagedCount > 0) {
       calcHappiness -= Math.min(30, damagedCount * 2.5);
@@ -181,6 +192,8 @@ export class Simulation {
     calcSecurity += policeStations.length * 20;
     // Desempleo genera criminalidad
     calcSecurity -= this.unemploymentRate * 0.5;
+    // Educación cívica reduce el crimen
+    calcSecurity += Math.min(16, this.education * 0.18);
     // Hospitales y estabilidad
     calcSecurity += Math.min(15, hospitalCoverage * 0.4);
 
@@ -287,6 +300,7 @@ export class Simulation {
       happiness: this.happiness,
       security: this.security,
       pollution: this.pollution,
+      education: this.education,
       policies: this.policies,
     };
   }
@@ -299,6 +313,7 @@ export class Simulation {
     this.happiness = data.happiness !== undefined ? data.happiness : 75;
     this.security = data.security !== undefined ? data.security : 80;
     this.pollution = data.pollution !== undefined ? data.pollution : 5;
+    this.education = data.education !== undefined ? data.education : 20;
     if (data.policies) {
       this.policies = { ...this.policies, ...data.policies };
     }

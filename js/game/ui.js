@@ -32,6 +32,7 @@ export class UIManager {
     this.elPollution = document.getElementById('stat-pollution');
     this.elPollutionBar = document.getElementById('bar-pollution');
     this.elResearch = document.getElementById('stat-research');
+    this.elEducation = document.getElementById('stat-education');
     this.elDay = document.getElementById('stat-day');
 
     // Alertas y toasts
@@ -197,6 +198,7 @@ export class UIManager {
       else if (b.id === 'service_fire') icon = '🚒';
       else if (b.id === 'service_hospital') icon = '🏥';
       else if (b.id === 'service_park') icon = '🌳';
+      else if (b.id === 'service_school') icon = '🏫';
       else if (b.id === 'service_research') icon = '📡';
       else if (b.id === 'service_barrier') icon = '🛡️';
 
@@ -289,8 +291,9 @@ export class UIManager {
       sim.pollution < 20 ? 'good' : sim.pollution < 45 ? 'warn' : 'danger'
     }`;
 
-    // Ciencia y Días
+    // Ciencia, Educación y Días
     this.elResearch.textContent = `${Math.floor(research.points)} RP`;
+    if (this.elEducation) this.elEducation.textContent = `${sim.education || 20}%`;
     this.elDay.textContent = `Día ${sim.day}`;
 
     // Banner de advertencia de desastre

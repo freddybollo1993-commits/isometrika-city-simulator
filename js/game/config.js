@@ -240,6 +240,21 @@ export const CONFIG = {
       colorRight: '#475569',
       height: 16,
     },
+    service_school: {
+      id: 'service_school',
+      name: 'Academia y Centro Técnico',
+      category: 'service',
+      cost: 480,
+      upkeep: 26,
+      radius: 8,
+      educationBoost: 22,
+      description: 'Eleva la formación ciudadana, requerida para el auge de empresas calificadas y reducción de criminalidad.',
+      colorTop: '#fed7aa',
+      colorLeft: '#fb923c',
+      colorRight: '#ea580c',
+      academy: true,
+      height: 36,
+    },
   },
 
   // ÁRBOL DE INVESTIGACIÓN CIENTÍFICA

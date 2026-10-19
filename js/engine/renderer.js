@@ -121,6 +121,10 @@ export class Renderer {
   /**
    * Resalta la celda seleccionada por el ratón o dedo
    */
+  /**
+   * Resalta la celda seleccionada por el ratón o dedo con vista previa fantasma
+   * y radio de cobertura para evitar errores táctiles en móvil (Anti Fat-Finger)
+   */
   renderHoverHighlight(ctx, x, y, tile, selectedTool, grid) {
     const tw = CONFIG.CANVAS.TILE_WIDTH;
     const th = CONFIG.CANVAS.TILE_HEIGHT;
@@ -133,6 +137,31 @@ export class Renderer {
       } else {
         const check = grid.canBuild(tile.gx, tile.gy, selectedTool);
         fill = check.allowed ? CONFIG.PALETTE.selectionValid : CONFIG.PALETTE.selectionInvalid;
+
+        const def = CONFIG.BUILDINGS[selectedTool];
+        // Radio de cobertura proyectado en el terreno
+        if (def && def.radius) {
+          ctx.beginPath();
+          const radW = def.radius * (tw / 2);
+          const radH = def.radius * (th / 2);
+          ctx.ellipse(x, y + th / 2, radW, radH, 0, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 5]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Previsualización Fantasma (Ghost Placement) en móvil
+        if (check.allowed && !tile.building) {
+          ctx.save();
+          ctx.globalAlpha = 0.52;
+          const mockTile = { building: { id: selectedTool }, damage: 0 };
+          this.renderBuilding(ctx, x, y, mockTile);
+          ctx.restore();
+        }
       }
     }
 
@@ -196,7 +225,7 @@ export class Renderer {
 
     // DETALLES ARQUITECTÓNICOS SEGÚN TIPO:
 
-    // Residencia Suburbana: Techo a dos aguas
+    // Residencia Suburbana: Techo a dos aguas y chimenea pequeña
     if (def.id === 'residential_low') {
       ctx.beginPath();
       ctx.moveTo(x, topY - 10);
@@ -206,9 +235,13 @@ export class Renderer {
       ctx.closePath();
       ctx.fillStyle = def.roofColor;
       ctx.fill();
+
+      // Chimenea rústica
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + 6, topY - 12, 3, 7);
     }
 
-    // Torre Residencial: Ventanales y terraza verde
+    // Torre Residencial: Ventanales, paneles solares y terraza verde
     if (def.id === 'residential_high') {
       // Ventanas
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
@@ -216,8 +249,19 @@ export class Renderer {
         ctx.fillRect(x - 14, y - floor, 4, 6);
         ctx.fillRect(x + 10, y - floor, 4, 6);
       }
-      // Jardín en la azotea
-      IsoMath.drawIsoDiamond(ctx, x, topY + 4, tw * 0.5, th * 0.5, '#4ade80');
+      // Jardín y paneles solares en la azotea
+      IsoMath.drawIsoDiamond(ctx, x - 4, topY + 4, tw * 0.35, th * 0.35, '#4ade80');
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(x + 4, topY + 2, 7, 5);
+    }
+
+    // Comercio: Toldo a rayas y climatizador en azotea
+    if (def.id === 'commercial') {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(x - 10, y - 8, 20, 3);
+      // Condensador de aire acondicionado
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(x + 3, topY + 3, 6, 4);
     }
 
     // Rama 1: Fábrica Masiva: Chimenea industrial con humo
@@ -263,11 +307,40 @@ export class Renderer {
       ctx.fill();
     }
 
-    // Hospital: Cruz médica roja
+    // Hospital: Cruz médica roja y helipuerto
     if (def.cross) {
       ctx.fillStyle = '#ef4444';
       ctx.fillRect(x - 2, topY + th / 2 - 6, 4, 12);
       ctx.fillRect(x - 6, topY + th / 2 - 2, 12, 4);
+
+      // Helipuerto
+      ctx.beginPath();
+      ctx.arc(x, topY + th / 2, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // Academia / Escuela: Torre de reloj y campanario
+    if (def.academy) {
+      ctx.fillStyle = '#c2410c';
+      ctx.fillRect(x - 5, topY - 14, 10, 14);
+      // Esfera del reloj
+      ctx.beginPath();
+      ctx.arc(x, topY - 7, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#7c2d12';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Remate piramidal
+      ctx.beginPath();
+      ctx.moveTo(x - 6, topY - 14);
+      ctx.lineTo(x, topY - 21);
+      ctx.lineTo(x + 6, topY - 14);
+      ctx.closePath();
+      ctx.fillStyle = '#9a3412';
+      ctx.fill();
     }
 
     // Comisaría: Sirena de emergencia parpadeante

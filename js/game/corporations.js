@@ -132,7 +132,14 @@ export class CorporationsManager {
       techCleanMultiplier += 0.50;
     }
 
-    const actualTechEmployed = Math.round(techCapacity * techEmployedRatio);
+    // Factor de Educación para Contratación Calificada (Bucle de retroalimentación sistémica)
+    const educationLevel = simState.education !== undefined ? simState.education : 40;
+    const educationMultiplier = 0.55 + (educationLevel / 100) * 0.65; // 0.55x hasta 1.20x
+    techRevMultiplier *= educationMultiplier;
+    techResearchMultiplier *= (0.6 + (educationLevel / 100) * 0.6);
+
+    const techTalentFill = Math.min(1.0, 0.4 + (educationLevel / 100) * 0.75);
+    const actualTechEmployed = Math.round(techCapacity * techEmployedRatio * techTalentFill);
     const finalTechRevenue = Math.round(techBaseRev * techEmployedRatio * techRevMultiplier);
     const finalTechPollutionOffset = Math.round(techBasePollutionOffset * techCleanMultiplier);
     const finalTechResearch = Math.round(techBaseResearch * techResearchMultiplier);
