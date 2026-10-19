@@ -72,6 +72,7 @@ export class Game {
     // Configurar interacciones de entrada
     this.bindCanvasEvents();
     this.bindKeyboardShortcuts();
+    this.bindDpadControls();
 
     // Iniciar bucle de simulación por intervalos
     this.lastTickTime = performance.now();
@@ -133,8 +134,11 @@ export class Game {
 
     // Clic para construir, demoler o inspeccionar
     this.canvas.addEventListener('click', (e) => {
-      // Si el usuario estuvo arrastrando la cámara, no construir
-      if (this.camera.isDragging) return;
+      // Si el usuario estuvo arrastrando o moviendo la cámara, no construir
+      if (this.camera.wasDragging || this.camera.isDragging) {
+        this.camera.wasDragging = false;
+        return;
+      }
 
       this.audio.ensureContext();
       updateHoverTile(e.clientX, e.clientY);
@@ -241,6 +245,28 @@ export class Game {
           this.camera.applyZoomAt(0.85, window.innerWidth / 2, window.innerHeight / 2);
           break;
       }
+    });
+  }
+
+  bindDpadControls() {
+    document.querySelectorAll('[data-pan]').forEach((btn) => {
+      const dir = btn.dataset.pan;
+      const step = 80;
+      btn.addEventListener('click', () => {
+        if (dir === 'up') this.camera.panBy(0, step);
+        else if (dir === 'down') this.camera.panBy(0, -step);
+        else if (dir === 'left') this.camera.panBy(step, 0);
+        else if (dir === 'right') this.camera.panBy(-step, 0);
+        else if (dir === 'center') this.camera.centerOnGrid();
+      });
+    });
+
+    document.querySelectorAll('[data-zoom]').forEach((btn) => {
+      const z = btn.dataset.zoom;
+      btn.addEventListener('click', () => {
+        const factor = z === 'in' ? 1.25 : 0.8;
+        this.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
+      });
     });
   }
 

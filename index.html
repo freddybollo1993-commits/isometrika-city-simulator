@@ -147,6 +147,21 @@
     </button>
   </aside>
 
+  <!-- CONTROL FLOTANTE DE CÁMARA (D-PAD Y ZOOM) -->
+  <div class="camera-dpad" id="camera-dpad" aria-label="Controles de Navegación del Mapa">
+    <button class="dpad-btn dpad-up" data-pan="up" title="Mover Arriba (W / ↑)">▲</button>
+    <div class="dpad-middle">
+      <button class="dpad-btn dpad-left" data-pan="left" title="Mover Izquierda (A / ←)">◀</button>
+      <button class="dpad-btn dpad-center" data-pan="center" title="Centrar Ciudad">🎯</button>
+      <button class="dpad-btn dpad-right" data-pan="right" title="Mover Derecha (D / →)">▶</button>
+    </div>
+    <button class="dpad-btn dpad-down" data-pan="down" title="Mover Abajo (S / ↓)">▼</button>
+    <div class="dpad-zoom-group">
+      <button class="dpad-zoom-btn" data-zoom="in" title="Acercar Zoom (+)">＋</button>
+      <button class="dpad-zoom-btn" data-zoom="out" title="Alejar Zoom (-)">－</button>
+    </div>
+  </div>
+
   <!-- PANEL INFERIOR: DOCK DE CONSTRUCCIÓN Y HERRAMIENTAS -->
   <nav class="construction-dock">
     <div class="dock-category-tabs">
