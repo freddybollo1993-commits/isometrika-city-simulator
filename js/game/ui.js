@@ -51,6 +51,7 @@ export class UIManager {
     this.bindEvents();
     this.buildCarousel();
     this.updateFullscreenUI();
+    this.updateAudioButtonsState();
   }
 
   cacheDOMElements() {
@@ -60,6 +61,12 @@ export class UIManager {
     this.elStatsDropdownMenu = document.getElementById('stats-dropdown-menu');
     this.elStatsChevron = document.getElementById('stats-chevron');
     this.elBtnCloseStats = document.getElementById('btn-close-stats');
+
+    // Menú desplegable maestro de gestión y sistema
+    this.elGameMenuContainer = document.getElementById('game-menu-container');
+    this.elBtnGameMenu = document.getElementById('btn-game-menu');
+    this.elGameMenuDropdown = document.getElementById('game-menu-dropdown');
+    this.elBtnCloseGameMenu = document.getElementById('btn-close-game-menu');
 
     // Resumen at-a-glance en el botón desplegable (Dual: Estado y Empresa)
     this.elQuickFunds = document.getElementById('quick-funds');
@@ -180,15 +187,39 @@ export class UIManager {
       });
     }
 
-    // Cierra el menú desplegable al hacer clic fuera
+    // 1b. Menú desplegable maestro de gestión y sistema
+    if (this.elBtnGameMenu) {
+      this.elBtnGameMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleGameMenu();
+      });
+    }
+
+    if (this.elBtnCloseGameMenu) {
+      this.elBtnCloseGameMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeGameMenu();
+      });
+    }
+
+    // Cierra los menús desplegables al hacer clic fuera
     window.addEventListener('click', (e) => {
       if (
         this.elStatsDropdownMenu &&
         !this.elStatsDropdownMenu.classList.contains('hidden') &&
         !this.elStatsDropdownMenu.contains(e.target) &&
-        !this.elBtnStatsDropdown.contains(e.target)
+        (!this.elBtnStatsDropdown || !this.elBtnStatsDropdown.contains(e.target))
       ) {
         this.closeStatsDropdown();
+      }
+
+      if (
+        this.elGameMenuDropdown &&
+        !this.elGameMenuDropdown.classList.contains('hidden') &&
+        !this.elGameMenuDropdown.contains(e.target) &&
+        (!this.elBtnGameMenu || !this.elBtnGameMenu.contains(e.target))
+      ) {
+        this.closeGameMenu();
       }
     });
 
@@ -359,18 +390,69 @@ export class UIManager {
       });
     }
 
-    // 10. Botón de audio
+    // 10. Botones de acción del Menú Desplegable Maestro
+    const menuBtnCenter = document.getElementById('menu-btn-center');
+    if (menuBtnCenter) {
+      menuBtnCenter.addEventListener('click', () => {
+        this.game.camera.centerOnGrid();
+        this.closeGameMenu();
+        if (this.game.audio) this.game.audio.playClick();
+        this.showToast('🎯 Cámara centrada en la ciudad');
+      });
+    }
+
+    const menuBtnAudio = document.getElementById('menu-btn-audio');
+    if (menuBtnAudio) {
+      menuBtnAudio.addEventListener('click', () => {
+        const isMuted = this.game.audio.toggleMute();
+        this.updateAudioButtonsState();
+        if (!isMuted && this.game.audio) this.game.audio.playClick();
+        this.showToast(isMuted ? '🔇 Audio silenciado' : '🔊 Audio activado');
+      });
+    }
+
+    const menuBtnFs = document.getElementById('menu-btn-fullscreen');
+    if (menuBtnFs) {
+      menuBtnFs.addEventListener('click', () => {
+        this.toggleFullscreen();
+        this.closeGameMenu();
+      });
+    }
+
+    const menuBtnSave = document.getElementById('menu-btn-save');
+    if (menuBtnSave) {
+      menuBtnSave.addEventListener('click', () => {
+        this.game.storage.save();
+        this.showSaveIndicator();
+        if (this.game.audio) this.game.audio.playBuild();
+        this.showToast('💾 Partida guardada con éxito');
+        this.closeGameMenu();
+      });
+    }
+
+    const menuBtnReturn = document.getElementById('menu-btn-title-return');
+    if (menuBtnReturn) {
+      menuBtnReturn.addEventListener('click', () => {
+        this.game.storage.save();
+        this.closeModals();
+        this.closeGameMenu();
+        this.showTitleScreen();
+        this.showToast('💾 Partida guardada. Menú Principal');
+      });
+    }
+
+    // Compatibilidad con botones legacy si existieran
     const btnMute = document.getElementById('btn-toggle-audio');
     if (btnMute) {
       btnMute.addEventListener('click', () => {
         const isMuted = this.game.audio.toggleMute();
         btnMute.textContent = isMuted ? '🔇' : '🔊';
         btnMute.title = isMuted ? 'Activar sonido' : 'Silenciar sonido';
+        this.updateAudioButtonsState();
         this.showToast(isMuted ? '🔇 Audio silenciado' : '🔊 Audio activado');
       });
     }
 
-    // 11. Centrar mapa y zoom
     const btnCenter = document.getElementById('btn-center-map');
     if (btnCenter) {
       btnCenter.addEventListener('click', () => {
@@ -383,6 +465,7 @@ export class UIManager {
       btn.addEventListener('click', () => {
         const factor = z === 'in' ? 1.2 : 0.82;
         this.game.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
+        if (this.game.audio) this.game.audio.playClick();
       });
     });
 
@@ -481,6 +564,7 @@ export class UIManager {
 
   openStatsDropdown() {
     if (!this.elStatsDropdownMenu) return;
+    this.closeGameMenu();
     this.closeInspector();
     this.hideCarousel();
     this.elStatsDropdownMenu.classList.remove('hidden');
@@ -495,6 +579,59 @@ export class UIManager {
     this.elStatsDropdownMenu.classList.add('hidden');
     if (this.elStatsDropdownContainer) {
       this.elStatsDropdownContainer.classList.remove('open');
+    }
+  }
+
+  // =========================================================================
+  // GESTIÓN DEL MENÚ DESPLEGABLE MAESTRO (GESTIÓN, CÁMARA Y SISTEMA)
+  // =========================================================================
+
+  toggleGameMenu() {
+    if (!this.elGameMenuDropdown) return;
+    const isHidden = this.elGameMenuDropdown.classList.contains('hidden');
+    if (isHidden) {
+      this.openGameMenu();
+    } else {
+      this.closeGameMenu();
+    }
+  }
+
+  openGameMenu() {
+    if (!this.elGameMenuDropdown) return;
+    this.closeStatsDropdown();
+    this.closeInspector();
+    this.hideCarousel();
+    this.updateAudioButtonsState();
+    this.elGameMenuDropdown.classList.remove('hidden');
+    if (this.elGameMenuContainer) {
+      this.elGameMenuContainer.classList.add('open');
+    }
+    if (this.game.audio) this.game.audio.playClick();
+  }
+
+  closeGameMenu() {
+    if (!this.elGameMenuDropdown) return;
+    this.elGameMenuDropdown.classList.add('hidden');
+    if (this.elGameMenuContainer) {
+      this.elGameMenuContainer.classList.remove('open');
+    }
+  }
+
+  updateAudioButtonsState() {
+    const isMuted = this.game.audio ? this.game.audio.muted : false;
+    const icon = isMuted ? '🔇' : '🔊';
+    const text = isMuted ? 'Audio: OFF' : 'Audio: ON';
+
+    const menuAudioIcon = document.getElementById('menu-audio-icon');
+    const menuAudioText = document.getElementById('menu-audio-text');
+    if (menuAudioIcon) menuAudioIcon.textContent = icon;
+    if (menuAudioText) menuAudioText.textContent = text;
+
+    if (this.elSettingsAudioLabel) {
+      this.elSettingsAudioLabel.textContent = `${icon} Sonido: ${isMuted ? 'Silenciado' : 'Activado'}`;
+    }
+    if (this.elBtnSettingsAudio) {
+      this.elBtnSettingsAudio.className = isMuted ? 'btn-secondary' : 'btn-primary';
     }
   }
 
@@ -1135,6 +1272,7 @@ export class UIManager {
   }
 
   updateSettingsModalState() {
+    this.updateAudioButtonsState();
     if (this.elSettingsAudioLabel && this.game.audio) {
       const isMuted = this.game.audio.muted;
       this.elSettingsAudioLabel.textContent = isMuted ? '🔇 Sonido: Silenciado' : '🔊 Sonido: Activado';
@@ -1151,6 +1289,7 @@ export class UIManager {
   openModal(modalId) {
     this.closeModals();
     this.closeStatsDropdown();
+    this.closeGameMenu();
     const modal = document.getElementById(`modal-${modalId}`);
     if (modal) {
       modal.classList.add('active');
@@ -1169,6 +1308,7 @@ export class UIManager {
     this.elModals.forEach((m) => m.classList.remove('active'));
     if (this.elModalOverlay) this.elModalOverlay.classList.remove('active');
     this.activeModal = null;
+    this.closeGameMenu();
   }
 
   updateCorporationsModalContent() {
