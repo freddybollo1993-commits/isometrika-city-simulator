@@ -131,6 +131,21 @@ export class UIManager {
     // Modales y menús
     this.elModals = document.querySelectorAll('.game-modal');
     this.elModalOverlay = document.getElementById('modal-overlay');
+
+    // Pantalla de Inicio (Title Screen)
+    this.elTitleScreen = document.getElementById('title-screen');
+    this.elBtnMenuContinue = document.getElementById('btn-menu-continue');
+    this.elTitleContinueDetails = document.getElementById('title-continue-details');
+    this.elBtnMenuNew = document.getElementById('btn-menu-new');
+    this.elBtnMenuSettings = document.getElementById('btn-menu-settings');
+    this.elBtnTitleFullscreen = document.getElementById('btn-title-fullscreen');
+
+    // Elementos del Modal de Configuración
+    this.elBtnSettingsAudio = document.getElementById('btn-settings-toggle-audio');
+    this.elSettingsAudioLabel = document.getElementById('settings-audio-label');
+    this.elBtnSettingsFullscreen = document.getElementById('btn-settings-fullscreen');
+    this.elBtnSettingsCenterCamera = document.getElementById('btn-settings-center-camera');
+    this.elBtnReturnToTitle = document.getElementById('btn-return-to-title');
   }
 
   bindEvents() {
@@ -352,6 +367,84 @@ export class UIManager {
         this.game.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
       });
     });
+
+    // 12. Interacciones de la Pantalla de Inicio (Title Screen)
+    if (this.elBtnMenuContinue) {
+      this.elBtnMenuContinue.addEventListener('click', () => {
+        if (!this.game.storage.hasSavedGame()) return;
+        this.hideTitleScreen();
+        if (this.game.audio) this.game.audio.playChime();
+        this.showToast('🏙️ ¡Bienvenido de nuevo, Alcalde!');
+      });
+    }
+
+    if (this.elBtnMenuNew) {
+      this.elBtnMenuNew.addEventListener('click', () => {
+        if (this.game.storage.hasSavedGame()) {
+          if (confirm('¿Deseas fundar una nueva ciudad? La partida guardada anterior será reemplazada.')) {
+            this.game.resetGame();
+            this.hideTitleScreen();
+            if (this.game.audio) this.game.audio.playBuild();
+            this.showToast('🌱 ¡Nueva ciudad fundada con éxito!');
+          }
+        } else {
+          this.game.resetGame();
+          this.hideTitleScreen();
+          if (this.game.audio) this.game.audio.playBuild();
+          this.showToast('🌱 ¡Nueva ciudad fundada con éxito!');
+        }
+      });
+    }
+
+    if (this.elBtnMenuSettings) {
+      this.elBtnMenuSettings.addEventListener('click', () => {
+        this.openModal('settings');
+        this.updateSettingsModalState();
+      });
+    }
+
+    if (this.elBtnTitleFullscreen) {
+      this.elBtnTitleFullscreen.addEventListener('click', () => {
+        this.toggleFullscreen();
+      });
+    }
+
+    // 13. Opciones del Modal de Configuración
+    if (this.elBtnSettingsAudio) {
+      this.elBtnSettingsAudio.addEventListener('click', () => {
+        const isMuted = this.game.audio.toggleMute();
+        this.updateSettingsModalState();
+        if (btnMute) {
+          btnMute.textContent = isMuted ? '🔇' : '🔊';
+          btnMute.title = isMuted ? 'Activar sonido' : 'Silenciar sonido';
+        }
+        if (!isMuted && this.game.audio) this.game.audio.playClick();
+        this.showToast(isMuted ? '🔇 Audio silenciado' : '🔊 Audio activado');
+      });
+    }
+
+    if (this.elBtnSettingsFullscreen) {
+      this.elBtnSettingsFullscreen.addEventListener('click', () => {
+        this.toggleFullscreen();
+      });
+    }
+
+    if (this.elBtnSettingsCenterCamera) {
+      this.elBtnSettingsCenterCamera.addEventListener('click', () => {
+        this.game.camera.centerOnGrid();
+        this.closeModals();
+        this.showToast('🎯 Cámara centrada en el municipio');
+      });
+    }
+
+    if (this.elBtnReturnToTitle) {
+      this.elBtnReturnToTitle.addEventListener('click', () => {
+        this.game.storage.save();
+        this.closeModals();
+        this.showTitleScreen();
+        this.showToast('💾 Partida guardada. Bienvenido al Menú Principal');
+      });
+    }
   }
 
   // =========================================================================
@@ -846,6 +939,61 @@ export class UIManager {
   }
 
   // =========================================================================
+  // GESTIÓN DE LA PANTALLA DE INICIO (TITLE SCREEN) Y CONFIGURACIÓN
+  // =========================================================================
+
+  showTitleScreen() {
+    if (!this.elTitleScreen) return;
+    this.updateTitleScreen();
+    this.elTitleScreen.classList.remove('hidden');
+    this.closeModals();
+    this.game.simulation.isPaused = true;
+  }
+
+  hideTitleScreen() {
+    if (!this.elTitleScreen) return;
+    this.elTitleScreen.classList.add('hidden');
+    this.game.simulation.isPaused = false;
+  }
+
+  updateTitleScreen() {
+    if (!this.elBtnMenuContinue || !this.elTitleContinueDetails) return;
+    const hasSave = this.game.storage.hasSavedGame();
+    const summary = this.game.storage.getSaveSummary();
+
+    if (hasSave && summary) {
+      this.elBtnMenuContinue.classList.remove('disabled');
+      const timeAgo = summary.timestamp ? this._formatTimeAgo(summary.timestamp) : '';
+      const timeStr = timeAgo ? ` • ${timeAgo}` : '';
+      this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • $${summary.funds.toLocaleString()}${timeStr}`;
+    } else {
+      this.elBtnMenuContinue.classList.add('disabled');
+      this.elTitleContinueDetails.textContent = 'Sin partida guardada previa';
+    }
+  }
+
+  _formatTimeAgo(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+    const diffMs = Date.now() - date.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Guardado hace un momento';
+    if (mins < 60) return `Guardado hace ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Guardado hace ${hours} h`;
+    return `Guardado el ${date.toLocaleDateString()}`;
+  }
+
+  updateSettingsModalState() {
+    if (this.elSettingsAudioLabel && this.game.audio) {
+      const isMuted = this.game.audio.muted;
+      this.elSettingsAudioLabel.textContent = isMuted ? '🔇 Sonido: Silenciado' : '🔊 Sonido: Activado';
+      if (this.elBtnSettingsAudio) {
+        this.elBtnSettingsAudio.className = isMuted ? 'btn-secondary' : 'btn-primary';
+      }
+    }
+  }
+
+  // =========================================================================
   // MODALES DEL ALCALDE
   // =========================================================================
 
@@ -862,6 +1010,7 @@ export class UIManager {
       if (modalId === 'research') this.updateResearchModalContent();
       if (modalId === 'disasters') this.updateDisasterModalContent();
       if (modalId === 'economy') this.updateEconomyModalContent(true);
+      if (modalId === 'settings') this.updateSettingsModalState();
     }
   }
 

@@ -1383,3 +1383,251 @@ html, body {
   color: #94a3b8;
 }
 
+/* ==========================================================================
+   PANTALLA DE INICIO (TITLE SCREEN)
+   ========================================================================== */
+.title-screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.8) 0%, rgba(10, 15, 29, 0.96) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s ease;
+}
+
+.title-screen-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.title-card-container {
+  width: 92%;
+  max-width: 460px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 24px;
+  padding: 24px 26px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 45px rgba(56, 189, 248, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Marca y Logo */
+.title-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.title-logo-badge {
+  width: 68px;
+  height: 68px;
+  margin-bottom: 2px;
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.45));
+  animation: floatLogo 4s ease-in-out infinite;
+}
+
+.title-logo-svg {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes floatLogo {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.title-app-name {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #38bdf8 65%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+}
+
+.title-app-tagline {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+/* Menú Principal */
+.title-menu-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title-btn {
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.title-btn:hover {
+  background: rgba(51, 65, 85, 0.85);
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.title-btn:active {
+  transform: scale(0.98);
+}
+
+.title-btn-continue {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: linear-gradient(90deg, rgba(30, 41, 59, 0.8) 0%, rgba(20, 83, 45, 0.25) 100%);
+}
+
+.title-btn-continue:hover {
+  border-color: rgba(74, 222, 128, 0.7);
+  box-shadow: 0 8px 24px rgba(74, 222, 128, 0.2);
+}
+
+.title-btn-continue.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.title-btn-new {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.title-btn-options {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.title-btn-icon {
+  font-size: 1.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.5);
+  flex-shrink: 0;
+}
+
+.title-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.t-btn-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.t-btn-subtitle {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.title-btn-arrow {
+  font-size: 0.95rem;
+  color: #38bdf8;
+  opacity: 0.7;
+  transition: transform 0.2s, opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.title-btn:hover .title-btn-arrow {
+  transform: translateX(3px);
+  opacity: 1;
+}
+
+/* Pie de Título */
+.title-footer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.title-badge-version {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.title-fs-btn {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.title-fs-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+@media (max-height: 480px) {
+  .title-card-container {
+    padding: 14px 18px;
+    gap: 10px;
+  }
+  .title-logo-badge {
+    width: 48px;
+    height: 48px;
+  }
+  .title-app-name {
+    font-size: 1.5rem;
+  }
+  .title-btn {
+    min-height: 46px;
+    padding: 6px 12px;
+  }
+}
+

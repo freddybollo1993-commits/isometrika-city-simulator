@@ -109,7 +109,40 @@ export class StorageManager {
    * Verifica si existe una partida guardada previamente
    */
   hasSavedGame() {
+    if (typeof localStorage === 'undefined') return false;
     return Boolean(localStorage.getItem(STORAGE_KEY));
+  }
+
+  /**
+   * Obtiene un resumen estructurado de la partida guardada (para la pantalla de inicio)
+   */
+  getSaveSummary() {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.grid || !data.simulation) return null;
+
+      const day = data.simulation.day || 1;
+      const population = data.simulation.population || 0;
+      const funds = (data.economy && typeof data.economy.funds === 'number')
+        ? data.economy.funds
+        : (data.simulation.funds || CONFIG.SIMULATION.INITIAL_FUNDS);
+      const happiness = data.simulation.happiness || 75;
+      const timestamp = data.timestamp ? new Date(data.timestamp) : null;
+
+      return {
+        day,
+        population,
+        funds,
+        happiness,
+        timestamp,
+      };
+    } catch (e) {
+      console.warn('Error al leer resumen de partida:', e);
+      return null;
+    }
   }
 
   /**

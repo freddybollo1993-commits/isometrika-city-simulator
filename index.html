@@ -383,34 +383,138 @@
     <div id="modal-economy-body" class="modal-body"></div>
   </div>
 
-  <div id="modal-settings" class="game-modal">
+  <div id="modal-settings" class="game-modal modal-glassmorphic">
     <div class="modal-header">
       <div class="modal-title-wrap">
-        <span class="modal-emoji">💾</span>
-        <h2>Almacenamiento y Opciones</h2>
+        <span class="modal-emoji">⚙️</span>
+        <h2>Configuración y Opciones</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body modal-body-glass">
+      <!-- 1. Audio y Efectos Sonoros -->
       <div class="settings-card">
-        <h3>Autoguardado en Dispositivo</h3>
-        <p>Tu ciudad se autoguarda cada 30s en LocalStorage.</p>
-        <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora</button>
-      </div>
-      <div class="settings-card">
-        <h3>Copia de Seguridad</h3>
+        <h3>🔊 Audio y Efectos Sonoros</h3>
+        <p>Efectos sonoros procedimentales generados por síntesis acústica.</p>
         <div class="settings-actions">
-          <button id="btn-export-city" class="btn-secondary">📁 Exportar Ciudad (.json)</button>
+          <button id="btn-settings-toggle-audio" class="btn-primary">
+            <span id="settings-audio-label">🔊 Sonido: Activado</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Visualización y Pantalla -->
+      <div class="settings-card">
+        <h3>📱 Pantalla y Orientación</h3>
+        <p>Modo horizontal inmersivo optimizado para móviles y escritorio.</p>
+        <div class="settings-actions">
+          <button id="btn-settings-fullscreen" class="btn-secondary">⛶ Alternar Pantalla Completa</button>
+          <button id="btn-settings-center-camera" class="btn-secondary">🎯 Centrar Vista en Ciudad</button>
+        </div>
+      </div>
+
+      <!-- 3. Almacenamiento Local -->
+      <div class="settings-card">
+        <h3>💾 Autoguardado en Dispositivo</h3>
+        <p>Tu progreso se conserva de forma segura en este navegador (LocalStorage).</p>
+        <div class="settings-actions">
+          <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora</button>
+        </div>
+      </div>
+
+      <!-- 4. Copia de Seguridad -->
+      <div class="settings-card">
+        <h3>📁 Copias de Seguridad (.json)</h3>
+        <p>Exporta o importa partidas completas en archivos JSON externos.</p>
+        <div class="settings-actions">
+          <button id="btn-export-city" class="btn-secondary">📤 Exportar Ciudad (.json)</button>
           <label class="btn-secondary file-label">
             📥 Importar Ciudad (.json)
             <input type="file" id="file-import-city" accept=".json" style="display: none;">
           </label>
         </div>
       </div>
+
+      <!-- 5. Navegación Principal -->
+      <div class="settings-card">
+        <h3>🏠 Menú Principal</h3>
+        <p>Guarda el progreso de la ciudad y regresa a la pantalla de bienvenida.</p>
+        <div class="settings-actions">
+          <button id="btn-return-to-title" class="btn-secondary" style="border-color: rgba(56, 189, 248, 0.4);">
+            <span>🏠 Volver a la Pantalla de Inicio</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 6. Zona de Demolición / Reinicio -->
       <div class="settings-card danger-card">
-        <h3>Zona de Demolición</h3>
+        <h3>⚠️ Reiniciar Ciudad</h3>
+        <p>Borra la partida actual y funda un asentamiento nuevo desde cero.</p>
         <button id="btn-reset-city" class="btn-danger">⚠️ Nueva Ciudad (Reiniciar)</button>
       </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA DE INICIO (TITLE SCREEN) -->
+  <div id="title-screen" class="title-screen-overlay">
+    <div class="title-card-container">
+      
+      <!-- Logo y Encabezado de Título -->
+      <div class="title-brand">
+        <div class="title-logo-badge">
+          <svg class="title-logo-svg" viewBox="0 0 100 100" fill="none">
+            <polygon points="50,15 85,35 50,55 15,35" fill="#38bdf8" />
+            <polygon points="15,35 50,55 50,90 15,70" fill="#0284c7" />
+            <polygon points="50,55 85,35 85,70 50,90" fill="#0369a1" />
+            <polygon points="50,22 75,37 50,51 25,37" fill="#bae6fd" opacity="0.6" />
+          </svg>
+        </div>
+        <h1 class="title-app-name">ISOMETRICA</h1>
+        <p class="title-app-tagline">Simulador Urbano Minimalista 2.5D</p>
+      </div>
+
+      <!-- Menú Principal de Acciones -->
+      <div class="title-menu-actions">
+        <!-- Botón Continuar Partida -->
+        <button id="btn-menu-continue" class="title-btn title-btn-continue" title="Continuar tu ciudad guardada">
+          <div class="title-btn-icon">▶️</div>
+          <div class="title-btn-text">
+            <span class="t-btn-title">Continuar Partida</span>
+            <span id="title-continue-details" class="t-btn-subtitle">Cargando partida...</span>
+          </div>
+          <div class="title-btn-arrow">➔</div>
+        </button>
+
+        <!-- Botón Nueva Partida -->
+        <button id="btn-menu-new" class="title-btn title-btn-new" title="Fundar una nueva metrópolis">
+          <div class="title-btn-icon">🏗️</div>
+          <div class="title-btn-text">
+            <span class="t-btn-title">Nueva Partida</span>
+            <span class="t-btn-subtitle">Fundar una nueva ciudad desde cero</span>
+          </div>
+          <div class="title-btn-arrow">➔</div>
+        </button>
+
+        <!-- Botón Configuración y Opciones -->
+        <button id="btn-menu-settings" class="title-btn title-btn-options" title="Ajustes de audio, guardado y pantalla">
+          <div class="title-btn-icon">⚙️</div>
+          <div class="title-btn-text">
+            <span class="t-btn-title">Configuración</span>
+            <span class="t-btn-subtitle">Audio, visualización y copias de seguridad</span>
+          </div>
+          <div class="title-btn-arrow">➔</div>
+        </button>
+      </div>
+
+      <!-- Pie de Pantalla de Inicio -->
+      <div class="title-footer">
+        <span class="title-badge-version">v2.0 • Edición Alcalde</span>
+        <button id="btn-title-fullscreen" class="title-fs-btn" title="Alternar Pantalla Completa">
+          <span class="title-fs-icon">⛶</span>
+          <span>Pantalla Completa</span>
+        </button>
+      </div>
+
     </div>
   </div>
 

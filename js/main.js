@@ -64,10 +64,7 @@ export class Game {
 
     // Cargar partida previa o fundar ciudad inicial
     if (this.storage.hasSavedGame()) {
-      const loaded = this.storage.load();
-      if (loaded) {
-        this.ui.showToast('📂 Ciudad previa restaurada');
-      }
+      this.storage.load();
     } else {
       this.setupInitialTown();
     }
@@ -84,6 +81,10 @@ export class Game {
     this.setupCameraFilter();
     this.bindCanvasEvents();
     this.bindKeyboardShortcuts();
+
+    // Actualizar HUD inicial y mostrar pantalla de inicio
+    this.ui.updateHUD(this.simulation, this.research);
+    this.ui.showTitleScreen();
 
     // Iniciar bucle de simulación por intervalos
     this.lastTickTime = performance.now();
@@ -568,6 +569,10 @@ export class Game {
 
     this.setupInitialTown();
     this.camera.centerOnGrid();
+    if (this.ui) {
+      this.ui.updateHUD(this.simulation, this.research);
+      this.ui.updateTitleScreen();
+    }
   }
 
   loop() {
