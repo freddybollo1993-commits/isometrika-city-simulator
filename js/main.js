@@ -105,10 +105,8 @@ export class Game {
     }
 
     if (speed > 0) {
-      // 1x = TICK_INTERVAL_MS (2500ms), 2x = TICK_INTERVAL_MS / 2 (1250ms)
-      const interval = speed === 1 
-        ? CONFIG.SIMULATION.TICK_INTERVAL_MS 
-        : Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / 2.0);
+      // 1x = 5000ms (5s por día), 2x = 2500ms (2.5s por día)
+      const interval = Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / Math.max(1, speed));
 
       this.simTimer = setInterval(() => {
         this.simulation.tick(this.camera);

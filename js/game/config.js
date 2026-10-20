@@ -16,7 +16,7 @@ export const CONFIG = {
   },
 
   SIMULATION: {
-    TICK_INTERVAL_MS: 2500, // Pacing pausado y estratégico (2.5 segundos por día a 1x)
+    TICK_INTERVAL_MS: 5000, // 5 segundos por día a 1x (pacing pausado, estratégico y contemplativo)
     AUTOSAVE_INTERVAL_MS: 30000,
     INITIAL_FUNDS: 4000, // Tesoro Público del Estado (El Alcalde)
     INITIAL_CORPORATE_FUNDS: 3500, // Capital Privado del Holding (El Empresario)

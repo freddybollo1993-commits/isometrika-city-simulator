@@ -210,7 +210,7 @@ export class UIManager {
 
         document.querySelectorAll('[data-speed]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal (2.5s/d)' : '⏩ Velocidad rápida (1.2s/d)');
+        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal (5s/d)' : '⏩ Velocidad rápida (2.5s/d)');
       });
     });
 
