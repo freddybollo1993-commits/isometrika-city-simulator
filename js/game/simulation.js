@@ -6,17 +6,18 @@
  */
 
 import { CONFIG } from './config.js';
+import { EconomySystem } from './economy.js';
 
 export class Simulation {
-  constructor(grid, corporations, research, disasters, audio) {
+  constructor(grid, corporations, research, disasters, audio, economy = null) {
     this.grid = grid;
     this.corporations = corporations;
     this.research = research;
     this.disasters = disasters;
     this.audio = audio;
+    this.economy = economy || new EconomySystem(CONFIG.SIMULATION.INITIAL_FUNDS);
 
     this.day = 1;
-    this.funds = CONFIG.SIMULATION.INITIAL_FUNDS;
     this.population = CONFIG.SIMULATION.INITIAL_POPULATION;
     this.happiness = CONFIG.SIMULATION.INITIAL_HAPPINESS;
     this.security = CONFIG.SIMULATION.INITIAL_SECURITY;
@@ -51,6 +52,16 @@ export class Simulation {
     this.policies = JSON.parse(JSON.stringify(CONFIG.POLICIES));
     this.speed = 1;
     this.isPaused = false;
+  }
+
+  get funds() {
+    return this.economy ? this.economy.funds : 0;
+  }
+
+  set funds(val) {
+    if (this.economy) {
+      this.economy.funds = val;
+    }
   }
 
   tick(camera) {
@@ -222,7 +233,9 @@ export class Simulation {
 
     // 4. EQUILIBRIO LABORAL
     this.workforce = Math.floor(this.population * CONFIG.SIMULATION.WORKFORCE_RATIO);
-    const totalJobs = commercialJobs + corpResult.totalIndustrialJobs;
+    const taxEmpFactor = this.economy ? this.economy.getCorporateEmploymentFactor() : 1.0;
+    const effectiveIndustrialJobs = Math.round(corpResult.totalIndustrialJobs * taxEmpFactor);
+    const totalJobs = commercialJobs + effectiveIndustrialJobs;
     this.employed = Math.min(this.workforce, totalJobs);
     this.unemployed = Math.max(0, this.workforce - this.employed);
     this.unemploymentRate = this.workforce > 0 ? Math.round((this.unemployed / this.workforce) * 100) : 0;
@@ -232,7 +245,7 @@ export class Simulation {
     const parkMitigation = Math.min(rawPollution * 0.5, parkHappinessBonus * 0.65);
     this.pollution = Math.max(2, Math.round(rawPollution - parkMitigation));
 
-    // 6. DEMOGRAFÍA Y FELICIDAD CON IMPACTO DE ELECTRICIDAD Y AGUA
+    // 6. DEMOGRAFÍA Y FELICIDAD CON IMPACTO DE ELECTRICIDAD, AGUA Y PRESIÓN FISCAL
     let calcHappiness = 55;
 
     // Empleo
@@ -264,6 +277,11 @@ export class Simulation {
     calcHappiness -= Math.min(35, this.pollution * 0.45);
     calcHappiness += Math.min(28, parkHappinessBonus * 0.5);
     calcHappiness += Math.min(15, this.education * 0.16);
+
+    // Curva de Laffer: Modulador fiscal sobre la satisfacción de los habitantes
+    if (this.economy) {
+      calcHappiness += this.economy.getLafferHappinessModifier();
+    }
 
     if (damagedCount > 0) {
       calcHappiness -= Math.min(30, damagedCount * 2.5);
@@ -298,11 +316,7 @@ export class Simulation {
 
     this.security = Math.max(5, Math.min(100, Math.round(calcSecurity)));
 
-    // 8. FINANZAS Y CAJA
-    const actualResTax = (this.population / Math.max(1, this.housingCapacity)) * baseResTax;
-    const finalCommTax = baseCommTax * commercialMultiplier;
-    const grossIncome = Math.round(actualResTax + finalCommTax + corpResult.totalIndustrialRevenue + hydroRevenue);
-
+    // 8. FINANZAS, FISCALIDAD Y COMERCIO GLOBAL
     let policyExpenses = 0;
     Object.values(this.policies).forEach((p) => {
       if (p.active) {
@@ -311,11 +325,42 @@ export class Simulation {
       }
     });
 
-    const grossExpenses = Math.round(baseUpkeep + policyExpenses);
-    this.lastIncome = grossIncome;
-    this.lastExpenses = grossExpenses;
-    this.netCashflow = grossIncome - grossExpenses;
-    this.funds += this.netCashflow;
+    if (this.economy) {
+      const ecoResult = this.economy.calculateTick({
+        day: this.day,
+        population: this.population,
+        housingCapacity: this.housingCapacity,
+        baseResTaxRate: 1.8,
+        commercialJobs: this.commercialJobs,
+        baseCommRevPerJob: 3.5,
+        corpMassRevenue: corpResult.totalIndustrialRevenue * 0.55,
+        corpTechRevenue: corpResult.totalIndustrialRevenue * 0.45,
+        foodSupply: this.foodCapacity,
+        powerSupply: this.powerSupply,
+        powerDemand: this.powerDemand,
+        waterSupply: this.waterSupply,
+        waterDemand: this.waterDemand,
+        baseUpkeep: baseUpkeep,
+        policyExpenses: policyExpenses,
+        hydroRevenue: hydroRevenue,
+        commercialMultiplier: commercialMultiplier,
+        powerRatio: this.powerRatio,
+        waterRatio: this.waterRatio,
+      });
+
+      this.lastIncome = ecoResult.totalIncome;
+      this.lastExpenses = ecoResult.totalExpenses;
+      this.netCashflow = ecoResult.netCashflow;
+    } else {
+      const actualResTax = (this.population / Math.max(1, this.housingCapacity)) * baseResTax;
+      const finalCommTax = baseCommTax * commercialMultiplier;
+      const grossIncome = Math.round(actualResTax + finalCommTax + corpResult.totalIndustrialRevenue + hydroRevenue);
+      const grossExpenses = Math.round(baseUpkeep + policyExpenses);
+      this.lastIncome = grossIncome;
+      this.lastExpenses = grossExpenses;
+      this.netCashflow = grossIncome - grossExpenses;
+      this.funds += this.netCashflow;
+    }
 
     // Fondo de contingencia
     if (this.policies.emergencyReliefFund && this.policies.emergencyReliefFund.active) {
@@ -384,5 +429,34 @@ export class Simulation {
       return this.policies[policyId].active;
     }
     return false;
+  }
+
+  serialize() {
+    return {
+      day: this.day,
+      funds: this.funds,
+      population: this.population,
+      happiness: this.happiness,
+      security: this.security,
+      pollution: this.pollution,
+      education: this.education,
+      policies: JSON.parse(JSON.stringify(this.policies)),
+      speed: this.speed,
+      isPaused: this.isPaused,
+    };
+  }
+
+  deserialize(data) {
+    if (!data) return;
+    if (typeof data.day === 'number') this.day = data.day;
+    if (typeof data.funds === 'number') this.funds = data.funds;
+    if (typeof data.population === 'number') this.population = data.population;
+    if (typeof data.happiness === 'number') this.happiness = data.happiness;
+    if (typeof data.security === 'number') this.security = data.security;
+    if (typeof data.pollution === 'number') this.pollution = data.pollution;
+    if (typeof data.education === 'number') this.education = data.education;
+    if (data.policies) {
+      this.policies = { ...this.policies, ...data.policies };
+    }
   }
 }

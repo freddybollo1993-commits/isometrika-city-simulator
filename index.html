@@ -60,10 +60,10 @@
 
           <div class="stats-grid-dashboard">
             <!-- 1. Finanzas y Tesorería -->
-            <div class="stat-card-box">
+            <div class="stat-card-box" data-open-modal="economy" style="cursor: pointer;" title="Toca para abrir Finanzas e Impuestos">
               <div class="stat-card-head">
                 <span class="sc-icon">💰</span>
-                <h4>Tesorería Municipal</h4>
+                <h4>Tesorería Municipal ↗</h4>
               </div>
               <div class="stat-big-val" id="stat-funds">$3,800</div>
               <div class="stat-sub-row">
@@ -214,8 +214,12 @@
   </header>
 
   <!-- 2. CONTROLES DISCRETOS EN BORDES EXTREMOS -->
-  <!-- Borde Izquierdo: Acceso a Decretos, Ciencia y Partida -->
+  <!-- Borde Izquierdo: Acceso a Decretos, Ciencia, Finanzas y Partida -->
   <aside class="edge-actions-left">
+    <button class="edge-btn" data-open-modal="economy" title="Finanzas Municipales y Mercado Global">
+      <span class="e-icon">💰</span>
+      <span class="e-text">Finanzas</span>
+    </button>
     <button class="edge-btn" data-open-modal="corporations" title="Empresas y Decretos">
       <span class="e-icon">🏭</span>
       <span class="e-text">Empresas</span>
@@ -366,6 +370,17 @@
       <button class="modal-close">&times;</button>
     </div>
     <div id="modal-disasters-body" class="modal-body"></div>
+  </div>
+
+  <div id="modal-economy" class="game-modal modal-glassmorphic">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-emoji">💰</span>
+        <h2>Finanzas Municipales y Mercado Global</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div id="modal-economy-body" class="modal-body"></div>
   </div>
 
   <div id="modal-settings" class="game-modal">

@@ -9,10 +9,11 @@ import { CONFIG } from './config.js';
 const STORAGE_KEY = 'isometrika_city_save_v1';
 
 export class StorageManager {
-  constructor(simulation, grid, research) {
+  constructor(simulation, grid, research, economy = null) {
     this.simulation = simulation;
     this.grid = grid;
     this.research = research;
+    this.economy = economy;
 
     this.lastSavedAt = null;
     this.timer = null;
@@ -36,12 +37,18 @@ export class StorageManager {
    */
   save() {
     try {
+      const ecoInstance = this.economy || (this.simulation && this.simulation.economy);
+      const economyData = ecoInstance && typeof ecoInstance.serialize === 'function' ? ecoInstance.serialize() : null;
+
       const saveData = {
-        version: 1,
+        version: 2,
         timestamp: Date.now(),
-        simulation: this.simulation.serialize(),
+        simulation: this.simulation && typeof this.simulation.serialize === 'function'
+          ? this.simulation.serialize()
+          : {},
         grid: this.grid.serialize(),
         research: this.research.serialize(),
+        economy: economyData,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
@@ -58,7 +65,7 @@ export class StorageManager {
   }
 
   /**
-   * Carga y restaura la partida desde LocalStorage
+   * Carga y restaura la partida desde LocalStorage con compatibilidad hacia atrás
    */
   load() {
     try {
@@ -68,11 +75,29 @@ export class StorageManager {
       const data = JSON.parse(raw);
       if (!data || !data.grid || !data.simulation) return false;
 
-      this.simulation.deserialize(data.simulation);
+      if (this.simulation && typeof this.simulation.deserialize === 'function') {
+        this.simulation.deserialize(data.simulation);
+      }
       this.grid.deserialize(data.grid);
       this.research.deserialize(data.research);
-      this.lastSavedAt = new Date(data.timestamp);
 
+      // Restaurar estado económico y sincronizar tesorería
+      const ecoInstance = this.economy || (this.simulation && this.simulation.economy);
+      if (ecoInstance) {
+        if (data.economy) {
+          ecoInstance.deserialize(data.economy);
+        } else if (data.simulation && typeof data.simulation.funds === 'number') {
+          // Retrocompatibilidad con partidas v1
+          ecoInstance.funds = data.simulation.funds;
+        }
+
+        // Sincronizar simulation.funds si existe
+        if (this.simulation) {
+          this.simulation.funds = ecoInstance.funds;
+        }
+      }
+
+      this.lastSavedAt = new Date(data.timestamp);
       return true;
     } catch (e) {
       console.error('Error al cargar partida desde LocalStorage:', e);

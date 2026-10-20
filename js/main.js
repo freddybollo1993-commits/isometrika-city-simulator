@@ -55,7 +55,7 @@ export class Game {
       this.audio
     );
 
-    this.storage = new StorageManager(this.simulation, this.grid, this.research);
+    this.storage = new StorageManager(this.simulation, this.grid, this.research, this.simulation.economy);
     this.ui = new UIManager(this);
 
     // Dimensionar pantalla
@@ -564,6 +564,7 @@ export class Game {
     this.storage.simulation = this.simulation;
     this.storage.grid = this.grid;
     this.storage.research = this.research;
+    this.storage.economy = this.simulation.economy;
 
     this.setupInitialTown();
     this.camera.centerOnGrid();

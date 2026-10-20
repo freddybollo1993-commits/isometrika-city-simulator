@@ -785,6 +785,11 @@ export class UIManager {
 
     // Banner de advertencia de desastre o servicios
     this.updateDisasterBanner(sim.disasters, sim);
+
+    // Actualización en tiempo real del panel financiero si está activo
+    if (this.activeModal === 'economy') {
+      this.updateEconomyModalContent(false);
+    }
   }
 
   updateDisasterBanner(disasters, sim) {
@@ -856,6 +861,7 @@ export class UIManager {
       if (modalId === 'corporations') this.updateCorporationsModalContent();
       if (modalId === 'research') this.updateResearchModalContent();
       if (modalId === 'disasters') this.updateDisasterModalContent();
+      if (modalId === 'economy') this.updateEconomyModalContent(true);
     }
   }
 
@@ -1100,6 +1106,377 @@ export class UIManager {
         }
       });
     }
+  }
+
+  // =========================================================================
+  // PANEL FINANCIERO Y COMERCIAL (city-builder-economy)
+  // =========================================================================
+
+  updateEconomyModalContent(isInitial = false) {
+    const sim = this.game.simulation;
+    const eco = sim.economy;
+    if (!eco) return;
+
+    const elContent = document.getElementById('modal-economy-body');
+    if (!elContent) return;
+
+    const breakdown = eco.breakdown || {};
+    const inc = breakdown.income || {};
+    const exp = breakdown.expenses || {};
+    const trade = eco.trade || { exports: {}, imports: {}, tradeBalance: 0 };
+    const prices = eco.marketPrices || {};
+    const trends = eco.priceTrends || {};
+
+    const cf = breakdown.netCashflow || 0;
+    const sign = cf >= 0 ? '+' : '';
+    const cashflowColor = cf >= 0 ? 'text-positive' : 'text-danger';
+    const tb = trade.tradeBalance || 0;
+    const tradeSign = tb >= 0 ? '+' : '';
+    const tradeColor = tb >= 0 ? 'text-positive' : 'text-danger';
+
+    const resPct = Math.round(eco.taxRates.residential * 100);
+    const commPct = Math.round(eco.taxRates.commercial * 100);
+    const indPct = Math.round(eco.taxRates.industrial * 100);
+    const avgTax = Math.round((resPct + commPct + indPct) / 3);
+
+    const isRendered = elContent.querySelector('#eco-slider-res');
+
+    if (!isRendered || isInitial) {
+      elContent.innerHTML = `
+        <!-- 1. KPIs Superiores -->
+        <div class="eco-kpi-grid">
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Tesorería</span>
+            <span id="eco-kpi-funds" class="kpi-val">$${eco.funds.toLocaleString()}</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Flujo Diario</span>
+            <span id="eco-kpi-cashflow" class="kpi-val ${cashflowColor}">${sign}$${cf}/d</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Balanza Exterior</span>
+            <span id="eco-kpi-trade" class="kpi-val ${tradeColor}">${tradeSign}$${tb}/d</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Presión Fiscal</span>
+            <span id="eco-kpi-tax-avg" class="kpi-val text-tech">${avgTax}%</span>
+          </div>
+        </div>
+
+        <!-- 2. Política Fiscal (Curva de Laffer) -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>🏛️ Tasas Impositivas Municipales</span>
+            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Curva de Laffer: 1% a 25%</small>
+          </div>
+
+          <div class="eco-tax-slider-group">
+            <!-- Impuesto Residencial -->
+            <div class="eco-tax-item">
+              <div class="eco-tax-header">
+                <span class="eco-tax-name">🏠 Impuesto Residencial</span>
+                <span id="eco-badge-res" class="eco-tax-pct-badge">${resPct}%</span>
+              </div>
+              <div class="eco-slider-wrap">
+                <input type="range" id="eco-slider-res" class="eco-slider" min="1" max="25" step="1" value="${resPct}">
+              </div>
+              <div class="eco-laffer-feedback">
+                <span id="eco-feedback-res" class="${resPct <= 6 ? 'text-positive' : resPct <= 11 ? 'text-warn' : 'text-danger'}">
+                  ${this._getLafferText('res', resPct)}
+                </span>
+                <small style="color: #64748b;">Base: 9%</small>
+              </div>
+            </div>
+
+            <!-- Impuesto Comercial -->
+            <div class="eco-tax-item">
+              <div class="eco-tax-header">
+                <span class="eco-tax-name">🏪 Impuesto Comercial</span>
+                <span id="eco-badge-comm" class="eco-tax-pct-badge">${commPct}%</span>
+              </div>
+              <div class="eco-slider-wrap">
+                <input type="range" id="eco-slider-comm" class="eco-slider" min="1" max="25" step="1" value="${commPct}">
+              </div>
+              <div class="eco-laffer-feedback">
+                <span id="eco-feedback-comm" class="${commPct <= 8 ? 'text-positive' : commPct <= 12 ? 'text-warn' : 'text-danger'}">
+                  ${this._getLafferText('comm', commPct)}
+                </span>
+                <small style="color: #64748b;">Base: 10%</small>
+              </div>
+            </div>
+
+            <!-- Impuesto Industrial / Corporativo -->
+            <div class="eco-tax-item">
+              <div class="eco-tax-header">
+                <span class="eco-tax-name">🏭 Impuesto Industrial y Corporativo</span>
+                <span id="eco-badge-ind" class="eco-tax-pct-badge">${indPct}%</span>
+              </div>
+              <div class="eco-slider-wrap">
+                <input type="range" id="eco-slider-ind" class="eco-slider" min="1" max="25" step="1" value="${indPct}">
+              </div>
+              <div class="eco-laffer-feedback">
+                <span id="eco-feedback-ind" class="${indPct <= 8 ? 'text-positive' : indPct <= 12 ? 'text-warn' : 'text-danger'}">
+                  ${this._getLafferText('ind', indPct)}
+                </span>
+                <small style="color: #64748b;">Base: 10%</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Desglose Presupuestario: Ingresos vs. Gastos -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>📊 Balance Presupuestario Diario</span>
+            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Tick Diario</small>
+          </div>
+
+          <div class="eco-ledger-grid">
+            <!-- Columna Ingresos -->
+            <div class="eco-ledger-col income">
+              <div class="eco-col-header">
+                <span>🟢 Ingresos Municipales</span>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🏠 Impuesto Residencial:</span>
+                <strong id="eco-inc-res" class="text-positive">+$${inc.residentialTax || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🏪 Impuesto Comercial:</span>
+                <strong id="eco-inc-comm" class="text-positive">+$${inc.commercialTax || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🏭 Impuesto Industrial:</span>
+                <strong id="eco-inc-ind" class="text-positive">+$${inc.industrialTax || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🚢 Exportaciones Globales:</span>
+                <strong id="eco-inc-exp" class="text-positive">+$${inc.exportsRevenue || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>⚡ Red & Excedentes Hídricos:</span>
+                <strong id="eco-inc-util" class="text-positive">+$${inc.utilityDividends || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-total">
+                <span>Total Ingresos:</span>
+                <strong id="eco-inc-total" class="text-positive">+$${inc.total || 0}/d</strong>
+              </div>
+            </div>
+
+            <!-- Columna Gastos -->
+            <div class="eco-ledger-col expenses">
+              <div class="eco-col-header">
+                <span>🔴 Gastos Públicos</span>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🛣️ Mantenimiento Vial:</span>
+                <strong id="eco-exp-road" class="text-danger">-$${exp.roadUpkeep || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🏢 Mantenimiento Estructuras:</span>
+                <strong id="eco-exp-build" class="text-danger">-$${exp.buildingUpkeep || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🏛️ Decretos y Políticas:</span>
+                <strong id="eco-exp-policy" class="text-danger">-$${exp.policyCosts || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>🚢 Importaciones Emergencia:</span>
+                <strong id="eco-exp-imp" class="text-danger">-$${exp.importsCost || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-row">
+                <span>⚙️ Servicios y Redes:</span>
+                <strong id="eco-exp-serv" class="text-danger">-$${exp.serviceUpkeep || 0}/d</strong>
+              </div>
+              <div class="eco-ledger-total">
+                <span>Total Gastos:</span>
+                <strong id="eco-exp-total" class="text-danger">-$${exp.total || 0}/d</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Cotizaciones del Mercado Internacional -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>🌐 Mercado Internacional de Commodities</span>
+            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Precios en Tiempo Real</small>
+          </div>
+
+          <div class="eco-market-grid">
+            <!-- Trigo y Granos -->
+            <div class="eco-market-card">
+              <div class="eco-market-head">
+                <span>🌾 Alimentos</span>
+                <span id="eco-trend-food" class="${this._getTrendClass(trends.food)}">${this._getTrendIcon(trends.food)}</span>
+              </div>
+              <div id="eco-price-food" class="eco-market-price">$${prices.food || 1.6} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
+              <div id="eco-vol-food" class="eco-market-sub">Exp: ${trade.exports.food ? trade.exports.food.volume : 0} u (+$${trade.exports.food ? trade.exports.food.revenue : 0}/d)</div>
+            </div>
+
+            <!-- Bienes Masivos -->
+            <div class="eco-market-card">
+              <div class="eco-market-head">
+                <span>📦 Manufactura</span>
+                <span id="eco-trend-mass" class="${this._getTrendClass(trends.massGoods)}">${this._getTrendIcon(trends.massGoods)}</span>
+              </div>
+              <div id="eco-price-mass" class="eco-market-price">$${prices.massGoods || 3.4} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
+              <div id="eco-vol-mass" class="eco-market-sub">Exp: ${trade.exports.massGoods ? trade.exports.massGoods.volume : 0} u (+$${trade.exports.massGoods ? trade.exports.massGoods.revenue : 0}/d)</div>
+            </div>
+
+            <!-- Alta Tecnología -->
+            <div class="eco-market-card">
+              <div class="eco-market-head">
+                <span>🔬 Alta Tecnología</span>
+                <span id="eco-trend-tech" class="${this._getTrendClass(trends.techGoods)}">${this._getTrendIcon(trends.techGoods)}</span>
+              </div>
+              <div id="eco-price-tech" class="eco-market-price">$${prices.techGoods || 7.8} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
+              <div id="eco-vol-tech" class="eco-market-sub">Exp: ${trade.exports.techGoods ? trade.exports.techGoods.volume : 0} u (+$${trade.exports.techGoods ? trade.exports.techGoods.revenue : 0}/d)</div>
+            </div>
+
+            <!-- Energía MW -->
+            <div class="eco-market-card">
+              <div class="eco-market-head">
+                <span>⚡ Red Eléctrica</span>
+                <span id="eco-trend-energy" class="${this._getTrendClass(trends.energy)}">${this._getTrendIcon(trends.energy)}</span>
+              </div>
+              <div id="eco-price-energy" class="eco-market-price">$${prices.energy || 0.85} <small style="font-size: 0.65rem; color: #94a3b8;">/MW</small></div>
+              <div id="eco-vol-energy" class="eco-market-sub">Exp: ${trade.exports.energy ? trade.exports.energy.volume : 0} MW (+$${trade.exports.energy ? trade.exports.energy.revenue : 0}/d)</div>
+            </div>
+
+            <!-- Agua Potable kL -->
+            <div class="eco-market-card">
+              <div class="eco-market-head">
+                <span>💧 Agua Potable</span>
+                <span id="eco-trend-water" class="${this._getTrendClass(trends.water)}">${this._getTrendIcon(trends.water)}</span>
+              </div>
+              <div id="eco-price-water" class="eco-market-price">$${prices.water || 0.65} <small style="font-size: 0.65rem; color: #94a3b8;">/kL</small></div>
+              <div id="eco-vol-water" class="eco-market-sub">Exp: ${trade.exports.water ? trade.exports.water.volume : 0} kL (+$${trade.exports.water ? trade.exports.water.revenue : 0}/d)</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Vincular interactividad de los sliders
+      this._bindTaxSlider('res', 'residential');
+      this._bindTaxSlider('comm', 'commercial');
+      this._bindTaxSlider('ind', 'industrial');
+
+    } else {
+      // Actualización en caliente durante ticks para no interrumpir el arrastre de los sliders
+      const elKpiFunds = elContent.querySelector('#eco-kpi-funds');
+      if (elKpiFunds) elKpiFunds.textContent = `$${eco.funds.toLocaleString()}`;
+
+      const elKpiCashflow = elContent.querySelector('#eco-kpi-cashflow');
+      if (elKpiCashflow) {
+        elKpiCashflow.textContent = `${sign}$${cf}/d`;
+        elKpiCashflow.className = `kpi-val ${cashflowColor}`;
+      }
+
+      const elKpiTrade = elContent.querySelector('#eco-kpi-trade');
+      if (elKpiTrade) {
+        elKpiTrade.textContent = `${tradeSign}$${tb}/d`;
+        elKpiTrade.className = `kpi-val ${tradeColor}`;
+      }
+
+      const elKpiTaxAvg = elContent.querySelector('#eco-kpi-tax-avg');
+      if (elKpiTaxAvg) elKpiTaxAvg.textContent = `${avgTax}%`;
+
+      const setTxt = (id, val) => {
+        const el = elContent.querySelector(id);
+        if (el) el.textContent = val;
+      };
+
+      // Ingresos
+      setTxt('#eco-inc-res', `+$${inc.residentialTax || 0}/d`);
+      setTxt('#eco-inc-comm', `+$${inc.commercialTax || 0}/d`);
+      setTxt('#eco-inc-ind', `+$${inc.industrialTax || 0}/d`);
+      setTxt('#eco-inc-exp', `+$${inc.exportsRevenue || 0}/d`);
+      setTxt('#eco-inc-util', `+$${inc.utilityDividends || 0}/d`);
+      setTxt('#eco-inc-total', `+$${inc.total || 0}/d`);
+
+      // Gastos
+      setTxt('#eco-exp-road', `-$${exp.roadUpkeep || 0}/d`);
+      setTxt('#eco-exp-build', `-$${exp.buildingUpkeep || 0}/d`);
+      setTxt('#eco-exp-policy', `-$${exp.policyCosts || 0}/d`);
+      setTxt('#eco-exp-imp', `-$${exp.importsCost || 0}/d`);
+      setTxt('#eco-exp-serv', `-$${exp.serviceUpkeep || 0}/d`);
+      setTxt('#eco-exp-total', `-$${exp.total || 0}/d`);
+
+      // Mercado
+      setTxt('#eco-price-food', `$${prices.food || 1.6} /u`);
+      setTxt('#eco-vol-food', `Exp: ${trade.exports.food ? trade.exports.food.volume : 0} u (+$${trade.exports.food ? trade.exports.food.revenue : 0}/d)`);
+
+      setTxt('#eco-price-mass', `$${prices.massGoods || 3.4} /u`);
+      setTxt('#eco-vol-mass', `Exp: ${trade.exports.massGoods ? trade.exports.massGoods.volume : 0} u (+$${trade.exports.massGoods ? trade.exports.massGoods.revenue : 0}/d)`);
+
+      setTxt('#eco-price-tech', `$${prices.techGoods || 7.8} /u`);
+      setTxt('#eco-vol-tech', `Exp: ${trade.exports.techGoods ? trade.exports.techGoods.volume : 0} u (+$${trade.exports.techGoods ? trade.exports.techGoods.revenue : 0}/d)`);
+
+      setTxt('#eco-price-energy', `$${prices.energy || 0.85} /MW`);
+      setTxt('#eco-vol-energy', `Exp: ${trade.exports.energy ? trade.exports.energy.volume : 0} MW (+$${trade.exports.energy ? trade.exports.energy.revenue : 0}/d)`);
+
+      setTxt('#eco-price-water', `$${prices.water || 0.65} /kL`);
+      setTxt('#eco-vol-water', `Exp: ${trade.exports.water ? trade.exports.water.volume : 0} kL (+$${trade.exports.water ? trade.exports.water.revenue : 0}/d)`);
+    }
+  }
+
+  _getLafferText(type, pct) {
+    if (type === 'res') {
+      if (pct <= 6) return '✨ Alivio tributario (+Felicidad ciudadana)';
+      if (pct <= 11) return '⚖️ Zona fiscal neutral equilibrada';
+      return '⚠️ Exceso tributario (-Felicidad y fuga demográfica)';
+    } else {
+      if (pct <= 8) return '💼 Fomento corporativo (+15% contratación)';
+      if (pct <= 12) return '⚖️ Zona fiscal corporativa equilibrada';
+      return '📉 Presión alta (Empresas congelan vacantes laborales)';
+    }
+  }
+
+  _getTrendIcon(trend) {
+    return trend > 0 ? '▲' : trend < 0 ? '▼' : '▬';
+  }
+
+  _getTrendClass(trend) {
+    return trend > 0 ? 'eco-trend-up' : trend < 0 ? 'eco-trend-down' : 'eco-trend-stable';
+  }
+
+  _bindTaxSlider(prefix, taxKey) {
+    const slider = document.getElementById(`eco-slider-${prefix}`);
+    const badge = document.getElementById(`eco-badge-${prefix}`);
+    const feedback = document.getElementById(`eco-feedback-${prefix}`);
+    if (!slider || !badge) return;
+
+    slider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      badge.textContent = `${val}%`;
+      const eco = this.game.simulation.economy;
+      if (eco) {
+        eco.setTaxRate(taxKey, val / 100);
+      }
+
+      if (feedback) {
+        feedback.textContent = this._getLafferText(prefix, val);
+        feedback.className = (prefix === 'res' ? val <= 6 : val <= 8)
+          ? 'text-positive'
+          : (prefix === 'res' ? val <= 11 : val <= 12)
+          ? 'text-warn'
+          : 'text-danger';
+      }
+
+      if (eco) {
+        const resPct = Math.round(eco.taxRates.residential * 100);
+        const commPct = Math.round(eco.taxRates.commercial * 100);
+        const indPct = Math.round(eco.taxRates.industrial * 100);
+        const avgTax = Math.round((resPct + commPct + indPct) / 3);
+        const elKpiTaxAvg = document.getElementById('eco-kpi-tax-avg');
+        if (elKpiTaxAvg) elKpiTaxAvg.textContent = `${avgTax}%`;
+      }
+    });
+
+    slider.addEventListener('change', () => {
+      if (this.game.audio) this.game.audio.playClick();
+    });
   }
 
   showSaveIndicator() {

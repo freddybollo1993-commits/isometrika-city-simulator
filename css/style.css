@@ -1087,3 +1087,299 @@ html, body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   PANEL FINANCIERO Y COMERCIAL GLASSMORPHISM (city-builder-economy)
+   ========================================================================== */
+.modal-glassmorphic {
+  background: rgba(15, 23, 42, 0.94) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  border-bottom: none !important;
+  color: #f8fafc !important;
+  box-shadow: 0 -15px 45px rgba(0, 0, 0, 0.7) !important;
+}
+
+.modal-glassmorphic .modal-header {
+  background: rgba(30, 41, 59, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+.modal-glassmorphic .modal-header h2 {
+  color: #f8fafc;
+}
+
+.modal-glassmorphic .modal-close {
+  color: #94a3b8;
+}
+
+.modal-glassmorphic .modal-close:hover {
+  color: #ffffff;
+}
+
+/* Tarjetas KPI Superiores */
+.eco-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.eco-kpi-card {
+  background: rgba(30, 41, 59, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eco-kpi-card .kpi-label {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eco-kpi-card .kpi-val {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+/* Sección de Control de Impuestos (Curva de Laffer) */
+.eco-section {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eco-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #38bdf8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.eco-tax-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eco-tax-item {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eco-tax-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eco-tax-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eco-tax-pct-badge {
+  font-size: 0.85rem;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.eco-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eco-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(71, 85, 105, 0.6);
+  outline: none;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.eco-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  cursor: pointer;
+  transition: transform 0.1s, background 0.2s;
+}
+
+.eco-slider::-webkit-slider-thumb:hover,
+.eco-slider::-webkit-slider-thumb:active {
+  transform: scale(1.2);
+  background: #0284c7;
+}
+
+.eco-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  cursor: pointer;
+}
+
+.eco-laffer-feedback {
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Desglose Presupuestario: Ingresos vs Gastos */
+.eco-ledger-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 580px) {
+  .eco-ledger-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.eco-ledger-col {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eco-ledger-col.income {
+  border-left: 3px solid var(--color-success);
+}
+
+.eco-ledger-col.expenses {
+  border-left: 3px solid var(--color-danger);
+}
+
+.eco-col-header {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.eco-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.eco-ledger-row:last-child {
+  border-bottom: none;
+}
+
+.eco-ledger-row strong {
+  font-weight: 700;
+}
+
+.eco-ledger-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+/* Mercado Global y Balanza Comercial */
+.eco-market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.eco-market-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.eco-market-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.eco-market-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.eco-trend-up { color: #4ade80; font-size: 0.75rem; }
+.eco-trend-down { color: #f87171; font-size: 0.75rem; }
+.eco-trend-stable { color: #94a3b8; font-size: 0.75rem; }
+
+.eco-market-sub {
+  font-size: 0.66rem;
+  color: #94a3b8;
+}
+

@@ -644,4 +644,36 @@ export const CONFIG = {
       costPerTick: 25,
     },
   },
+
+  // SISTEMA MACROECONÓMICO, FISCAL Y COMERCIAL (city-builder-economy)
+  ECONOMY: {
+    INITIAL_TREASURY: 3800,
+    DEFAULT_TAX_RATES: {
+      residential: 0.09, // 9% base
+      commercial: 0.10,  // 10% base
+      industrial: 0.10,  // 10% base
+    },
+    TAX_LIMITS: {
+      MIN: 0.01, // 1%
+      MAX: 0.25, // 25%
+      STEP: 0.01,
+    },
+    // Precios de referencia en el mercado internacional de commodities
+    GLOBAL_MARKET_PRICES: {
+      food: 1.60,       // Por unidad excedente de alimento
+      massGoods: 3.40,  // Por unidad exportada de manufactura pesada
+      techGoods: 7.80,  // Por unidad de exportación tecnológica/patentes
+      energy: 0.85,     // Por MWh exportado a la red regional
+      water: 0.65,      // Por kL exportado al acueducto regional
+    },
+    PRICE_VOLATILITY: 0.06, // Volatilidad del mercado global
+    IMPORT_SURCHARGE: 0.15, // Recargo del 15% en compras de emergencia
+    // Parámetros de la Curva de Laffer
+    LAFFER: {
+      OPTIMAL_MAX_RESIDENTIAL: 0.11, // Máximo antes de penalizar felicidad
+      OPTIMAL_MAX_CORPORATE: 0.12,   // Máximo antes de congelar contrataciones
+      MAX_HAPPINESS_BONUS: 5,        // Bonificación por impuestos ultra-bajos
+      TAX_PENALTY_FACTOR: 160,       // Sensibilidad de la curva
+    },
+  },
 };
