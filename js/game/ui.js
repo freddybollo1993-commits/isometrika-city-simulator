@@ -1,8 +1,8 @@
 /**
  * GESTOR DE INTERFAZ DE USUARIO (UI / HUD) — V2.0 Mobile-First
- * Administra el panel de mando ultra-compacto del alcalde, el carrusel
- * horizontal de construcción con tarjetas, manipulador de colocación fantasma,
- * inspector inferior de edificios con mejoras de nivel y modales municipales.
+ * Administra el panel de mando ultra-compacto del alcalde con botón desplegable centralizado
+ * de estadísticas, botón de pantalla completa, carrusel horizontal de construcción con tarjetas,
+ * manipulador de colocación fantasma, inspector inferior de edificios y modales municipales.
  */
 
 import { CONFIG } from './config.js';
@@ -40,21 +40,45 @@ export class UIManager {
     this.cacheDOMElements();
     this.bindEvents();
     this.buildCarousel();
+    this.updateFullscreenUI();
   }
 
   cacheDOMElements() {
-    // HUD Stats Superior
+    // Botón único desplegable de estadísticas y menú centralizado
+    this.elStatsDropdownContainer = document.querySelector('.stats-dropdown-container');
+    this.elBtnStatsDropdown = document.getElementById('btn-stats-dropdown');
+    this.elStatsDropdownMenu = document.getElementById('stats-dropdown-menu');
+    this.elStatsChevron = document.getElementById('stats-chevron');
+    this.elBtnCloseStats = document.getElementById('btn-close-stats');
+
+    // Resumen at-a-glance en el botón desplegable
+    this.elQuickFunds = document.getElementById('quick-funds');
+    this.elQuickCashflow = document.getElementById('quick-cashflow');
+    this.elQuickPopulation = document.getElementById('quick-population');
+    this.elQuickHappiness = document.getElementById('quick-happiness');
+
+    // Métricas del Panel Desplegable Centralizado
     this.elFunds = document.getElementById('stat-funds');
     this.elCashflow = document.getElementById('stat-cashflow');
     this.elPopulation = document.getElementById('stat-population');
     this.elCapacity = document.getElementById('stat-capacity');
     this.elHappiness = document.getElementById('stat-happiness');
+    this.elBarHappiness = document.getElementById('bar-happiness');
     this.elUnemployment = document.getElementById('stat-unemployment');
+    this.elJobStatus = document.getElementById('stat-job-status');
     this.elSecurity = document.getElementById('stat-security');
+    this.elBarSecurity = document.getElementById('bar-security');
     this.elPollution = document.getElementById('stat-pollution');
+    this.elBarPollution = document.getElementById('bar-pollution');
     this.elResearch = document.getElementById('stat-research');
     this.elEducation = document.getElementById('stat-education');
+    this.elEduStatus = document.getElementById('stat-edu-status');
+    this.elFood = document.getElementById('stat-food');
     this.elDay = document.getElementById('stat-day');
+
+    // Botones de pantalla completa
+    this.elBtnFullscreen = document.getElementById('btn-toggle-fullscreen');
+    this.elBtnEdgeFullscreen = document.getElementById('btn-edge-fullscreen');
 
     // Alertas y Toasts
     this.elAlertBanner = document.getElementById('alert-banner');
@@ -95,7 +119,44 @@ export class UIManager {
   }
 
   bindEvents() {
-    // 1. Control de velocidad de simulación
+    // 1. Botón único desplegable de estadísticas
+    if (this.elBtnStatsDropdown) {
+      this.elBtnStatsDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleStatsDropdown();
+      });
+    }
+
+    if (this.elBtnCloseStats) {
+      this.elBtnCloseStats.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeStatsDropdown();
+      });
+    }
+
+    // Cierra el menú desplegable al hacer clic fuera
+    window.addEventListener('click', (e) => {
+      if (
+        this.elStatsDropdownMenu &&
+        !this.elStatsDropdownMenu.classList.contains('hidden') &&
+        !this.elStatsDropdownMenu.contains(e.target) &&
+        !this.elBtnStatsDropdown.contains(e.target)
+      ) {
+        this.closeStatsDropdown();
+      }
+    });
+
+    // 2. Botón de pantalla completa (Top bar y borde lateral)
+    const onToggleFS = () => this.toggleFullscreen();
+    if (this.elBtnFullscreen) this.elBtnFullscreen.addEventListener('click', onToggleFS);
+    if (this.elBtnEdgeFullscreen) this.elBtnEdgeFullscreen.addEventListener('click', onToggleFS);
+
+    document.addEventListener('fullscreenchange', () => this.updateFullscreenUI());
+    document.addEventListener('webkitfullscreenchange', () => this.updateFullscreenUI());
+    document.addEventListener('mozfullscreenchange', () => this.updateFullscreenUI());
+    document.addEventListener('MSFullscreenChange', () => this.updateFullscreenUI());
+
+    // 3. Control de velocidad de simulación
     document.querySelectorAll('[data-speed]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const spd = parseInt(btn.dataset.speed, 10);
@@ -108,18 +169,17 @@ export class UIManager {
       });
     });
 
-    // 2. Botón FAB para abrir/cerrar el carrusel de construcción
+    // 4. Botón FAB para abrir/cerrar el carrusel de construcción
     if (this.elBtnToggleCarousel) {
       this.elBtnToggleCarousel.addEventListener('click', () => {
         this.toggleCarousel();
       });
     }
 
-    // 3. Pestañas de categorías del carrusel
+    // 5. Pestañas de categorías del carrusel
     this.elCategoryPills.forEach((pill) => {
       pill.addEventListener('click', () => {
         if (pill.dataset.tool === 'demolish') {
-          // Activar herramienta de demolición directa
           this.game.selectDemolishTool();
           this.hideCarousel();
           return;
@@ -131,7 +191,7 @@ export class UIManager {
       });
     });
 
-    // 4. Controles del Manipulador Fantasma
+    // 6. Controles del Manipulador Fantasma
     document.querySelectorAll('[data-nudge]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -160,7 +220,7 @@ export class UIManager {
       });
     }
 
-    // 5. Controles del Inspector de Edificio
+    // 7. Controles del Inspector de Edificio
     if (this.elBtnCloseInspector) {
       this.elBtnCloseInspector.addEventListener('click', () => this.closeInspector());
     }
@@ -183,19 +243,18 @@ export class UIManager {
       });
     }
 
-    // 6. Botones de modales del alcalde (Borde izquierdo)
+    // 8. Botones de modales del alcalde (Borde izquierdo)
     document.querySelectorAll('[data-open-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.openModal(btn.dataset.openModal);
       });
     });
 
-    // Cerrar modales
     document.querySelectorAll('.modal-close, #modal-overlay').forEach((el) => {
       el.addEventListener('click', () => this.closeModals());
     });
 
-    // 7. Botones de acción en modales (Políticas, Reparación, Guardado)
+    // 9. Botones de acción en modales (Políticas, Reparación, Guardado)
     const btnRepair = document.getElementById('btn-repair-all');
     if (btnRepair) {
       btnRepair.addEventListener('click', () => {
@@ -252,7 +311,7 @@ export class UIManager {
       });
     }
 
-    // 8. Botón de audio
+    // 10. Botón de audio
     const btnMute = document.getElementById('btn-toggle-audio');
     if (btnMute) {
       btnMute.addEventListener('click', () => {
@@ -263,7 +322,7 @@ export class UIManager {
       });
     }
 
-    // 9. Centrar mapa y zoom
+    // 11. Centrar mapa y zoom
     const btnCenter = document.getElementById('btn-center-map');
     if (btnCenter) {
       btnCenter.addEventListener('click', () => {
@@ -280,9 +339,110 @@ export class UIManager {
     });
   }
 
-  /**
-   * Genera el carrusel horizontal con tarjetas para todas las estructuras
-   */
+  // =========================================================================
+  // GESTIÓN DEL BOTÓN DESPLEGABLE CENTRALIZADO DE ESTADÍSTICAS
+  // =========================================================================
+
+  toggleStatsDropdown() {
+    if (!this.elStatsDropdownMenu) return;
+    const isHidden = this.elStatsDropdownMenu.classList.contains('hidden');
+    if (isHidden) {
+      this.openStatsDropdown();
+    } else {
+      this.closeStatsDropdown();
+    }
+  }
+
+  openStatsDropdown() {
+    if (!this.elStatsDropdownMenu) return;
+    this.closeInspector();
+    this.hideCarousel();
+    this.elStatsDropdownMenu.classList.remove('hidden');
+    if (this.elStatsDropdownContainer) {
+      this.elStatsDropdownContainer.classList.add('open');
+    }
+    this.game.audio.playClick();
+  }
+
+  closeStatsDropdown() {
+    if (!this.elStatsDropdownMenu) return;
+    this.elStatsDropdownMenu.classList.add('hidden');
+    if (this.elStatsDropdownContainer) {
+      this.elStatsDropdownContainer.classList.remove('open');
+    }
+  }
+
+  // =========================================================================
+  // GESTIÓN DE PANTALLA COMPLETA (FULLSCREEN API)
+  // =========================================================================
+
+  toggleFullscreen() {
+    const doc = document;
+    const docEl = document.documentElement;
+
+    const isFullscreen = !!(
+      doc.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement
+    );
+
+    this.game.audio.playClick();
+
+    if (!isFullscreen) {
+      const req =
+        docEl.requestFullscreen ||
+        docEl.webkitRequestFullscreen ||
+        docEl.mozRequestFullScreen ||
+        docEl.msRequestFullscreen;
+
+      if (req) {
+        req.call(docEl).catch(() => {
+          this.showToast('ℹ️ El navegador bloqueó el modo pantalla completa');
+        });
+      } else {
+        this.showToast('ℹ️ Pantalla completa no soportada en este navegador');
+      }
+    } else {
+      const exit =
+        doc.exitFullscreen ||
+        doc.webkitExitFullscreen ||
+        doc.mozCancelFullScreen ||
+        doc.msExitFullscreen;
+
+      if (exit) {
+        exit.call(doc).catch(() => {});
+      }
+    }
+  }
+
+  updateFullscreenUI() {
+    const doc = document;
+    const isFullscreen = !!(
+      doc.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement
+    );
+
+    const icon = isFullscreen ? '🗗' : '⛶';
+    const title = isFullscreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa (⛶)';
+
+    if (this.elBtnFullscreen) {
+      this.elBtnFullscreen.innerHTML = `<span class="fs-icon">${icon}</span>`;
+      this.elBtnFullscreen.title = title;
+    }
+
+    if (this.elBtnEdgeFullscreen) {
+      this.elBtnEdgeFullscreen.innerHTML = icon;
+      this.elBtnEdgeFullscreen.title = title;
+    }
+  }
+
+  // =========================================================================
+  // CARRUSEL HORIZONTAL DE CONSTRUCCIÓN
+  // =========================================================================
+
   buildCarousel() {
     if (!this.elCarouselTrack) return;
     this.elCarouselTrack.innerHTML = '';
@@ -312,6 +472,7 @@ export class UIManager {
       card.addEventListener('click', () => {
         this.hideCarousel();
         this.closeInspector();
+        this.closeStatsDropdown();
         this.game.startGhostPlacement(b.id);
       });
 
@@ -343,6 +504,7 @@ export class UIManager {
   showCarousel() {
     if (!this.elCarousel) return;
     this.closeInspector();
+    this.closeStatsDropdown();
     this.elCarousel.classList.remove('hidden');
   }
 
@@ -351,9 +513,6 @@ export class UIManager {
     this.elCarousel.classList.add('hidden');
   }
 
-  /**
-   * Muestra el manipulador flotante para colocar la estructura fantasma
-   */
   showGhostManipulator(def) {
     if (!this.elGhostManipulator) return;
     this.elGhostManipulator.classList.remove('hidden');
@@ -367,15 +526,17 @@ export class UIManager {
     this.elGhostManipulator.classList.add('hidden');
   }
 
-  /**
-   * Muestra la hoja inferior (Bottom Sheet) del Inspector de Edificio
-   */
+  // =========================================================================
+  // INSPECTOR DE EDIFICIOS (BOTTOM SHEET)
+  // =========================================================================
+
   showInspector(gx, gy, building) {
     this.currentInspected = { gx, gy, building };
     const def = CONFIG.BUILDINGS[building.id];
     if (!def || !this.elInspectorSheet) return;
 
     this.hideCarousel();
+    this.closeStatsDropdown();
 
     const icon = BUILDING_ICONS[building.id] || '🏢';
     const level = building.level || 1;
@@ -387,7 +548,6 @@ export class UIManager {
     if (this.elInspLevel) this.elInspLevel.textContent = levelBadge;
     if (this.elInspDesc) this.elInspDesc.textContent = def.description;
 
-    // Métricas del nivel actual
     const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
     if (this.elInspStats) {
       let statsHTML = `
@@ -428,12 +588,10 @@ export class UIManager {
       this.elInspStats.innerHTML = statsHTML;
     }
 
-    // Bonificación de nivel máximo
     if (this.elInspMaxBonus) {
       this.elInspMaxBonus.textContent = def.maxBonus || 'Bonificación arquitectónica estándar activa.';
     }
 
-    // Configuración del botón de mejora
     if (this.elBtnUpgrade) {
       if (def.levels && level < 3) {
         const nextLvl = level + 1;
@@ -460,29 +618,70 @@ export class UIManager {
     this.currentInspected = null;
   }
 
-  /**
-   * Actualiza los datos del HUD superior ultra-compacto en cada tick
-   */
+  // =========================================================================
+  // ACTUALIZACIÓN DE ESTADÍSTICAS CENTRALIZADAS EN TIEMPO REAL
+  // =========================================================================
+
   updateHUD(sim, research) {
-    if (this.elFunds) this.elFunds.textContent = `$${sim.funds.toLocaleString()}`;
+    const formattedFunds = `$${sim.funds.toLocaleString()}`;
+    const cfSign = sim.netCashflow >= 0 ? '+' : '';
+    const formattedCashflow = `${cfSign}$${sim.netCashflow}/d`;
+    const cfClass = sim.netCashflow >= 0 ? 'delta-positive' : 'delta-negative';
+
+    // 1. Actualizar resumen at-a-glance en el botón desplegable
+    if (this.elQuickFunds) this.elQuickFunds.textContent = formattedFunds;
+    if (this.elQuickCashflow) {
+      this.elQuickCashflow.textContent = formattedCashflow;
+      this.elQuickCashflow.className = cfClass;
+    }
+    if (this.elQuickPopulation) this.elQuickPopulation.textContent = sim.population.toLocaleString();
+    if (this.elQuickHappiness) this.elQuickHappiness.textContent = `${sim.happiness}%`;
+
+    // 2. Actualizar panel desplegable completo
+    if (this.elFunds) this.elFunds.textContent = formattedFunds;
     if (this.elCashflow) {
-      const cfSign = sim.netCashflow >= 0 ? '+' : '';
-      this.elCashflow.textContent = `${cfSign}$${sim.netCashflow}/d`;
-      this.elCashflow.className = sim.netCashflow >= 0 ? 'delta-positive' : 'delta-negative';
+      this.elCashflow.textContent = formattedCashflow;
+      this.elCashflow.className = cfClass;
     }
 
     if (this.elPopulation) this.elPopulation.textContent = sim.population.toLocaleString();
     if (this.elCapacity) this.elCapacity.textContent = `/ ${sim.housingCapacity}`;
+    if (this.elFood) this.elFood.textContent = `${sim.foodCapacity || 0} hab.`;
+
     if (this.elHappiness) this.elHappiness.textContent = `${sim.happiness}%`;
+    if (this.elBarHappiness) {
+      this.elBarHappiness.style.width = `${sim.happiness}%`;
+      this.elBarHappiness.className = `stat-bar-fill ${sim.happiness > 60 ? 'good' : sim.happiness > 35 ? 'warn' : 'danger'}`;
+    }
+
     if (this.elUnemployment) {
       this.elUnemployment.textContent = `${sim.unemploymentRate}%`;
-      this.elUnemployment.className = sim.unemploymentRate < 10 ? 'text-positive' : sim.unemploymentRate < 25 ? 'text-warn' : 'text-danger';
+      this.elUnemployment.className = `stat-big-val ${sim.unemploymentRate < 10 ? 'text-positive' : sim.unemploymentRate < 25 ? 'text-warn' : 'text-danger'}`;
+    }
+    if (this.elJobStatus) {
+      this.elJobStatus.textContent = sim.unemploymentRate < 8 ? 'Pleno empleo' : sim.unemploymentRate < 20 ? 'Moderado' : 'Crisis de empleo';
+      this.elJobStatus.className = sim.unemploymentRate < 10 ? 'text-positive' : sim.unemploymentRate < 25 ? 'text-warn' : 'text-danger';
     }
 
     if (this.elSecurity) this.elSecurity.textContent = `${sim.security}%`;
+    if (this.elBarSecurity) {
+      this.elBarSecurity.style.width = `${sim.security}%`;
+      this.elBarSecurity.className = `stat-bar-fill ${sim.security > 65 ? 'good' : sim.security > 40 ? 'warn' : 'danger'}`;
+    }
+
     if (this.elPollution) this.elPollution.textContent = `${sim.pollution} ppm`;
+    if (this.elBarPollution) {
+      const pollPct = Math.min(100, Math.round(sim.pollution * 1.5));
+      this.elBarPollution.style.width = `${pollPct}%`;
+      this.elBarPollution.className = `stat-bar-fill ${sim.pollution < 20 ? 'good' : sim.pollution < 45 ? 'warn' : 'danger'}`;
+    }
+
     if (this.elResearch) this.elResearch.textContent = `${Math.floor(research.points)} RP`;
     if (this.elEducation) this.elEducation.textContent = `${sim.education || 20}%`;
+    if (this.elEduStatus) {
+      this.elEduStatus.textContent = (sim.education || 20) >= 50 ? 'Talento calificado' : 'En formación';
+    }
+
     if (this.elDay) this.elDay.textContent = `Día ${sim.day}`;
 
     // Banner de advertencia de desastre
@@ -515,11 +714,13 @@ export class UIManager {
     }
   }
 
-  /**
-   * Abre un panel modal del alcalde
-   */
+  // =========================================================================
+  // MODALES DEL ALCALDE
+  // =========================================================================
+
   openModal(modalId) {
     this.closeModals();
+    this.closeStatsDropdown();
     const modal = document.getElementById(`modal-${modalId}`);
     if (modal) {
       modal.classList.add('active');
@@ -538,9 +739,6 @@ export class UIManager {
     this.activeModal = null;
   }
 
-  /**
-   * Renderiza el contenido del panel de las Dos Ramas de Crecimiento Empresarial
-   */
   updateCorporationsModalContent() {
     const summary = this.game.corporations.getSummary();
     const policies = this.game.simulation.policies;
@@ -550,7 +748,6 @@ export class UIManager {
 
     elContent.innerHTML = `
       <div class="corp-branches-grid">
-        <!-- RAMA 1: CONTRATACIÓN MASIVA -->
         <div class="branch-card mass-card">
           <div class="branch-badge">Rama 1: Producción Bruta</div>
           <h3>🏭 Contratación Masiva</h3>
@@ -578,11 +775,10 @@ export class UIManager {
           </div>
         </div>
 
-        <!-- RAMA 2: CONTRATACIÓN CALIFICADA -->
         <div class="branch-card tech-card">
           <div class="branch-badge tech-badge">Rama 2: Alta Tecnología</div>
           <h3>🔬 Contratación Calificada</h3>
-          <p class="branch-desc">Hubs de bioingeniería, software cuántico y robótica limpia. Generan alto valor agregado, generan investigación y absorben emisiones.</p>
+          <p class="branch-desc">Hubs de bioingeniería, software cuántico y robótica limpia. Generan alto valor agregado, investigación y absorben emisiones.</p>
           
           <div class="metric-row">
             <span>Hubs Tecnológicos:</span>
@@ -644,9 +840,6 @@ export class UIManager {
     });
   }
 
-  /**
-   * Renderiza el contenido del panel de Investigación Científica
-   */
   updateResearchModalContent() {
     const research = this.game.research;
     const elContent = document.getElementById('modal-research-body');
@@ -707,9 +900,6 @@ export class UIManager {
     });
   }
 
-  /**
-   * Renderiza el panel de Gestión de Desastres Naturales
-   */
   updateDisasterModalContent() {
     const disasters = this.game.disasters;
     const elContent = document.getElementById('modal-disasters-body');

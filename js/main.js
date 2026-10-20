@@ -262,8 +262,9 @@ export class Game {
         return;
       }
 
-      // CASO 4: Clic en terreno vacío -> cerrar inspector si estaba abierto
+      // CASO 4: Clic en terreno vacío -> cerrar inspector y menú desplegable si estaban abiertos
       this.ui.closeInspector();
+      this.ui.closeStatsDropdown();
     });
   }
 
@@ -294,6 +295,14 @@ export class Game {
         case 'R':
           if (this.ghostState.active) this.rotateGhost();
           break;
+        case 'f':
+        case 'F':
+          this.ui.toggleFullscreen();
+          break;
+        case 's':
+        case 'S':
+          this.ui.toggleStatsDropdown();
+          break;
         case 'x':
         case 'X':
         case 'Delete':
@@ -303,6 +312,7 @@ export class Game {
           this.cancelGhostPlacement();
           this.selectedTool = null;
           this.ui.closeInspector();
+          this.ui.closeStatsDropdown();
           this.ui.closeModals();
           break;
         case 'Enter':

@@ -26,67 +26,155 @@
     <span>Guardado</span>
   </div>
 
-  <!-- 1. HUD ECONÓMICO SUPERIOR ULTRA-COMPACTO (<= 38px) -->
+  <!-- 1. HUD SUPERIOR CON BOTÓN DESPLEGABLE DE ESTADÍSTICAS Y PANTALLA COMPLETA -->
   <header id="mayor-hud" class="hud-top-bar">
-    <div class="hud-scroll-container">
-      <!-- Tesorería -->
-      <div class="hud-item" title="Tesorería y flujo de caja diario">
-        <span class="h-icon">💰</span>
-        <strong id="stat-funds">$3,800</strong>
-        <span id="stat-cashflow" class="delta-positive">+$0/d</span>
-      </div>
+    <div class="hud-bar-inner">
+      <!-- Botón Único Desplegable de Estadísticas -->
+      <div class="stats-dropdown-container">
+        <button id="btn-stats-dropdown" class="stats-dropdown-btn" title="Ver todas las estadísticas de la ciudad">
+          <span class="dropdown-tag">📊 Métricas</span>
+          <div class="dropdown-summary-bar">
+            <span class="sum-item">💰 <strong id="quick-funds">$3,800</strong> <small id="quick-cashflow" class="delta-positive">+$0/d</small></span>
+            <span class="sum-sep">|</span>
+            <span class="sum-item">👥 <strong id="quick-population">0</strong></span>
+            <span class="sum-sep">|</span>
+            <span class="sum-item">😊 <strong id="quick-happiness">75%</strong></span>
+          </div>
+          <span id="stats-chevron" class="dropdown-chevron">▼</span>
+        </button>
 
-      <!-- Población -->
-      <div class="hud-item" title="Población / Capacidad residencial">
-        <span class="h-icon">👥</span>
-        <strong id="stat-population">0</strong>
-        <span id="stat-capacity" class="sub-muted">/ 0</span>
-      </div>
+        <!-- Panel Desplegable Centralizado de Estadísticas -->
+        <div id="stats-dropdown-menu" class="stats-dropdown-menu hidden">
+          <div class="stats-panel-header">
+            <div class="stats-panel-title">
+              <span class="stats-emoji">📈</span>
+              <div>
+                <h3>Tablero Estadístico de la Ciudad</h3>
+                <small>Informe integral de gestión municipal</small>
+              </div>
+            </div>
+            <button id="btn-close-stats" class="stats-close-btn" title="Cerrar panel">&times;</button>
+          </div>
 
-      <!-- Felicidad -->
-      <div class="hud-item" title="Felicidad ciudadana">
-        <span class="h-icon">😊</span>
-        <strong id="stat-happiness">75%</strong>
-      </div>
+          <div class="stats-grid-dashboard">
+            <!-- 1. Finanzas y Tesorería -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">💰</span>
+                <h4>Tesorería Municipal</h4>
+              </div>
+              <div class="stat-big-val" id="stat-funds">$3,800</div>
+              <div class="stat-sub-row">
+                <span>Flujo de Caja Neto:</span>
+                <strong id="stat-cashflow" class="delta-positive">+$0/d</strong>
+              </div>
+            </div>
 
-      <!-- Empleo / Desempleo -->
-      <div class="hud-item" title="Tasa de desempleo">
-        <span class="h-icon">💼</span>
-        <strong id="stat-unemployment" class="text-positive">0%</strong>
-      </div>
+            <!-- 2. Demografía y Habitabilidad -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">👥</span>
+                <h4>Población y Vivienda</h4>
+              </div>
+              <div class="stat-big-val"><span id="stat-population">0</span> <small id="stat-capacity" class="stat-denom">/ 0</small></div>
+              <div class="stat-sub-row">
+                <span>Suministro Agrícola:</span>
+                <strong id="stat-food" class="stat-val-highlight">0 hab.</strong>
+              </div>
+            </div>
 
-      <!-- Seguridad -->
-      <div class="hud-item" title="Índice de seguridad">
-        <span class="h-icon">🛡️</span>
-        <strong id="stat-security">80%</strong>
-      </div>
+            <!-- 3. Felicidad Ciudadana -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">😊</span>
+                <h4>Felicidad Ciudadana</h4>
+              </div>
+              <div class="stat-big-val" id="stat-happiness">75%</div>
+              <div class="stat-bar-track">
+                <div id="bar-happiness" class="stat-bar-fill good" style="width: 75%;"></div>
+              </div>
+            </div>
 
-      <!-- Educación -->
-      <div class="hud-item" title="Nivel educativo">
-        <span class="h-icon">🎓</span>
-        <strong id="stat-education">20%</strong>
-      </div>
+            <!-- 4. Mercado Laboral -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">💼</span>
+                <h4>Mercado Laboral</h4>
+              </div>
+              <div class="stat-big-val" id="stat-unemployment">0%</div>
+              <div class="stat-sub-row">
+                <span>Estado:</span>
+                <strong id="stat-job-status" class="text-positive">Pleno empleo</strong>
+              </div>
+            </div>
 
-      <!-- Polución -->
-      <div class="hud-item" title="Huella de carbono">
-        <span class="h-icon">🌫️</span>
-        <strong id="stat-pollution">5 ppm</strong>
-      </div>
+            <!-- 5. Seguridad y Defensa -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">🛡️</span>
+                <h4>Seguridad Pública</h4>
+              </div>
+              <div class="stat-big-val" id="stat-security">80%</div>
+              <div class="stat-bar-track">
+                <div id="bar-security" class="stat-bar-fill good" style="width: 80%;"></div>
+              </div>
+            </div>
 
-      <!-- Ciencia -->
-      <div class="hud-item" title="Puntos de Investigación (RP)">
-        <span class="h-icon">🔬</span>
-        <strong id="stat-research" class="text-tech">60 RP</strong>
-      </div>
+            <!-- 6. Educación y Talento -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">🎓</span>
+                <h4>Nivel Educativo</h4>
+              </div>
+              <div class="stat-big-val" id="stat-education">20%</div>
+              <div class="stat-sub-row">
+                <span>Mano de Obra:</span>
+                <strong id="stat-edu-status" class="text-tech">En formación</strong>
+              </div>
+            </div>
 
-      <!-- Tiempo y Velocidad -->
-      <div class="hud-item hud-time" title="Tiempo de juego">
-        <span id="stat-day" class="day-text">Día 1</span>
-        <div class="speed-group">
-          <button class="btn-spd" data-speed="0" title="Pausar">⏸️</button>
-          <button class="btn-spd active" data-speed="1" title="Normal">▶️</button>
-          <button class="btn-spd" data-speed="2" title="Rápido">⏩</button>
+            <!-- 7. Medio Ambiente -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">🌫️</span>
+                <h4>Huella de Polución</h4>
+              </div>
+              <div class="stat-big-val" id="stat-pollution">5 ppm</div>
+              <div class="stat-bar-track">
+                <div id="bar-pollution" class="stat-bar-fill good" style="width: 8%;"></div>
+              </div>
+            </div>
+
+            <!-- 8. Ciencia e Innovación -->
+            <div class="stat-card-box">
+              <div class="stat-card-head">
+                <span class="sc-icon">🔬</span>
+                <h4>Ciencia & Tecnología</h4>
+              </div>
+              <div class="stat-big-val text-tech" id="stat-research">60 RP</div>
+              <div class="stat-sub-row">
+                <span>Disponibles para I+D</span>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Controles de tiempo, velocidad y pantalla completa -->
+      <div class="hud-right-controls">
+        <div class="hud-item hud-time" title="Tiempo de juego">
+          <span id="stat-day" class="day-text">Día 1</span>
+          <div class="speed-group">
+            <button class="btn-spd" data-speed="0" title="Pausar">⏸️</button>
+            <button class="btn-spd active" data-speed="1" title="Normal">▶️</button>
+            <button class="btn-spd" data-speed="2" title="Rápido">⏩</button>
+          </div>
+        </div>
+
+        <!-- Botón Pantalla Completa en cabecera -->
+        <button id="btn-toggle-fullscreen" class="btn-fullscreen-toggle" title="Pantalla Completa (⛶)">
+          <span class="fs-icon">⛶</span>
+        </button>
       </div>
     </div>
   </header>
@@ -112,8 +200,9 @@
     </button>
   </aside>
 
-  <!-- Borde Derecho: Navegación y Audio -->
+  <!-- Borde Derecho: Navegación, Pantalla Completa y Audio -->
   <aside class="edge-actions-right">
+    <button id="btn-edge-fullscreen" class="edge-circle-btn" title="Pantalla Completa">⛶</button>
     <button id="btn-center-map" class="edge-circle-btn" title="Centrar Ciudad">🎯</button>
     <button class="edge-circle-btn" data-zoom="in" title="Acercar (Zoom +)">＋</button>
     <button class="edge-circle-btn" data-zoom="out" title="Alejar (Zoom -)">－</button>
