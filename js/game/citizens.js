@@ -42,7 +42,8 @@ export class ResidentialBuilding {
   }
 
   getRent() {
-    // Alquiler base: Unifamiliar = $14, Torre de Departamentos = $22
+    // Alquiler base: Unifamiliar = $14, Torre de Departamentos = $22, Vivienda Social = $4
+    if (this.defId === 'residential_social') return 4 * this.level;
     const baseRent = this.defId === 'residential_high' ? 22 : 14;
     return baseRent * this.level;
   }
@@ -204,8 +205,11 @@ export class CitizenManager {
     if (Math.random() > 0.35) return;
     for (const citizen of this.citizens.values()) {
       if (citizen.educationLevel < 2) {
-        const threshold = citizen.educationLevel === 0 ? 30 : 65;
-        if (cityEducation >= threshold && Math.random() < 0.08) {
+        const home = this.residentialBuildings.get(citizen.homeBuildingId);
+        const nearUni = home && this.grid && this.grid.isTileCoveredByUniversity(home.x, home.y);
+        const threshold = citizen.educationLevel === 0 ? 30 : (nearUni ? 45 : 65);
+        const chance = nearUni ? 0.28 : 0.08;
+        if (cityEducation >= threshold && Math.random() < chance) {
           citizen.educationLevel++;
         }
       }
@@ -247,12 +251,20 @@ export class CitizenManager {
         const bldgUid = `bldg_${gx}_${gy}`;
 
         // === VACANTES PÚBLICAS (Alcaldía) ===
-        if (def.category === 'utility' || def.category === 'service') {
+        if (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal') {
           let jobsCount = 10;
           let requiredEdu = 1;
           let jobTitle = 'Operario de Servicios Públicos';
 
-          if (def.id === 'utility_solar' || def.id === 'utility_coal') {
+          if (def.id === 'transit_bus_terminal') {
+            jobsCount = level * 8;
+            requiredEdu = 1;
+            jobTitle = 'Chófer / Operador de Tránsito';
+          } else if (def.id === 'service_university') {
+            jobsCount = level * 30;
+            requiredEdu = 2;
+            jobTitle = 'Catedrático / Investigador Universitario';
+          } else if (def.id === 'utility_solar' || def.id === 'utility_coal' || def.id === 'utility_power_plant' || def.id === 'utility_power_solar') {
             jobsCount = level * 12;
             requiredEdu = 1;
             jobTitle = 'Técnico de Generación Eléctrica';
@@ -284,6 +296,10 @@ export class CitizenManager {
             jobsCount = level * 8;
             requiredEdu = 1;
             jobTitle = 'Funcionario Administrativo';
+          } else if (def.id === 'service_seismic_radar') {
+            jobsCount = level * 6;
+            requiredEdu = 2;
+            jobTitle = 'Sismólogo / Operador Geotécnico';
           }
 
           // Multiplicador salarial según educación requerida
@@ -319,6 +335,9 @@ export class CitizenManager {
             } else if (def.id === 'commercial_super') {
               requiredEdu = 1;
               jobTitle = 'Supervisor de Logística';
+            } else if (def.id === 'commercial_gastronomy') {
+              requiredEdu = 0;
+              jobTitle = 'Chef / Barista / Servicio Gastronómico';
             } else {
               requiredEdu = 0;
               jobTitle = 'Dependiente de Comercio';
@@ -327,6 +346,9 @@ export class CitizenManager {
             if (def.branch === 'tech') {
               requiredEdu = 2;
               jobTitle = 'Ingeniero de Nanotecnología';
+            } else if (def.branch === 'agro' || def.id === 'industrial_agro') {
+              requiredEdu = Math.random() < 0.35 ? 1 : 0;
+              jobTitle = 'Técnico / Operario Agroindustrial';
             } else {
               requiredEdu = 0;
               jobTitle = 'Operario de Fábrica Pesada';
@@ -441,6 +463,7 @@ export class CitizenManager {
 
     let totalCitizenTaxes = 0;
     let totalCitizenRents = 0;
+    let totalPublicHousingRent = 0;
     let totalFoodConsumed = 0;
     let totalPublicWages = 0;
     let totalPrivateWages = 0;
@@ -521,7 +544,12 @@ export class CitizenManager {
       totalCitizenTaxes += taxes;
       // El ciudadano paga alquiler y comida si dispone de ahorro
       const rentPaid = citizen.savings >= rent ? rent : Math.max(0, citizen.savings);
-      totalCitizenRents += rentPaid;
+      const resBuildingCheck = residentialMap.get(citizen.homeBuildingId);
+      if (resBuildingCheck && resBuildingCheck.defId === 'residential_social') {
+        totalPublicHousingRent += rentPaid;
+      } else {
+        totalCitizenRents += rentPaid;
+      }
       totalFoodConsumed += food;
 
       sumSavings += citizen.savings;
@@ -531,6 +559,12 @@ export class CitizenManager {
       let citizenHappy = 55;
       if (citizen.currentJob) citizenHappy += 20;
       else citizenHappy -= 30;
+
+      // Dinamismo barrial: Bulevar Gastronómico cercano
+      if (resBuildingCheck && grid && typeof grid.getGastronomyBonusAt === 'function') {
+        const gastroBonus = grid.getGastronomyBonusAt(resBuildingCheck.x, resBuildingCheck.y);
+        if (gastroBonus > 0) citizenHappy += Math.min(15, gastroBonus);
+      }
 
       if (remaining > 10) citizenHappy += 15;
       else if (remaining < 0) citizenHappy -= 25;
@@ -607,6 +641,7 @@ export class CitizenManager {
     return {
       totalCitizenTaxes: Math.round(totalCitizenTaxes),
       totalCitizenRents: Math.round(totalCitizenRents),
+      totalPublicHousingRent: Math.round(totalPublicHousingRent),
       totalFoodConsumed: Math.round(totalFoodConsumed),
       totalPublicWages: Math.round(totalPublicWages),
       totalPrivateWages: Math.round(totalPrivateWages),

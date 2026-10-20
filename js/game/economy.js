@@ -185,6 +185,7 @@ export class EconomySystem {
       policyExpenses = 0,
       hydroRevenue = 0,
       commercialMultiplier = 1.0,
+      agroExportMultiplier = 1.0,
       powerRatio = 1.0,
       waterRatio = 1.0,
       citizenReport = null,
@@ -252,7 +253,8 @@ export class EconomySystem {
 
     if (foodSupply > population && population > 0) {
       exportFoodVol = Math.floor((foodSupply - population) * 0.7);
-      exportFoodRev = Math.round(exportFoodVol * this.marketPrices.food);
+      const effectiveFoodPrice = Math.round(this.marketPrices.food * Math.max(1.0, agroExportMultiplier) * 100) / 100;
+      exportFoodRev = Math.round(exportFoodVol * effectiveFoodPrice);
     } else if (population > foodSupply && foodSupply > 0) {
       // Importación urgente de grano cubierta por el Estado
       const foodDeficit = population - foodSupply;
@@ -290,7 +292,11 @@ export class EconomySystem {
       ? citizenReport.totalPublicWages
       : Math.round(baseUpkeep * 0.4);
 
-    const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends;
+    const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
+      ? citizenReport.totalPublicHousingRent
+      : 0;
+
+    const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends + publicHousingRent;
     const stateTotalExpenses = Math.round(baseUpkeep + publicPayroll + policyExpenses + totalImportsCost);
     const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
 
@@ -308,6 +314,7 @@ export class EconomySystem {
         residentialTax,
         commercialTax,
         industrialTax,
+        publicHousingRent,
         exportsRevenue: exportEnergyRev + exportWaterRev,
         utilityDividends: publicUtilityDividends,
         total: stateTotalIncome,

@@ -63,6 +63,28 @@ export const CONFIG = {
       description: 'Conecta zonas y permite la movilidad urbana.',
       height: 4,
     },
+    transit_bus_terminal: {
+      id: 'transit_bus_terminal',
+      name: 'Terminal de Autobuses y Tránsito',
+      category: 'infra',
+      size: 1, // 1x1
+      height: 24,
+      cost: 280,
+      upkeep: 12,
+      busTerminal: true,
+      radius: 7,
+      jobs: 8,
+      levels: {
+        1: { cost: 280, upkeep: 12, radius: 7, jobs: 8, power: 4, water: 2 },
+        2: { cost: 480, upkeep: 20, radius: 10, jobs: 14, power: 7, water: 4 },
+        3: { cost: 750, upkeep: 32, radius: 14, jobs: 22, power: 10, water: 6 },
+      },
+      maxBonus: 'Red Metropolitana Exprés: Reduce la fricción de transporte al mínimo (factor 0.35) en todo su radio.',
+      description: 'Línea de transporte público que reduce a la mitad el gasto diario de desplazamiento de los ciudadanos en su radio.',
+      colorTop: '#38bdf8',
+      colorLeft: '#0284c7',
+      colorRight: '#0369a1',
+    },
 
     // === SERVICIOS BÁSICOS: ELECTRICIDAD Y AGUA ===
     utility_power_solar: {
@@ -191,6 +213,28 @@ export const CONFIG = {
       colorRight: '#64748b',
       roofColor: '#22c55e',
     },
+    residential_social: {
+      id: 'residential_social',
+      name: 'Vivienda Social Subvencionada',
+      category: 'residential',
+      funding: 'public', // Obra pública financiada por la Alcaldía
+      socialHousing: true,
+      size: 2, // 2x2
+      height: 50,
+      cost: 480,
+      upkeep: 14,
+      levels: {
+        1: { cost: 480, upkeep: 14, capacity: 80, tax: 0.9, subsidizedRent: 4, pollution: 2, power: 12, water: 12 },
+        2: { cost: 800, upkeep: 24, capacity: 150, tax: 1.1, subsidizedRent: 7, pollution: 2, power: 22, water: 22 },
+        3: { cost: 1300, upkeep: 38, capacity: 240, tax: 1.4, subsidizedRent: 10, pollution: 1, power: 34, water: 34 },
+      },
+      maxBonus: 'Barrio Protegido: Alquileres sociales fijados por ley que impiden desahucios y blindan los ahorros familiares ante recesiones.',
+      description: 'Bloques habitacionales públicos gestionados por el municipio para asegurar vivienda digna y asequible.',
+      colorTop: '#fed7aa',
+      colorLeft: '#fb923c',
+      colorRight: '#ea580c',
+      roofColor: '#9a3412',
+    },
 
     // === COMERCIO Y MERCADOS ===
     commercial_store: {
@@ -211,6 +255,27 @@ export const CONFIG = {
       colorTop: '#93c5fd',
       colorLeft: '#60a5fa',
       colorRight: '#3b82f6',
+    },
+    commercial_gastronomy: {
+      id: 'commercial_gastronomy',
+      name: 'Bulevar Gastronómico y Cafeterías',
+      category: 'commercial',
+      size: 1, // 1x1
+      height: 30,
+      cost: 240,
+      upkeep: 9,
+      gastronomy: true,
+      radius: 5,
+      levels: {
+        1: { cost: 240, upkeep: 9, jobs: 22, revenue: 3.6, pollution: 2, power: 6, water: 8, happinessBonus: 8 },
+        2: { cost: 400, upkeep: 16, jobs: 40, revenue: 4.4, pollution: 2, power: 10, water: 12, happinessBonus: 15 },
+        3: { cost: 680, upkeep: 26, jobs: 65, revenue: 5.4, pollution: 1, power: 16, water: 18, happinessBonus: 22 },
+      },
+      maxBonus: 'Distrito Michelin: Atrae turismo gastronómico global y eleva la felicidad barrial +25%.',
+      description: 'Restaurantes con terrazas exteriores y cafés que absorben el ocio ciudadano y dinamizan el comercio.',
+      colorTop: '#fbcfe8',
+      colorLeft: '#f472b6',
+      colorRight: '#db2777',
     },
     commercial_market: {
       id: 'commercial_market',
@@ -334,6 +399,28 @@ export const CONFIG = {
       colorRight: '#0369a1',
       glow: true,
     },
+    industrial_agro: {
+      id: 'industrial_agro',
+      name: 'Complejo Agroindustrial y Procesadora',
+      category: 'industrial',
+      branch: 'agro',
+      agroIndustry: true,
+      size: 2, // 2x2
+      height: 48,
+      cost: 580,
+      upkeep: 24,
+      levels: {
+        1: { cost: 580, upkeep: 24, jobs: 50, revenuePerJob: 4.6, pollution: 12, power: 22, water: 30, exportBoost: 1.8 },
+        2: { cost: 1000, upkeep: 42, jobs: 95, revenuePerJob: 5.8, pollution: 18, power: 40, water: 50, exportBoost: 2.5 },
+        3: { cost: 1700, upkeep: 68, jobs: 160, revenuePerJob: 7.2, pollution: 24, power: 65, water: 75, exportBoost: 3.5 },
+      },
+      maxBonus: 'Bioprocesador Gourmet: Transforma cosechas en manufacturas alimentarias, triplicando el margen de exportación agrícola.',
+      description: 'Planta de transformación alimentaria con silos metálicos de almacenamiento, empaquetado y muelle de carga.',
+      colorTop: '#cbd5e1',
+      colorLeft: '#94a3b8',
+      colorRight: '#64748b',
+      silos: true,
+    },
 
     // === INSTITUCIONES PÚBLICAS Y SERVICIOS ===
     service_police: {
@@ -414,6 +501,51 @@ export const CONFIG = {
       colorLeft: '#fb923c',
       colorRight: '#ea580c',
       academy: true,
+    },
+    service_university: {
+      id: 'service_university',
+      name: 'Universidad Metropolitana',
+      category: 'service',
+      size: 2, // 2x2
+      height: 62,
+      cost: 950,
+      upkeep: 55,
+      university: true,
+      radius: 12,
+      jobs: 30,
+      levels: {
+        1: { cost: 950, upkeep: 55, radius: 12, educationBoost: 45, researchPoints: 35, jobs: 30, power: 28, water: 20 },
+        2: { cost: 1650, upkeep: 90, radius: 16, educationBoost: 75, researchPoints: 65, jobs: 55, power: 45, water: 30 },
+        3: { cost: 2800, upkeep: 140, radius: 22, educationBoost: 110, researchPoints: 110, jobs: 90, power: 70, water: 45 },
+      },
+      maxBonus: 'Polo Universitario de Excelencia: Gradúa al 90% de estudiantes con Educación Superior y duplica puntos RP.',
+      description: 'Campus de altos estudios que forma profesionales de Nivel Superior (médicos, ingenieros y químicos) y genera abundante ciencia.',
+      colorTop: '#e0e7ff',
+      colorLeft: '#a5b4fc',
+      colorRight: '#6366f1',
+    },
+    service_seismic_radar: {
+      id: 'service_seismic_radar',
+      name: 'Radar Sísmico y Alerta Geotécnica',
+      category: 'service',
+      funding: 'public',
+      size: 1, // 1x1
+      height: 36,
+      cost: 420,
+      upkeep: 28,
+      seismicRadar: true,
+      radius: 15,
+      jobs: 6,
+      levels: {
+        1: { cost: 420, upkeep: 28, radius: 15, damageMitigation: 0.50, jobs: 6, power: 14, water: 4 },
+        2: { cost: 720, upkeep: 44, radius: 20, damageMitigation: 0.65, jobs: 10, power: 22, water: 6 },
+        3: { cost: 1150, upkeep: 68, radius: 26, damageMitigation: 0.80, jobs: 16, power: 32, water: 10 },
+      },
+      maxBonus: 'Red Geotécnica Satelital: Alerta anticipada de 8s, reduce el daño sísmico estructural a la mitad y blindaje de infraestructuras.',
+      description: 'Estación sismológica con antena parabólica y sensor de fallas tectónicas para alerta temprana.',
+      colorTop: '#f8fafc',
+      colorLeft: '#cbd5e1',
+      colorRight: '#94a3b8',
     },
     service_research: {
       id: 'service_research',

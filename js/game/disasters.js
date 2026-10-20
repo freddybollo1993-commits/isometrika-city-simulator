@@ -105,14 +105,16 @@ export class DisasterSystem {
       };
     }
 
-    // Verificar si se dispone de Red de Sensores Sísmicos o satélites para alerta temprana
-    const hasSeismicWarning = researchManager.isUnlocked('seismic_sensors');
-    const hasSatellites = researchManager.isUnlocked('geoengineering_dome');
+    // Verificar si se dispone de Red de Sensores Sísmicos, satélites o Radar Sísmico Geotécnico
+    const hasRadar = grid && typeof grid.hasActiveSeismicRadar === 'function' && grid.hasActiveSeismicRadar();
+    const hasSeismicWarning = researchManager && researchManager.isUnlocked('seismic_sensors');
+    const hasSatellites = researchManager && researchManager.isUnlocked('geoengineering_dome');
 
-    if (hasSeismicWarning || hasSatellites) {
-      // Alerta con 4 segundos de anticipación
+    if (hasRadar || hasSeismicWarning || hasSatellites) {
+      // Alerta con anticipación: 8 ticks si tiene radar sísmico físico, 4 ticks por investigación
+      const countdown = hasRadar ? 8 : 4;
       this.warning = {
-        countdown: 4,
+        countdown,
         disaster: disasterData,
       };
       if (audioManager) audioManager.playSiren();
@@ -144,17 +146,21 @@ export class DisasterSystem {
       }
       if (audioManager) audioManager.playEarthquake();
 
-      // Mitigación por investigación
-      const hasMitigation = researchManager.isUnlocked('seismic_sensors');
-      const damageMultiplier = hasMitigation ? 0.55 : 1.0;
+      // Mitigación por investigación y por Radar Sísmico
+      const hasMitigation = researchManager && researchManager.isUnlocked('seismic_sensors');
+      const baseDamageMultiplier = hasMitigation ? 0.55 : 1.0;
 
-      // Aplicar daños aleatorios a edificios
+      // Aplicar daños a edificios
       for (let gy = 0; gy < grid.size; gy++) {
         for (let gx = 0; gx < grid.size; gx++) {
           const tile = grid.tiles[gy][gx];
           if (tile && tile.building && tile.building.id !== 'road') {
-            if (Math.random() < 0.45) {
-              const dmg = Math.round((15 + Math.random() * 45 * (disaster.magnitude / 6)) * damageMultiplier);
+            const isProtectedByRadar = grid && typeof grid.isTileCoveredBySeismicRadar === 'function' && grid.isTileCoveredBySeismicRadar(gx, gy);
+            const tileMultiplier = isProtectedByRadar ? baseDamageMultiplier * 0.50 : baseDamageMultiplier;
+            const hitChance = isProtectedByRadar ? 0.22 : 0.45;
+
+            if (Math.random() < hitChance) {
+              const dmg = Math.round((15 + Math.random() * 45 * (disaster.magnitude / 6)) * tileMultiplier);
               grid.damageTile(gx, gy, dmg);
             }
           }

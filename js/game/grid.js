@@ -144,11 +144,113 @@ export class Grid {
     }
 
     // 0 o 1 celda de distancia: alta eficiencia (0.55)
-    if (minDist <= 1) return 0.55;
-    if (minDist === 2) return 0.85;
-    if (minDist === 3) return 1.25;
-    // Periferia aislada: alta fricción espacial (1.6 a 2.0)
-    return Math.min(2.0, 1.25 + (minDist - 3) * 0.25);
+    let factor = 0.55;
+    if (minDist <= 1) factor = 0.55;
+    else if (minDist === 2) factor = 0.85;
+    else if (minDist === 3) factor = 1.25;
+    else factor = Math.min(2.0, 1.25 + (minDist - 3) * 0.25);
+
+    // Bonificación de Red de Tránsito: La Terminal de Autobuses reduce la fricción a la mitad
+    if (this.isTileCoveredByBusTerminal(gx, gy)) {
+      factor = Math.max(0.35, factor * 0.5);
+    }
+
+    return factor;
+  }
+
+  /**
+   * Verifica si una celda está en el radio de cobertura de una Terminal de Autobuses
+   */
+  isTileCoveredByBusTerminal(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'transit_bus_terminal') {
+          const def = CONFIG.BUILDINGS['transit_bus_terminal'];
+          const lvl = t.building.level || 1;
+          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 7);
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist <= rad) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Verifica si una celda está en el radio de cobertura de la Universidad Metropolitana
+   */
+  isTileCoveredByUniversity(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'service_university') {
+          const def = CONFIG.BUILDINGS['service_university'];
+          const lvl = t.building.level || 1;
+          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 12);
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist <= rad) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Obtiene la bonificación de felicidad por cercanía a un Bulevar Gastronómico
+   */
+  getGastronomyBonusAt(gx, gy) {
+    let maxBonus = 0;
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'commercial_gastronomy') {
+          const def = CONFIG.BUILDINGS['commercial_gastronomy'];
+          const lvl = t.building.level || 1;
+          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 5);
+          const bonus = (def && def.levels && def.levels[lvl] && def.levels[lvl].happinessBonus) || 8;
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist <= rad && bonus > maxBonus) {
+            maxBonus = bonus;
+          }
+        }
+      }
+    }
+    return maxBonus;
+  }
+
+  /**
+   * Verifica si una celda está protegida por un Radar Sísmico y Geotécnico
+   */
+  isTileCoveredBySeismicRadar(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'service_seismic_radar') {
+          const def = CONFIG.BUILDINGS['service_seismic_radar'];
+          const lvl = t.building.level || 1;
+          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 15);
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist <= rad) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Verifica si la ciudad cuenta con al menos un Radar Sísmico operativo
+   */
+  hasActiveSeismicRadar() {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'service_seismic_radar') {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**

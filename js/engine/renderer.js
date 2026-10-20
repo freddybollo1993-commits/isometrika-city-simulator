@@ -262,6 +262,42 @@ export class Renderer {
       return;
     }
 
+    // 1B. TERMINAL DE AUTOBUSES Y TRÁNSITO (1x1)
+    if (def.busTerminal) {
+      // Dársena de asfalto y dársena de parada
+      IsoMath.drawIsoBlock(ctx, x, y, tw, th, 10, '#334155', '#1e293b', '#0f172a');
+      const topY = y - 10;
+
+      // Marquesina de parada con techo translúcido cian
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+      ctx.fillRect(x - 14, topY - 8, 14, 10);
+      ctx.strokeStyle = '#e0f2fe';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 14, topY - 8, 14, 10);
+
+      // Pilotes metálicos de la marquesina
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(x - 14, topY + 2, 2, 6);
+      ctx.fillRect(x - 2, topY + 2, 2, 6);
+
+      // Pequeño autobús urbano amarillo/azul estacionado en la dársena
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(x + 2, topY - 4, 14, 8);
+      // Franja azul y ventanas
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(x + 2, topY, 14, 2);
+      ctx.fillStyle = '#bae6fd';
+      ctx.fillRect(x + 4, topY - 3, 3, 2);
+      ctx.fillRect(x + 9, topY - 3, 3, 2);
+
+      // Rótulo y baliza de transporte
+      ctx.beginPath();
+      ctx.arc(x - 7, topY - 10, 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fill();
+      return;
+    }
+
     // 2. PARQUE BIOCLIMÁTICO (1x1)
     if (def.trees) {
       IsoMath.drawIsoBlock(ctx, x, y, tw, th, 4, '#86efac', '#4ade80', '#22c55e');
@@ -352,6 +388,41 @@ export class Renderer {
       ctx.closePath();
       ctx.fillStyle = '#facc15';
       ctx.fill();
+      return;
+    }
+
+    // 8B. UNIVERSIDAD METROPOLITANA Y CAMPUS (2x2)
+    if (def.university) {
+      const h = def.height || 62;
+      // Cuerpo central del campus universitario
+      IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, '#f8fafc', '#e2e8f0', '#cbd5e1');
+      const topY = y - h;
+
+      // Alas laterales y cúpula académica índigo
+      ctx.beginPath();
+      ctx.arc(x, topY - 10, 14, Math.PI, 0);
+      ctx.fillStyle = '#4f46e5';
+      ctx.fill();
+      ctx.strokeStyle = '#818cf8';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Linterna del domo y aguja académica
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x - 2, topY - 18, 4, 8);
+      ctx.beginPath();
+      ctx.arc(x, topY - 18, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Columnata clásica frontal (3 columnas)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 12, topY + 4, 3, 14);
+      ctx.fillRect(x - 1.5, topY + 4, 3, 14);
+      ctx.fillRect(x + 9, topY + 4, 3, 14);
+
+      // Patio ajardinado con dos arbolitos universitarios
+      this.renderTree(ctx, x - 26, y + 6, 9);
+      this.renderTree(ctx, x + 26, y + 6, 9);
       return;
     }
 
@@ -542,10 +613,51 @@ export class Renderer {
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#0f172a');
     }
 
+    // Vivienda Social Subvencionada (2x2)
+    if (def.socialHousing) {
+      ctx.fillStyle = 'rgba(254, 215, 170, 0.9)';
+      for (let floor = 10; floor < h - 8; floor += 10) {
+        ctx.fillRect(x - 22, y - floor, 9, 5);
+        ctx.fillRect(x - 6, y - floor, 9, 5);
+        ctx.fillRect(x + 10, y - floor, 9, 5);
+      }
+      // Depósito de agua comunitario y puerta institucional
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(x - 6, topY + 4, 12, 6);
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#c2410c');
+    }
+
     // Tienda de Barrio
     if (def.id === 'commercial_store') {
       this.renderOrientedAwning(ctx, x, y, tw, th, rotation, '#f59e0b');
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#1e293b');
+    }
+
+    // Bulevar Gastronómico y Cafeterías (1x1)
+    if (def.gastronomy) {
+      this.renderOrientedAwning(ctx, x, y, tw, th, rotation, '#db2777');
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#831843');
+
+      // Terraza exterior con sombrilla y mesas redondas
+      const sideOffset = (rotation % 2 === 0 ? 8 : -8);
+      ctx.fillStyle = '#ec4899';
+      ctx.beginPath();
+      ctx.arc(x + sideOffset, topY + 4, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fbcfe8';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(x + sideOffset, topY + 4, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pizarra exterior de menú
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(x - sideOffset - 3, y - 6, 4, 6);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x - sideOffset - 2, y - 5, 2, 4);
     }
 
     // Mercado Popular
@@ -616,6 +728,49 @@ export class Renderer {
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#0284c7');
     }
 
+    // Complejo Agroindustrial (2x2)
+    if (def.silos) {
+      const s1X = x - 16;
+      const s2X = x + 4;
+      const siloY = topY + 2;
+
+      // Silo 1 de grano
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(s1X - 8, siloY - 20, 16, 20);
+      ctx.beginPath();
+      ctx.arc(s1X, siloY - 20, 8, Math.PI, 0);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fill();
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Silo 2 de grano
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(s2X - 8, siloY - 22, 16, 22);
+      ctx.beginPath();
+      ctx.arc(s2X, siloY - 22, 8, Math.PI, 0);
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fill();
+      ctx.stroke();
+
+      // Tubería transportadora de granos a la planta de proceso
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s1X, siloY - 20);
+      ctx.lineTo(s2X, siloY - 22);
+      ctx.lineTo(x + 22, topY + 8);
+      ctx.stroke();
+
+      // Muelle de carga de camiones con balizas
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + 10, y - 10, 16, 8);
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 10, y - 10, 16, 8);
+    }
+
     // Hospital Central (2x2)
     if (def.cross) {
       ctx.fillStyle = '#ef4444';
@@ -660,6 +815,50 @@ export class Renderer {
       ctx.strokeStyle = '#6366f1';
       ctx.lineWidth = 1.5;
       ctx.stroke();
+    }
+
+    // Radar Sísmico y Geotécnico (1x1)
+    if (def.seismicRadar) {
+      const pulse = Math.sin(this.animationTick * 7) > 0;
+      // Estructura de torre en celosía de acero
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y);
+      ctx.lineTo(x, topY - 14);
+      ctx.lineTo(x + 8, y);
+      ctx.stroke();
+
+      // Cúpula / plato de radar orientable
+      const radarAngle = this.animationTick * 2.5;
+      const dishX = x + Math.cos(radarAngle) * 5;
+      const dishY = (topY - 18) + Math.sin(radarAngle) * 2;
+
+      ctx.beginPath();
+      ctx.arc(x, topY - 18, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(dishX, dishY, 4, 7, radarAngle, 0, Math.PI * 2);
+      ctx.fillStyle = '#0284c7';
+      ctx.fill();
+
+      // Baliza estroboscópica roja de alerta geotécnica
+      ctx.beginPath();
+      ctx.arc(x, topY - 28, 3, 0, Math.PI * 2);
+      ctx.fillStyle = pulse ? '#ef4444' : '#7f1d1d';
+      ctx.fill();
+      if (pulse) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, topY - 28, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     // DISTINTIVO DE NIVEL (ESTRELLAS DORADAS PARA NIVEL 2 Y 3)

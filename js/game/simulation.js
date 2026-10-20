@@ -88,6 +88,7 @@ export class Simulation {
 
   getFundingType(def) {
     if (!def) return 'public';
+    if (def.funding) return def.funding;
     // Obras públicas estatales (Alcaldía)
     if (['infra', 'utility', 'service', 'nature'].includes(def.category)) {
       return 'public';
@@ -155,6 +156,7 @@ export class Simulation {
     let damagedCount = 0;
     let hydroRevenue = 0;
     let commercialMultiplier = 1.0;
+    let agroExportMultiplier = 1.0;
     let policyDiscount = 0;
 
     // Contadores de Redes de Servicios Básicos
@@ -214,6 +216,15 @@ export class Simulation {
 
           if (def.id === 'commercial_tower' && level === 3) {
             commercialMultiplier += 0.15; // Distrito financiero global
+          } else if (def.id === 'commercial_gastronomy') {
+            parkHappinessBonus += 3;
+          }
+        }
+        // INDUSTRIAS
+        else if (def.category === 'industrial') {
+          if (def.id === 'industrial_agro') {
+            const boost = (levelData.exportBoost || 1.8);
+            if (boost > agroExportMultiplier) agroExportMultiplier = boost;
           }
         }
         // GRANJAS
@@ -230,6 +241,13 @@ export class Simulation {
           hospitalCoverage += (levelData.healthBoost || 30);
         } else if (def.id === 'service_school') {
           educationBoost += (levelData.educationBoost || 25) * healthFactor;
+        } else if (def.id === 'service_university') {
+          educationBoost += (levelData.educationBoost || 45) * healthFactor;
+          researchGen += (levelData.researchPoints || 35) * healthFactor;
+        } else if (def.id === 'transit_bus_terminal') {
+          parkHappinessBonus += 4;
+        } else if (def.id === 'service_seismic_radar') {
+          policeCoverageCount += 10;
         } else if (def.id === 'service_research') {
           researchGen += (levelData.researchPoints || 18) * healthFactor;
         } else if (def.id === 'service_cityhall') {
@@ -444,6 +462,7 @@ export class Simulation {
         policyExpenses: policyExpenses,
         hydroRevenue: hydroRevenue,
         commercialMultiplier: commercialMultiplier,
+        agroExportMultiplier: agroExportMultiplier,
         powerRatio: this.powerRatio,
         waterRatio: this.waterRatio,
         citizenReport: citizenReport,
