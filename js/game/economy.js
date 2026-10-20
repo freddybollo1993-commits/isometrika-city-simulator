@@ -187,6 +187,7 @@ export class EconomySystem {
       commercialMultiplier = 1.0,
       powerRatio = 1.0,
       waterRatio = 1.0,
+      citizenReport = null,
     } = cityContext;
 
     // 1. Fluctuación del mercado exterior
@@ -207,10 +208,13 @@ export class EconomySystem {
     // PARTE A: INGRESOS FISCALES DEL ESTADO (ALCALDÍA)
     // =========================================================================
 
-    // 1. Recaudación Residencial (pagada por los ciudadanos)
-    const residentialTax = Math.round(
+    // 1. Recaudación Residencial (pagada por los ciudadanos autónomos)
+    const macroResTax = Math.round(
       population * baseResTaxRate * resRateRatio * Math.max(0.2, utilityEfficiency) * statePenaltyFactor
     );
+    const residentialTax = (citizenReport && citizenReport.totalCitizenTaxes > 0)
+      ? citizenReport.totalCitizenTaxes
+      : macroResTax;
 
     // 2. Recaudación Comercial (cobrada sobre los comercios privados)
     const effectiveCommMultiplier = commercialMultiplier * Math.max(0.35, powerRatio);
@@ -282,8 +286,12 @@ export class EconomySystem {
     // =========================================================================
     // PARTE C: LIQUIDACIÓN DEL SECTOR PÚBLICO (EL ESTADO)
     // =========================================================================
+    const publicPayroll = (citizenReport && citizenReport.totalPublicWages > 0)
+      ? citizenReport.totalPublicWages
+      : Math.round(baseUpkeep * 0.4);
+
     const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends;
-    const stateTotalExpenses = Math.round(baseUpkeep + policyExpenses + totalImportsCost);
+    const stateTotalExpenses = Math.round(baseUpkeep + publicPayroll + policyExpenses + totalImportsCost);
     const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
 
     this.stateFunds += stateNetCashflow;
@@ -305,6 +313,7 @@ export class EconomySystem {
         total: stateTotalIncome,
       },
       expenses: {
+        publicPayroll,
         roadUpkeep: Math.round(baseUpkeep * 0.25),
         buildingUpkeep: Math.round(baseUpkeep * 0.75),
         serviceUpkeep: baseUpkeep,
@@ -324,18 +333,29 @@ export class EconomySystem {
     const corpSolvencyFactor = this.corporateFunds <= 0 ? 0.55 : 1.0;
     const corpProductionEfficiency = utilityEfficiency * corpSolvencyFactor;
 
-    // 1. Ingresos por Ventas Privadas
+    // 1. Ingresos por Ventas Privadas (Alquileres + Comercios + Alimentos + Exportaciones)
+    const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
+      ? citizenReport.totalCitizenRents
+      : Math.round(population * 8);
+
+    const localFoodSales = (citizenReport && citizenReport.totalFoodConsumed > 0)
+      ? citizenReport.totalFoodConsumed
+      : Math.round(foodSupply * 0.95);
+
     const commercialSales = Math.round(commercialJobs * 6.5 * effectiveCommMultiplier * corpProductionEfficiency);
     const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
     const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
-    const farmSales = Math.round((foodSupply * 0.95 + exportFoodRev) * Math.max(0.3, waterRatio));
+    const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));
 
-    const totalPrivateRevenue = commercialSales + massIndustrySales + techIndustrySales + farmSales;
+    const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales;
 
     // 2. Gastos Operativos y Salarios Privados
     const totalPrivateJobs = commercialJobs + Math.round((corpMassRevenue + corpTechRevenue) / 4);
-    const payrollCost = Math.round(totalPrivateJobs * 1.65); // Pago de sueldos a obreros y empleados
-    const operatingCosts = Math.round(totalPrivateRevenue * 0.22); // Materias primas y maquinaria
+    const payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
+      ? citizenReport.totalPrivateWages
+      : Math.round(totalPrivateJobs * 1.65);
+
+    const operatingCosts = Math.round(totalPrivateRevenue * 0.18); // Materias primas y maquinaria
     const taxesPaidToState = commercialTax + industrialTax; // Impuestos corporativos transferidos al Estado
 
     const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState;
@@ -368,6 +388,7 @@ export class EconomySystem {
 
     this.corporateBreakdown = {
       revenue: {
+        citizenRents,
         commercialSales,
         massIndustrySales,
         techIndustrySales,

@@ -1742,3 +1742,184 @@ html, body {
   }
 }
 
+/* =========================================================================
+   PUGNA SALARIAL Y ESCALADO RESIDENCIAL ORGÁNICO (SISTEMA HÍBRIDO)
+   ========================================================================= */
+.wage-battle-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.wage-battle-box {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wage-box-public {
+  border-left: 3px solid #38bdf8;
+}
+
+.wage-box-private {
+  border-left: 3px solid #34d399;
+}
+
+.wage-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.wage-tag {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.public-tag {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.private-tag {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.wage-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.5);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.wage-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wage-step-btn {
+  background: rgba(51, 65, 85, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wage-step-btn:hover {
+  background: #0284c7;
+  border-color: #38bdf8;
+}
+
+.wage-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}
+
+/* ESCALADO RESIDENCIAL ORGÁNICO */
+.housing-organic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.housing-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.housing-level-icon {
+  font-size: 1.4rem;
+}
+
+.housing-count-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.housing-health-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  background: rgba(30, 41, 59, 0.4);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.h-health-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.formula-box {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 6px 0 10px 0;
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #38bdf8;
+  overflow-x: auto;
+}
+
+.formula-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+}
+
+.f-detail-item {
+  display: flex;
+  justify-content: space-between;
+  color: #cbd5e1;
+}
+
+.organic-progress-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.organic-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  transition: width 0.3s ease;
+}
+
+

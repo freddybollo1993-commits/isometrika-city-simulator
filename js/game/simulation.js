@@ -7,6 +7,7 @@
 
 import { CONFIG } from './config.js';
 import { EconomySystem } from './economy.js';
+import { CitizenManager } from './citizens.js';
 
 export class Simulation {
   constructor(grid, corporations, research, disasters, audio, economy = null) {
@@ -16,6 +17,7 @@ export class Simulation {
     this.disasters = disasters;
     this.audio = audio;
     this.economy = economy || new EconomySystem(CONFIG.SIMULATION.INITIAL_FUNDS);
+    this.citizens = new CitizenManager(this.grid, this.economy);
 
     this.day = 1;
     this.population = CONFIG.SIMULATION.INITIAL_POPULATION;
@@ -247,7 +249,25 @@ export class Simulation {
       }
     }
 
-    // 2. EQUILIBRIO DE SERVICIOS BÁSICOS (RATIOS DE SUMINISTRO VS DEMANDA)
+    this.housingCapacity = totalHousing;
+    this.commercialJobs = commercialJobs;
+    this.foodCapacity = farmFoodSupply;
+    this.tileCount = totalBuildings;
+
+    // Actualizar nivel educativo
+    this.education = Math.min(100, Math.max(10, Math.round(15 + educationBoost + (researchGen * 0.2))));
+
+    // 2. SISTEMA DE CIUDADANOS AUTÓNOMOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
+    this.citizens.syncWithGrid(this.grid, this.population, this.education);
+    this.citizens.matchJobs(this.grid, this.economy);
+
+    // Si la Alcaldía no ofrece salarios competitivos, las plantas públicas sufren déficit de personal
+    // provocando apagones y cortes de agua (Regla 3 del Documento Maestro)
+    const publicLaborFactor = Math.max(0.2, this.citizens.metrics.publicStaffingRatio);
+    totalPowerSupply = Math.round(totalPowerSupply * publicLaborFactor);
+    totalWaterSupply = Math.round(totalWaterSupply * publicLaborFactor);
+
+    // 3. EQUILIBRIO DE SERVICIOS BÁSICOS (RATIOS DE SUMINISTRO VS DEMANDA)
     this.powerSupply = Math.round(totalPowerSupply);
     this.powerDemand = Math.round(totalPowerDemand);
     this.waterSupply = Math.round(totalWaterSupply);
@@ -270,15 +290,10 @@ export class Simulation {
       researchGen = Math.round(researchGen * Math.max(0.25, this.powerRatio));
     }
 
-    this.housingCapacity = totalHousing;
-    this.commercialJobs = commercialJobs;
-    this.foodCapacity = farmFoodSupply;
-    this.tileCount = totalBuildings;
+    // 4. BUCLE DE ECONOMÍA ESPACIAL DE LOS CIUDADANOS (Fricción Manhattan, Remanente y Escalado Orgánico)
+    const citizenReport = this.citizens.processDailyTick(this.grid, this.economy);
 
-    // Actualizar nivel educativo
-    this.education = Math.min(100, Math.max(10, Math.round(15 + educationBoost + (researchGen * 0.2))));
-
-    // 3. ACTUALIZACIÓN DE EMPRESAS (RAMAS MASIVA VS CALIFICADA)
+    // 5. ACTUALIZACIÓN DE EMPRESAS (RAMAS MASIVA VS CALIFICADA)
     const corpResult = this.corporations.update(
       this.grid,
       {
@@ -300,14 +315,11 @@ export class Simulation {
     researchGen += corpResult.bonusResearch;
     this.research.addPoints(researchGen);
 
-    // 4. EQUILIBRIO LABORAL
-    this.workforce = Math.floor(this.population * CONFIG.SIMULATION.WORKFORCE_RATIO);
-    const taxEmpFactor = this.economy ? this.economy.getCorporateEmploymentFactor() : 1.0;
-    const effectiveIndustrialJobs = Math.round(corpResult.totalIndustrialJobs * taxEmpFactor);
-    const totalJobs = commercialJobs + effectiveIndustrialJobs;
-    this.employed = Math.min(this.workforce, totalJobs);
-    this.unemployed = Math.max(0, this.workforce - this.employed);
-    this.unemploymentRate = this.workforce > 0 ? Math.round((this.unemployed / this.workforce) * 100) : 0;
+    // 6. EQUILIBRIO LABORAL INTEGRADO CON AGENTES CIUDADANOS
+    this.workforce = this.citizens.metrics.totalCitizens || Math.floor(this.population * CONFIG.SIMULATION.WORKFORCE_RATIO);
+    this.employed = this.citizens.metrics.employedCount;
+    this.unemployed = this.citizens.metrics.unemployedCount;
+    this.unemploymentRate = this.citizens.metrics.unemploymentRate;
 
     // 5. POLUCIÓN Y AMBIENTE
     const rawPollution = corpResult.netIndustrialPollution + Math.floor(this.population / 40);
@@ -359,6 +371,15 @@ export class Simulation {
       // Bancarrota del Estado: Servicios públicos colapsados por falta de fondos municipales
       if (this.economy.isStateBankruptcy) {
         calcHappiness -= 16;
+      }
+    }
+
+    // Impacto del Remanente Financiero y Bienestar de los Ciudadanos Autónomos
+    if (citizenReport) {
+      if (citizenReport.avgRemaining > 15) {
+        calcHappiness += 6; // Bonanza económica ciudadana
+      } else if (citizenReport.avgRemaining < 0) {
+        calcHappiness -= 10; // Estrés financiero y endeudamiento
       }
     }
 
@@ -425,6 +446,7 @@ export class Simulation {
         commercialMultiplier: commercialMultiplier,
         powerRatio: this.powerRatio,
         waterRatio: this.waterRatio,
+        citizenReport: citizenReport,
       });
 
       this.lastIncome = ecoResult.totalIncome;
@@ -524,6 +546,7 @@ export class Simulation {
       policies: JSON.parse(JSON.stringify(this.policies)),
       speed: this.speed,
       isPaused: this.isPaused,
+      citizens: this.citizens ? this.citizens.serialize() : null,
     };
   }
 
@@ -545,6 +568,9 @@ export class Simulation {
     if (typeof data.education === 'number') this.education = data.education;
     if (data.policies) {
       this.policies = { ...this.policies, ...data.policies };
+    }
+    if (data.citizens && this.citizens) {
+      this.citizens.deserialize(data.citizens);
     }
   }
 }

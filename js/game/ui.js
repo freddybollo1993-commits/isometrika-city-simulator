@@ -285,6 +285,9 @@ export class UIManager {
     // 8. Botones de modales del alcalde (Borde izquierdo)
     document.querySelectorAll('[data-open-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.dataset.ecoTabTarget) {
+          this.currentEcoTab = btn.dataset.ecoTabTarget;
+        }
         this.openModal(btn.dataset.openModal);
       });
     });
@@ -724,6 +727,40 @@ export class UIManager {
         }
       }
 
+      // Información de Vivienda Orgánica y Ahorro Inquilino
+      if (def.category === 'residential') {
+        const prog = Math.max(0, Math.min(100, Math.round(building.upgradeProgress || 0)));
+        const rent = def.id === 'residential_high' ? 22 * level : 14 * level;
+        const resCount = building.residents ? building.residents.length : 0;
+        const eff = this.game.grid.getTransportEfficiencyAt(gx, gy);
+        const effLabel = eff <= 0.6 ? 'Óptima (0.55)' : eff <= 1.0 ? 'Moderada (0.85)' : 'Alta Fricción (>1.2)';
+
+        statsHTML += `
+          <div class="insp-stat-item">
+            <span>Inquilinos Activos:</span>
+            <strong>${resCount} / ${levelData.capacity || 12} hab.</strong>
+          </div>
+          <div class="insp-stat-item">
+            <span>Alquiler al Magnate:</span>
+            <strong class="positive">+$${rent}/d</strong>
+          </div>
+          <div class="insp-stat-item">
+            <span>Fricción Transporte:</span>
+            <strong class="${eff <= 0.85 ? 'text-positive' : 'text-warn'}">${effLabel}</strong>
+          </div>
+          <div class="insp-stat-item full-width-stat" style="grid-column: 1 / -1; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.76rem;">
+              <span>🌱 Evolución Orgánica:</span>
+              <strong class="text-positive">${prog}%</strong>
+            </div>
+            <div class="organic-progress-wrap">
+              <div class="organic-progress-bar" style="width: ${prog}%;"></div>
+            </div>
+            <small style="color: #94a3b8; font-size: 0.7rem;">Sube al 100% por remanente (> $15/d). Se degrada si hay estrés financiero.</small>
+          </div>
+        `;
+      }
+
       if (building.damage > 0) {
         statsHTML += `<div class="insp-stat-item"><span>Daño Estructural:</span><strong class="danger-color">${Math.round(building.damage)}%</strong></div>`;
       }
@@ -747,7 +784,14 @@ export class UIManager {
     }
 
     if (this.elBtnUpgrade) {
-      if (def.levels && level < 3) {
+      if (def.category === 'residential') {
+        // Regla 5: Escalado Basado en el Ciudadano
+        this.elBtnUpgrade.disabled = true;
+        this.elBtnUpgrade.style.opacity = '0.7';
+        const prog = Math.max(0, Math.min(100, Math.round(building.upgradeProgress || 0)));
+        if (this.elInspNextLvl) this.elInspNextLvl.textContent = level < 3 ? `🌱 Orgánico (${prog}%)` : 'MÁX (★3)';
+        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = 'Evolución por Ahorro';
+      } else if (def.levels && level < 3) {
         const nextLvl = level + 1;
         const nextData = def.levels[nextLvl];
         this.elBtnUpgrade.disabled = false;
@@ -862,6 +906,19 @@ export class UIManager {
     if (this.elPopulation) this.elPopulation.textContent = sim.population.toLocaleString();
     if (this.elCapacity) this.elCapacity.textContent = `/ ${sim.housingCapacity}`;
     if (this.elFood) this.elFood.textContent = `${sim.foodCapacity || 0} hab.`;
+
+    // Card Ciudadano (Agente) y Remanente Financiero
+    const elCitSavings = document.getElementById('stat-cit-savings');
+    const elCitRem = document.getElementById('stat-cit-rem');
+    if (sim.citizens) {
+      const m = sim.citizens.metrics;
+      if (elCitSavings) elCitSavings.textContent = `$${(m.avgSavings || 100).toLocaleString()}`;
+      if (elCitRem) {
+        const remSign = (m.avgRemaining || 0) >= 0 ? '+' : '';
+        elCitRem.textContent = `${remSign}$${m.avgRemaining || 0}/d`;
+        elCitRem.className = (m.avgRemaining || 0) >= 0 ? 'delta-positive' : 'delta-negative';
+      }
+    }
 
     if (this.elHappiness) this.elHappiness.textContent = `${sim.happiness}%`;
     if (this.elBarHappiness) {
@@ -1387,13 +1444,16 @@ export class UIManager {
 
     if (!isRendered || isInitial) {
       elContent.innerHTML = `
-        <!-- Selector de Perspectiva Dual -->
+        <!-- Selector de Perspectiva Dual y Ciudadanos -->
         <div class="eco-tabs-nav">
           <button class="eco-tab-btn ${this.currentEcoTab === 'state' ? 'active' : ''}" data-eco-tab="state">
             <span>🏛️ El Estado (Alcalde)</span>
           </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'corp' ? 'active' : ''}" data-eco-tab="corp">
             <span>💼 Sector Privado (Empresario)</span>
+          </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'citizens' ? 'active' : ''}" data-eco-tab="citizens">
+            <span>👥 Ciudadanos & Salarios</span>
           </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'balance' ? 'active' : ''}" data-eco-tab="balance">
             <span>⚖️ Equilibrio & Rescate</span>
@@ -1448,6 +1508,26 @@ export class UIManager {
             }
           });
         }
+      } else if (this.currentEcoTab === 'citizens') {
+        const btnIncWage = elContent.querySelector('#btn-inc-public-wage');
+        const btnDecWage = elContent.querySelector('#btn-dec-public-wage');
+        const cMgr = sim.citizens;
+        if (btnIncWage && cMgr) {
+          btnIncWage.addEventListener('click', () => {
+            const nw = cMgr.setPublicWage(cMgr.publicWageBase + 2);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showToast(`🏛️ Salario público elevado a $${nw}/d`);
+            this.updateEconomyModalContent(true);
+          });
+        }
+        if (btnDecWage && cMgr) {
+          btnDecWage.addEventListener('click', () => {
+            const nw = cMgr.setPublicWage(cMgr.publicWageBase - 2);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showToast(`🏛️ Salario público reducido a $${nw}/d`);
+            this.updateEconomyModalContent(true);
+          });
+        }
       }
 
     } else {
@@ -1495,6 +1575,19 @@ export class UIManager {
         setTxt('#eco-corp-exp-ops', `-$${corpExp.operatingCosts || 0}/d`);
         setTxt('#eco-corp-exp-tax', `-$${corpExp.taxesPaid || 0}/d`);
         setTxt('#eco-corp-exp-total', `-$${corpExp.total || 0}/d`);
+      }
+      // Si está en pestaña Ciudadanos & Salarios
+      else if (this.currentEcoTab === 'citizens') {
+        const cMgr = sim.citizens;
+        const m = cMgr ? cMgr.metrics : {};
+        const avgRemSign = (m.avgRemaining || 0) >= 0 ? '+' : '';
+        setTxt('#eco-kpi-cit-savings', `$${(m.avgSavings || 100).toLocaleString()}`);
+        setTxt('#eco-kpi-cit-rem', `${avgRemSign}$${m.avgRemaining || 0}/d`);
+        setTxt('#eco-kpi-cit-trans', `-$${m.avgTransportCost || 0}/d`);
+        setTxt('#eco-kpi-cit-happy', `${m.avgHappiness || 65}%`);
+        setTxt('#val-public-wage', `$${cMgr ? cMgr.publicWageBase : 26}`);
+        setTxt('#val-public-staffed', `${m.publicWorkersCount || 0} / ${m.publicNeededCount || 0}`);
+        setTxt('#val-private-staffed', `${m.privateWorkersCount || 0} empleados`);
       }
       // Si está en pestaña Equilibrio & Rescate
       else if (this.currentEcoTab === 'balance') {
@@ -1793,6 +1886,173 @@ export class UIManager {
                 <span id="eco-trend-water" class="${this._getTrendClass(trends.water)}">${this._getTrendIcon(trends.water)}</span>
               </div>
               <div id="eco-price-water" class="eco-market-price">$${prices.water || 0.65} <small style="font-size: 0.65rem; color: #94a3b8;">/kL</small></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 4. PESTAÑA CIUDADANOS Y PUGNA SALARIAL
+    if (tab === 'citizens') {
+      const cMgr = sim.citizens;
+      const m = cMgr ? cMgr.metrics : {};
+      const avgRemSign = (m.avgRemaining || 0) >= 0 ? '+' : '';
+      const avgRemColor = (m.avgRemaining || 0) >= 0 ? 'text-positive' : 'text-danger';
+      const pubStaffingPct = Math.round((m.publicStaffingRatio || 1.0) * 100);
+      const privStaffingPct = Math.round((m.privateStaffingRatio || 1.0) * 100);
+      const edu = m.educationDistribution || { noStudies: 0, basic: 0, superior: 0 };
+      const housing = m.housingBreakdown || { level1: 0, level2: 0, level3: 0 };
+
+      return `
+        <div class="eco-kpi-grid">
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Ahorro Medio Acumulado</span>
+            <span id="eco-kpi-cit-savings" class="kpi-val text-positive">$${(m.avgSavings || 100).toLocaleString()}</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Remanente Diario Neto</span>
+            <span id="eco-kpi-cit-rem" class="kpi-val ${avgRemColor}">${avgRemSign}$${m.avgRemaining || 0}/d</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Fricción Espacial Media</span>
+            <span id="eco-kpi-cit-trans" class="kpi-val text-warn">-$${m.avgTransportCost || 0}/d</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Felicidad de Agentes</span>
+            <span id="eco-kpi-cit-happy" class="kpi-val text-tech">${m.avgHappiness || 65}%</span>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 1: PUGNA SALARIAL (PÚBLICO VS PRIVADO) -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>⚔️ Pugna Salarial: El Estado vs. La Empresa Privada</span>
+            <small style="color: #94a3b8;">Competencia por Mano de Obra</small>
+          </div>
+          <p style="font-size: 0.72rem; color: #94a3b8; margin: 0 0 10px 0;">
+            ⚠️ <em>Regla de Pugna Salarial:</em> Las instituciones del Alcalde (plantas de luz, agua, escuelas, comisarías) compiten con las empresas del Magnate por operarios calificados. Si el Magnate ofrece mayores salarios, las plantas públicas se quedan sin trabajadores, provocando apagones y cortes de agua.
+          </p>
+
+          <div class="wage-battle-container">
+            <div class="wage-battle-box wage-box-public">
+              <div class="wage-box-header">
+                <span>🏛️ Sector Público (Alcaldía)</span>
+                <span class="wage-tag public-tag">Sueldo Base: $${cMgr ? cMgr.publicWageBase : 26}/d</span>
+              </div>
+              <div class="wage-controls">
+                <span>Ajustar Salario Público:</span>
+                <div class="wage-btn-group">
+                  <button id="btn-dec-public-wage" class="wage-step-btn" title="Reducir salario público">- $2</button>
+                  <strong id="val-public-wage">$${cMgr ? cMgr.publicWageBase : 26}</strong>
+                  <button id="btn-inc-public-wage" class="wage-step-btn" title="Aumentar salario público">+ $2</button>
+                </div>
+              </div>
+              <div class="wage-stat-row">
+                <span>Operarios en Plantas Públicas:</span>
+                <strong id="val-public-staffed">${m.publicWorkersCount || 0} / ${m.publicNeededCount || 0}</strong>
+              </div>
+              <div class="wage-stat-row">
+                <span>Cobertura de Servicios:</span>
+                <strong class="${pubStaffingPct >= 85 ? 'text-positive' : pubStaffingPct >= 70 ? 'text-warn' : 'text-danger'}">
+                  ${pubStaffingPct}% ${pubStaffingPct < 80 ? '⚠️ Riesgo de Apagón' : '✓ Normal'}
+                </strong>
+              </div>
+            </div>
+
+            <div class="wage-battle-box wage-box-private">
+              <div class="wage-box-header">
+                <span>💼 Sector Privado (El Magnate)</span>
+                <span class="wage-tag private-tag">Sueldo Base: $${cMgr ? cMgr.privateWageBase : 28}/d</span>
+              </div>
+              <div class="wage-stat-row" style="margin-top: 8px;">
+                <span>Trabajadores Empleados:</span>
+                <strong id="val-private-staffed">${m.privateWorkersCount || 0} empleados</strong>
+              </div>
+              <div class="wage-stat-row">
+                <span>Cobertura Privada:</span>
+                <strong class="text-positive">${privStaffingPct}%</strong>
+              </div>
+              <div class="wage-stat-row">
+                <span>Solvencia Salarial:</span>
+                <strong class="${eco.isCorporateCrisis ? 'text-danger' : 'text-positive'}">
+                  ${eco.isCorporateCrisis ? 'Crisis (Nóminas impagas)' : 'Capacidad Plena'}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 2: ESCALADO RESIDENCIAL ORGÁNICO -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>🌱 Escalado Residencial Orgánico Basado en el Ciudadano</span>
+            <small style="color: #94a3b8;">Crecimiento sin inyección directa de dinero</small>
+          </div>
+          <p style="font-size: 0.72rem; color: #94a3b8; margin: 0 0 10px 0;">
+            Los edificios residenciales suben de nivel automáticamente cuando sus inquilinos tienen remanente diario positivo (&gt; $15) y estabilidad financiera. Si caen en números rojos, el estrés financiero degrada las viviendas al nivel anterior.
+          </p>
+
+          <div class="housing-organic-grid">
+            <div class="housing-card">
+              <span class="housing-level-icon">🏠</span>
+              <strong>Nivel 1 (Básicas)</strong>
+              <div class="housing-count-val">${housing.level1 || 0} edificios</div>
+              <small>Capacidad: 12 hab. • Alquiler: $14/d</small>
+            </div>
+            <div class="housing-card">
+              <span class="housing-level-icon">🏡</span>
+              <strong>Nivel 2 (Confort)</strong>
+              <div class="housing-count-val">${housing.level2 || 0} edificios</div>
+              <small>Capacidad: 24 hab. • Alquiler: $28/d</small>
+            </div>
+            <div class="housing-card">
+              <span class="housing-level-icon">🏙️</span>
+              <strong>Nivel 3 (Lujo)</strong>
+              <div class="housing-count-val">${housing.level3 || 0} edificios</div>
+              <small>Capacidad: 40 hab. • Alquiler: $42/d</small>
+            </div>
+          </div>
+
+          <div class="housing-health-summary">
+            <div class="h-health-item">
+              <span>Hogares en Estrés Financiero:</span>
+              <strong class="${(m.inFinancialStressCount || 0) > 0 ? 'text-danger' : 'text-positive'}">
+                ${m.inFinancialStressCount || 0} viviendas
+              </strong>
+            </div>
+            <div class="h-health-item">
+              <span>Evoluciones Registradas Hoy:</span>
+              <strong class="text-positive">+${m.organicUpgradesToday || 0} mejoras</strong>
+            </div>
+            <div class="h-health-item">
+              <span>Degradaciones Registradas Hoy:</span>
+              <strong class="${(m.organicDegradesToday || 0) > 0 ? 'text-danger' : 'text-positive'}">
+                -${m.organicDegradesToday || 0} caídas
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 3: ECUACIÓN DEL REMANENTE FINANCIERO -->
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>📐 Ecuación del Remanente Financiero Diario</span>
+          </div>
+          <div class="formula-box">
+            <code>Remanente = Salario - (Alquiler + Comida ($10) + Fricción Transporte + Impuesto IRP)</code>
+          </div>
+          <div class="formula-details">
+            <div class="f-detail-item">
+              <span>🎓 Sin Estudios:</span>
+              <strong>${edu.noStudies || 0} hab. (Fábricas, granjas y tiendas)</strong>
+            </div>
+            <div class="f-detail-item">
+              <span>📚 Educación Básica:</span>
+              <strong>${edu.basic || 0} hab. (Luz, agua, supermercados, policía)</strong>
+            </div>
+            <div class="f-detail-item">
+              <span>🎓 Educación Superior:</span>
+              <strong>${edu.superior || 0} hab. (Tech, medicina, filtrado)</strong>
             </div>
           </div>
         </div>

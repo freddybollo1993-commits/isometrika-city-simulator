@@ -61,6 +61,137 @@ export class Grid {
   }
 
   /**
+   * Obtiene la estructura raíz de un edificio a partir de su ID ('bldg_X_Y') o coordenadas
+   */
+  getBuilding(id) {
+    let gx = null;
+    let gy = null;
+
+    if (typeof id === 'string') {
+      if (id.startsWith('bldg_')) {
+        const parts = id.split('_');
+        gx = parseInt(parts[1], 10);
+        gy = parseInt(parts[2], 10);
+      }
+    } else if (id && typeof id === 'object') {
+      gx = id.gx !== undefined ? id.gx : id.x;
+      gy = id.gy !== undefined ? id.gy : id.y;
+    }
+
+    if (gx === null || gy === null || isNaN(gx) || isNaN(gy)) return null;
+
+    const tile = this.getTile(gx, gy);
+    if (!tile || !tile.building) return null;
+
+    let rootGx = gx;
+    let rootGy = gy;
+    if (tile.building.isChild) {
+      rootGx = tile.building.rootGx;
+      rootGy = tile.building.rootGy;
+    }
+
+    const rootTile = this.getTile(rootGx, rootGy);
+    if (!rootTile || !rootTile.building) return null;
+
+    const b = rootTile.building;
+    const def = CONFIG.BUILDINGS[b.id];
+    const lvl = b.level || 1;
+
+    return {
+      id: b.uid || `bldg_${rootGx}_${rootGy}`,
+      uid: b.uid || `bldg_${rootGx}_${rootGy}`,
+      x: rootGx,
+      y: rootGy,
+      gx: rootGx,
+      gy: rootGy,
+      defId: b.id,
+      category: def ? def.category : 'infra',
+      level: lvl,
+      upgradeProgress: b.upgradeProgress !== undefined ? b.upgradeProgress : 0,
+      residents: b.residents || [],
+      health: b.health || 100,
+      damage: rootTile.damage || 0,
+      getRent() {
+        const baseRent = b.id === 'residential_high' ? 22 : 14;
+        return baseRent * lvl;
+      },
+    };
+  }
+
+  /**
+   * Evalúa la fricción espacial y eficiencia de transporte en una celda (0.5 a 2.0).
+   * La cercanía a carreteras pavimentadas y red vial reduce los costos de desplazamiento.
+   */
+  getTransportEfficiencyAt(gx, gy) {
+    let minDist = 999;
+
+    // Buscar la carretera más cercana en un radio de hasta 6 celdas
+    const scanRadius = 6;
+    for (let dy = -scanRadius; dy <= scanRadius; dy++) {
+      for (let dx = -scanRadius; dx <= scanRadius; dx++) {
+        const tx = gx + dx;
+        const ty = gy + dy;
+        const t = this.getTile(tx, ty);
+        if (t && t.building && t.building.id === 'road') {
+          const d = Math.abs(dx) + Math.abs(dy);
+          if (d < minDist) {
+            minDist = d;
+            if (minDist <= 1) break;
+          }
+        }
+      }
+      if (minDist <= 1) break;
+    }
+
+    // 0 o 1 celda de distancia: alta eficiencia (0.55)
+    if (minDist <= 1) return 0.55;
+    if (minDist === 2) return 0.85;
+    if (minDist === 3) return 1.25;
+    // Periferia aislada: alta fricción espacial (1.6 a 2.0)
+    return Math.min(2.0, 1.25 + (minDist - 3) * 0.25);
+  }
+
+  /**
+   * Verifica si una celda está en el radio de cobertura de alguna planta de energía
+   */
+  isTileCoveredByPower(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot) {
+          const def = CONFIG.BUILDINGS[t.building.id];
+          if (def && def.category === 'utility' && def.utilityType === 'power') {
+            const rad = def.id === 'utility_coal' ? 16 : 10;
+            const dist = Math.abs(gx - x) + Math.abs(gy - y);
+            if (dist <= rad) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Verifica si una celda está en el radio de cobertura de una torre o planta de agua
+   */
+  isTileCoveredByWater(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot) {
+          const def = CONFIG.BUILDINGS[t.building.id];
+          if (def && def.category === 'utility' && def.utilityType === 'water') {
+            const rad = def.id === 'utility_water_plant' ? 14 : 8;
+            const dist = Math.abs(gx - x) + Math.abs(gy - y);
+            if (dist <= rad) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Valida si se puede construir un edificio (1x1 o 2x2) en la coordenada indicada
    */
   canBuild(gx, gy, buildingId) {
@@ -110,7 +241,12 @@ export class Grid {
     const rootTile = this.getTile(gx, gy);
     rootTile.building = {
       id: buildingId,
+      uid: `bldg_${gx}_${gy}`,
+      gx,
+      gy,
       level: 1,
+      upgradeProgress: 0,
+      residents: [],
       health: 100,
       damage: 0,
       rotation: rotation % 4,
@@ -168,6 +304,17 @@ export class Grid {
     const def = CONFIG.BUILDINGS[b.id];
     if (!def || !def.levels) {
       return { success: false, reason: 'Esta estructura no tiene mejoras de nivel' };
+    }
+
+    // Regla de Oro: Escalado Basado en el Ciudadano
+    // Las viviendas residenciales no suben por inyección directa de dinero del jugador,
+    // sino orgánicamente por el remanente financiero y ahorro acumulado de sus inquilinos.
+    if (def.category === 'residential') {
+      return {
+        success: false,
+        isOrganic: true,
+        reason: 'Las viviendas evolucionan orgánicamente según el ahorro y estabilidad de sus inquilinos.'
+      };
     }
 
     const nextLevel = (b.level || 1) + 1;
