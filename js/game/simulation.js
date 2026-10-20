@@ -281,7 +281,10 @@ export class Simulation {
 
     // Si la Alcaldía no ofrece salarios competitivos, las plantas públicas sufren déficit de personal
     // provocando apagones y cortes de agua (Regla 3 del Documento Maestro)
-    const publicLaborFactor = Math.max(0.2, this.citizens.metrics.publicStaffingRatio);
+    // En fase fundacional (menos de 10 hab), los servicios operan en modo pionero automatizado.
+    const publicLaborFactor = this.population >= 10 
+      ? Math.max(0.2, this.citizens.metrics.publicStaffingRatio) 
+      : 1.0;
     totalPowerSupply = Math.round(totalPowerSupply * publicLaborFactor);
     totalWaterSupply = Math.round(totalWaterSupply * publicLaborFactor);
 

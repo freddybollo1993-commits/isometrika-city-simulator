@@ -112,8 +112,17 @@ export class Grid {
       health: b.health || 100,
       damage: rootTile.damage || 0,
       getRent() {
-        const baseRent = b.id === 'residential_high' ? 22 : 14;
-        return baseRent * lvl;
+        if (b.id === 'residential_social') {
+          const socialRents = [4, 6, 9];
+          return socialRents[lvl - 1] || 4;
+        }
+        if (b.id === 'residential_high') {
+          const highRents = [18, 25, 34];
+          return highRents[lvl - 1] || 18;
+        }
+        // residential_low (Cabaña rural $6 -> Suburbana $12 -> Villa $18)
+        const lowRents = [6, 12, 18];
+        return lowRents[lvl - 1] || 6;
       },
     };
   }

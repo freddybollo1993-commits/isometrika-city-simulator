@@ -583,7 +583,7 @@ export class Renderer {
 
     // DETALLES ESPECÍFICOS SEGÚN ARQUITECTURA Y ROTACIÓN:
 
-    // Casa Unifamiliar
+    // Casa y Residencia Baja (Evolución de Cabaña Rural a Villa Solar)
     if (def.id === 'residential_low') {
       ctx.beginPath();
       ctx.moveTo(x, topY - 10);
@@ -591,13 +591,32 @@ export class Renderer {
       ctx.lineTo(x, topY + th);
       ctx.lineTo(x - tw / 2.4, topY + th / 2);
       ctx.closePath();
-      ctx.fillStyle = def.roofColor;
+      ctx.fillStyle = level === 3 ? '#0284c7' : (level === 2 ? '#fb923c' : '#b45309');
       ctx.fill();
-      // Chimenea
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(x + (rotation % 2 === 0 ? 6 : -8), topY - 12, 3, 7);
-      // Puerta orientada
-      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#78350f');
+
+      // Chimenea rústica (Niveles 1 y 2)
+      if (level < 3) {
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(x + (rotation % 2 === 0 ? 6 : -8), topY - 12, 3, 7);
+      } else {
+        // Nivel 3: Micro-panel solar fotovoltaico en el tejado
+        ctx.fillStyle = '#1e3a8a';
+        ctx.fillRect(x - 5, topY - 5, 10, 5);
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - 5, topY - 5, 10, 5);
+      }
+
+      // Detalle de entrada o porche
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, level === 1 ? '#78350f' : '#1e293b');
+
+      // Nivel 2: Pequeño arbolito / jardín frontal
+      if (level === 2) {
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(x - 12, y + 2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // Torre Departamentos (2x2)

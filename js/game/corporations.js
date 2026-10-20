@@ -50,25 +50,32 @@ export class CorporationsManager {
     for (let gy = 0; gy < grid.size; gy++) {
       for (let gx = 0; gx < grid.size; gx++) {
         const tile = grid.tiles[gy][gx];
-        if (!tile || !tile.building) continue;
+        if (!tile || !tile.building || !tile.building.isRoot) continue;
 
         const def = CONFIG.BUILDINGS[tile.building.id];
         if (!def || !def.branch) continue;
 
-        // Multiplicador de eficiencia según integridad estructural (daños reducen producción)
-        const healthMultiplier = Math.max(0.1, (100 - tile.damage) / 100);
+        const lvl = tile.building.level || 1;
+        const levelData = (def.levels && def.levels[lvl]) ? def.levels[lvl] : def;
+        const jobs = levelData.jobs || def.jobs || 50;
+        const revPerJob = levelData.revenuePerJob || def.revenuePerJob || 3.8;
+        const pollution = levelData.pollution !== undefined ? levelData.pollution : (def.pollution || 15);
+        const tileDamage = tile.damage || 0;
 
-        if (def.branch === 'mass') {
+        // Multiplicador de eficiencia según integridad estructural (daños reducen producción)
+        const healthMultiplier = Math.max(0.1, (100 - tileDamage) / 100);
+
+        if (def.branch === 'mass' || def.branch === 'agro') {
           massCount++;
-          massCapacity += def.jobs;
-          massBaseRev += def.jobs * def.revenuePerJob * healthMultiplier;
-          massBasePollution += def.pollution * healthMultiplier;
+          massCapacity += jobs;
+          massBaseRev += jobs * revPerJob * healthMultiplier;
+          massBasePollution += pollution * healthMultiplier;
         } else if (def.branch === 'tech') {
           techCount++;
-          techCapacity += def.jobs;
-          techBaseRev += def.jobs * def.revenuePerJob * healthMultiplier;
-          techBasePollutionOffset += Math.abs(def.pollution) * healthMultiplier;
-          techBaseResearch += (def.researchPoints || 0) * healthMultiplier;
+          techCapacity += jobs;
+          techBaseRev += jobs * revPerJob * healthMultiplier;
+          techBasePollutionOffset += Math.abs(pollution) * healthMultiplier;
+          techBaseResearch += (levelData.research || levelData.researchPoints || def.researchPoints || 0) * healthMultiplier;
         }
       }
     }

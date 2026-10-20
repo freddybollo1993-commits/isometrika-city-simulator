@@ -42,18 +42,26 @@ export class ResidentialBuilding {
   }
 
   getRent() {
-    // Alquiler base: Unifamiliar = $14, Torre de Departamentos = $22, Vivienda Social = $4
-    if (this.defId === 'residential_social') return 4 * this.level;
-    const baseRent = this.defId === 'residential_high' ? 22 : 14;
-    return baseRent * this.level;
+    // Alquiler escalonado por nivel y tipología
+    if (this.defId === 'residential_social') {
+      const socialRents = [4, 6, 9];
+      return socialRents[this.level - 1] || 4;
+    }
+    if (this.defId === 'residential_high') {
+      const highRents = [18, 25, 34];
+      return highRents[this.level - 1] || 18;
+    }
+    // residential_low: Cabaña rural ($6) -> Vivienda suburbana ($12) -> Villa urbana ($18)
+    const lowRents = [6, 12, 18];
+    return lowRents[this.level - 1] || 6;
   }
 
   getMaxCapacity() {
     const def = CONFIG.BUILDINGS[this.defId];
     if (def && def.levels && def.levels[this.level]) {
-      return def.levels[this.level].capacity || 12;
+      return def.levels[this.level].capacity || 4;
     }
-    return def ? (def.capacity || 12) : 12;
+    return def ? (def.capacity || 4) : 4;
   }
 }
 
@@ -517,8 +525,11 @@ export class CitizenManager {
 
     this.citizens.forEach((citizen) => {
       const salary = citizen.currentJob ? citizen.currentJob.salary : 0;
+      const resBuilding = residentialMap.get(citizen.homeBuildingId);
       const building = grid.getBuilding(citizen.homeBuildingId);
-      const rent = building && typeof building.getRent === 'function' ? building.getRent() : 15;
+      const rent = resBuilding 
+        ? resBuilding.getRent() 
+        : (building && typeof building.getRent === 'function' ? building.getRent() : 6);
       const food = 10; // Consumo obligatorio en comercios y granjas del Magnate
       const taxes = Math.round(salary * taxRate * 10) / 10;
 
@@ -544,8 +555,7 @@ export class CitizenManager {
       totalCitizenTaxes += taxes;
       // El ciudadano paga alquiler y comida si dispone de ahorro
       const rentPaid = citizen.savings >= rent ? rent : Math.max(0, citizen.savings);
-      const resBuildingCheck = residentialMap.get(citizen.homeBuildingId);
-      if (resBuildingCheck && resBuildingCheck.defId === 'residential_social') {
+      if (resBuilding && resBuilding.defId === 'residential_social') {
         totalPublicHousingRent += rentPaid;
       } else {
         totalCitizenRents += rentPaid;
@@ -561,12 +571,12 @@ export class CitizenManager {
       else citizenHappy -= 30;
 
       // Dinamismo barrial: Bulevar Gastronómico cercano
-      if (resBuildingCheck && grid && typeof grid.getGastronomyBonusAt === 'function') {
-        const gastroBonus = grid.getGastronomyBonusAt(resBuildingCheck.x, resBuildingCheck.y);
+      if (resBuilding && grid && typeof grid.getGastronomyBonusAt === 'function') {
+        const gastroBonus = grid.getGastronomyBonusAt(resBuilding.x, resBuilding.y);
         if (gastroBonus > 0) citizenHappy += Math.min(15, gastroBonus);
       }
 
-      if (remaining > 10) citizenHappy += 15;
+      if (remaining >= 3) citizenHappy += 15;
       else if (remaining < 0) citizenHappy -= 25;
 
       if (citizen.savings > 150) citizenHappy += 10;
@@ -576,13 +586,12 @@ export class CitizenManager {
       sumHappiness += citizen.happiness;
 
       // ACTUALIZAR PROGRESO DE MEJORA DEL EDIFICIO RESIDENCIAL (ESCALADO ORGÁNICO)
-      const resBuilding = residentialMap.get(citizen.homeBuildingId);
       if (resBuilding) {
         const occFactor = Math.max(1, resBuilding.residents.length * 0.35);
-        if (remaining > 15) {
-          resBuilding.upgradeProgress += (remaining * 0.08) / occFactor;
+        if (remaining >= 2) {
+          resBuilding.upgradeProgress += (remaining * 0.10) / occFactor;
         } else if (remaining < 0) {
-          resBuilding.upgradeProgress -= 4.5 / occFactor; // Penalización por estrés financiero
+          resBuilding.upgradeProgress -= 3.5 / occFactor; // Penalización por estrés financiero
           inFinancialStressCount++;
         }
       }
