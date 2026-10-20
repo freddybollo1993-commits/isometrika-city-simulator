@@ -2,260 +2,264 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ISOMETRICA — Simulador de Ciudad Minimalista 2.5D</title>
-  <meta name="description" content="Simulador de ciudad minimalista en perspectiva isométrica 2.5D. Gestiona la demografía, economía laboral y seguridad como alcalde, equilibra la contratación masiva y calificada, e investiga tecnologías para mitigar desastres naturales.">
-  <meta name="theme-color" content="#1e293b">
+  <meta name="description" content="Simulador de ciudad minimalista en perspectiva isométrica 2.5D. Ergonomía horizontal mobile-first, colocación fantasma con flechas de ajuste fino y rotación en 360 grados.">
+  <meta name="theme-color" content="#0f172a">
 
-  <!-- Favicon SVG en línea para cero dependencias externas -->
+  <!-- Favicon SVG -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,15 85,35 50,55 15,35' fill='%2338bdf8'/><polygon points='15,35 50,55 50,90 15,70' fill='%230284c7'/><polygon points='50,55 85,35 85,70 50,90' fill='%230369a1'/></svg>">
 
-  <!-- Hojas de Estilo -->
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="landscape-app">
 
-  <!-- Canvas Principal del Juego 2.5D -->
+  <!-- CANVAS PRINCIPAL (JUEGO 2.5D A 60 FPS) -->
   <canvas id="city-canvas"></canvas>
 
-  <!-- BANNER DE ALERTA DE CATÁSTROFE / ALERTA TEMPRANA -->
-  <div id="alert-banner" class="alert-banner">
-    <!-- Rellenado dinámicamente -->
-  </div>
+  <!-- BANNER DE ALERTA DE CATÁSTROFE / CLIMA -->
+  <div id="alert-banner" class="alert-banner"></div>
 
-  <!-- INDICADOR DE AUTOGUARDADO EN DISPOSITIVO -->
+  <!-- INDICADOR DE AUTOGUARDADO -->
   <div id="save-indicator" class="save-indicator">
     <span class="save-dot"></span>
-    <span>Guardado en almacenamiento local</span>
+    <span>Guardado</span>
   </div>
 
-  <!-- PANEL SUPERIOR: HUD DEL ALCALDE -->
-  <header id="mayor-hud" class="hud-panel top-hud">
-    <div class="hud-brand">
-      <span class="logo-cube">📐</span>
-      <div class="brand-text">
-        <h1 class="game-title">ISOMETRICA</h1>
-        <span class="game-subtitle">Alcaldía Urbana</span>
-      </div>
-    </div>
-
-    <!-- Indicadores de los Tres Pilares: Demografía, Economía Laboral y Seguridad -->
-    <div class="hud-metrics">
-      <!-- Finanzas y Tesorería -->
-      <div class="metric-group" title="Tesorería municipal y flujo neto diario">
-        <span class="metric-icon">💰</span>
-        <div class="metric-values">
-          <span class="stat-value" id="stat-funds">$3,500</span>
-          <span class="stat-delta positive" id="stat-cashflow">+$0/d</span>
-        </div>
+  <!-- 1. HUD ECONÓMICO SUPERIOR ULTRA-COMPACTO (<= 38px) -->
+  <header id="mayor-hud" class="hud-top-bar">
+    <div class="hud-scroll-container">
+      <!-- Tesorería -->
+      <div class="hud-item" title="Tesorería y flujo de caja diario">
+        <span class="h-icon">💰</span>
+        <strong id="stat-funds">$3,800</strong>
+        <span id="stat-cashflow" class="delta-positive">+$0/d</span>
       </div>
 
-      <!-- Pilar 1: Demografía y Población -->
-      <div class="metric-group" title="Habitantes actuales y capacidad residencial">
-        <span class="metric-icon">👥</span>
-        <div class="metric-values">
-          <div class="metric-line">
-            <span class="stat-value" id="stat-population">0</span>
-            <span class="stat-sub" id="stat-capacity">/ 0</span>
-          </div>
-          <div class="mini-bar-bg">
-            <div id="bar-happiness" class="progress-fill good" style="width: 75%;"></div>
-          </div>
-        </div>
-        <span class="metric-badge" id="stat-happiness" title="Índice de Felicidad">75%</span>
+      <!-- Población -->
+      <div class="hud-item" title="Población / Capacidad residencial">
+        <span class="h-icon">👥</span>
+        <strong id="stat-population">0</strong>
+        <span id="stat-capacity" class="sub-muted">/ 0</span>
       </div>
 
-      <!-- Pilar 2: Economía Laboral -->
-      <div class="metric-group" title="Tasa de Desempleo (Fuerza laboral en búsqueda de empleo)">
-        <span class="metric-icon">💼</span>
-        <div class="metric-values">
-          <span class="stat-label">Desempleo</span>
-          <span class="stat-value positive" id="stat-unemployment">0%</span>
-        </div>
+      <!-- Felicidad -->
+      <div class="hud-item" title="Felicidad ciudadana">
+        <span class="h-icon">😊</span>
+        <strong id="stat-happiness">75%</strong>
       </div>
 
-      <!-- Pilar 3: Seguridad Ciudadana -->
-      <div class="metric-group" title="Índice de Seguridad Urbana y Resiliencia">
-        <span class="metric-icon">🛡️</span>
-        <div class="metric-values">
-          <span class="stat-label">Seguridad</span>
-          <div class="mini-bar-bg">
-            <div id="bar-security" class="progress-fill good" style="width: 80%;"></div>
-          </div>
-        </div>
-        <span class="metric-badge" id="stat-security">80%</span>
+      <!-- Empleo / Desempleo -->
+      <div class="hud-item" title="Tasa de desempleo">
+        <span class="h-icon">💼</span>
+        <strong id="stat-unemployment" class="text-positive">0%</strong>
       </div>
 
-      <!-- Huella de Carbono y Polución -->
-      <div class="metric-group" title="Nivel de Emisiones Atmosféricas y Polución">
-        <span class="metric-icon">🌫️</span>
-        <div class="metric-values">
-          <span class="stat-label">Polución</span>
-          <div class="mini-bar-bg">
-            <div id="bar-pollution" class="progress-fill good" style="width: 10%;"></div>
-          </div>
-        </div>
-        <span class="metric-badge" id="stat-pollution">5 ppm</span>
+      <!-- Seguridad -->
+      <div class="hud-item" title="Índice de seguridad">
+        <span class="h-icon">🛡️</span>
+        <strong id="stat-security">80%</strong>
       </div>
 
-      <!-- Puntos de Investigación Científica -->
-      <div class="metric-group" title="Puntos de Investigación (RP) para tecnologías de mitigación">
-        <span class="metric-icon">🔬</span>
-        <div class="metric-values">
-          <span class="stat-label">Ciencia</span>
-          <span class="stat-value tech-color" id="stat-research">50 RP</span>
-        </div>
+      <!-- Educación -->
+      <div class="hud-item" title="Nivel educativo">
+        <span class="h-icon">🎓</span>
+        <strong id="stat-education">20%</strong>
       </div>
 
-      <!-- Educación y Capital Humano -->
-      <div class="metric-group" title="Nivel de Formación Ciudadana y Talento Técnico">
-        <span class="metric-icon">🎓</span>
-        <div class="metric-values">
-          <span class="stat-label">Educación</span>
-          <span class="stat-value" id="stat-education">20%</span>
-        </div>
+      <!-- Polución -->
+      <div class="hud-item" title="Huella de carbono">
+        <span class="h-icon">🌫️</span>
+        <strong id="stat-pollution">5 ppm</strong>
       </div>
-    </div>
 
-    <!-- Control de Tiempo y Simulación -->
-    <div class="hud-controls">
-      <div class="time-box">
-        <span id="stat-day" class="day-counter">Día 1</span>
-        <div class="speed-buttons">
-          <button class="btn-icon" data-speed="0" title="Pausar (Espacio)">⏸️</button>
-          <button class="btn-icon active" data-speed="1" title="Velocidad Normal">▶️</button>
-          <button class="btn-icon" data-speed="2" title="Avance Rápido">⏩</button>
+      <!-- Ciencia -->
+      <div class="hud-item" title="Puntos de Investigación (RP)">
+        <span class="h-icon">🔬</span>
+        <strong id="stat-research" class="text-tech">60 RP</strong>
+      </div>
+
+      <!-- Tiempo y Velocidad -->
+      <div class="hud-item hud-time" title="Tiempo de juego">
+        <span id="stat-day" class="day-text">Día 1</span>
+        <div class="speed-group">
+          <button class="btn-spd" data-speed="0" title="Pausar">⏸️</button>
+          <button class="btn-spd active" data-speed="1" title="Normal">▶️</button>
+          <button class="btn-spd" data-speed="2" title="Rápido">⏩</button>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- BOTONES FLOTANTES DE GESTIÓN MUNICIPAL (LADO DERECHO) -->
-  <aside class="mayor-actions-panel">
-    <button class="action-btn" data-open-modal="corporations" title="Empresas y Políticas de Contratación">
-      <span class="action-icon">🏭</span>
-      <span class="action-label">Empresas</span>
+  <!-- 2. CONTROLES DISCRETOS EN BORDES EXTREMOS -->
+  <!-- Borde Izquierdo: Acceso a Decretos, Ciencia y Partida -->
+  <aside class="edge-actions-left">
+    <button class="edge-btn" data-open-modal="corporations" title="Empresas y Decretos">
+      <span class="e-icon">🏭</span>
+      <span class="e-text">Empresas</span>
     </button>
-    <button class="action-btn" data-open-modal="research" title="Árbol de Investigación Científica">
-      <span class="action-icon">🔬</span>
-      <span class="action-label">Ciencia</span>
+    <button class="edge-btn" data-open-modal="research" title="Árbol Tecnológico">
+      <span class="e-icon">🔬</span>
+      <span class="e-text">Ciencia</span>
     </button>
-    <button class="action-btn" data-open-modal="disasters" title="Centro de Monitoreo de Desastres y Reparaciones">
-      <span class="action-icon">🌋</span>
-      <span class="action-label">Desastres</span>
+    <button class="edge-btn" data-open-modal="disasters" title="Centro de Desastres">
+      <span class="e-icon">🌋</span>
+      <span class="e-text">Riesgos</span>
     </button>
-    <button class="action-btn" data-open-modal="settings" title="Guardado y Gestión de Ciudad">
-      <span class="action-icon">💾</span>
-      <span class="action-label">Partida</span>
-    </button>
-    <button id="btn-center-map" class="action-btn action-minor" title="Centrar Ciudad">
-      <span class="action-icon">🎯</span>
-    </button>
-    <button id="btn-toggle-audio" class="action-btn action-minor" title="Silenciar / Activar Sonido">
-      <span class="action-icon">🔊</span>
+    <button class="edge-btn" data-open-modal="settings" title="Guardar / Cargar">
+      <span class="e-icon">💾</span>
+      <span class="e-text">Partida</span>
     </button>
   </aside>
 
-  <!-- CONTROL FLOTANTE DE CÁMARA (D-PAD Y ZOOM) -->
-  <div class="camera-dpad" id="camera-dpad" aria-label="Controles de Navegación del Mapa">
-    <button class="dpad-btn dpad-up" data-pan="up" title="Mover Arriba (W / ↑)">▲</button>
-    <div class="dpad-middle">
-      <button class="dpad-btn dpad-left" data-pan="left" title="Mover Izquierda (A / ←)">◀</button>
-      <button class="dpad-btn dpad-center" data-pan="center" title="Centrar Ciudad">🎯</button>
-      <button class="dpad-btn dpad-right" data-pan="right" title="Mover Derecha (D / →)">▶</button>
+  <!-- Borde Derecho: Navegación y Audio -->
+  <aside class="edge-actions-right">
+    <button id="btn-center-map" class="edge-circle-btn" title="Centrar Ciudad">🎯</button>
+    <button class="edge-circle-btn" data-zoom="in" title="Acercar (Zoom +)">＋</button>
+    <button class="edge-circle-btn" data-zoom="out" title="Alejar (Zoom -)">－</button>
+    <button id="btn-toggle-audio" class="edge-circle-btn" title="Sonido">🔊</button>
+  </aside>
+
+  <!-- 3. MANIPULADOR FANTASMA FLOTANTE (ARRASTRE, FLECHAS Y ROTAR) -->
+  <div id="ghost-manipulator" class="ghost-manipulator hidden">
+    <div class="manipulator-nudge-pad">
+      <button class="nudge-btn nudge-up" data-nudge="up" title="Mover Arriba (▲)">▲</button>
+      <div class="nudge-mid-row">
+        <button class="nudge-btn nudge-left" data-nudge="left" title="Mover Izquierda (◀)">◀</button>
+        <button id="btn-ghost-rotate" class="nudge-btn nudge-rotate" title="Rotar 90° (🔄)">🔄</button>
+        <button class="nudge-btn nudge-right" data-nudge="right" title="Mover Derecha (▶)">▶</button>
+      </div>
+      <button class="nudge-btn nudge-down" data-nudge="down" title="Mover Abajo (▼)">▼</button>
     </div>
-    <button class="dpad-btn dpad-down" data-pan="down" title="Mover Abajo (S / ↓)">▼</button>
-    <div class="dpad-zoom-group">
-      <button class="dpad-zoom-btn" data-zoom="in" title="Acercar Zoom (+)">＋</button>
-      <button class="dpad-zoom-btn" data-zoom="out" title="Alejar Zoom (-)">－</button>
+
+    <!-- Acciones de confirmación y cancelación -->
+    <div class="manipulator-actions">
+      <button id="btn-ghost-confirm" class="btn-confirm-build">
+        <span class="btn-check">✅</span>
+        <span id="ghost-confirm-text">Construir</span>
+      </button>
+      <button id="btn-ghost-cancel" class="btn-cancel-build" title="Cancelar">❌</button>
     </div>
   </div>
 
-  <!-- PANEL INFERIOR: DOCK DE CONSTRUCCIÓN Y HERRAMIENTAS -->
-  <nav class="construction-dock">
-    <div class="dock-category-tabs">
-      <button class="cat-tab active" data-category="all">Todos</button>
-      <button class="cat-tab" data-category="infra">Vías</button>
-      <button class="cat-tab" data-category="residential">Hogares</button>
-      <button class="cat-tab" data-category="commercial">Comercio</button>
-      <button class="cat-tab" data-category="industrial">Empresas</button>
-      <button class="cat-tab" data-category="service">Servicios</button>
+  <!-- 4. BOTÓN FLOTANTE ÚNICO DE CONSTRUCCIÓN (FAB) -->
+  <div class="bottom-construction-area">
+    <button id="btn-toggle-carousel" class="fab-construct-btn" title="Abrir Menú de Construcción">
+      <span class="fab-icon">🏗️</span>
+      <span class="fab-label">Construir</span>
+    </button>
+  </div>
+
+  <!-- 5. MENÚ CARRUSEL HORIZONTAL DESLIZANTE -->
+  <nav id="construction-carousel" class="construction-carousel-drawer hidden">
+    <!-- Pestañas de categorías -->
+    <div class="carousel-categories">
+      <button class="cat-pill active" data-category="all">Todas</button>
+      <button class="cat-pill" data-category="infra">Vías</button>
+      <button class="cat-pill" data-category="residential">Vivienda</button>
+      <button class="cat-pill" data-category="commercial">Comercio</button>
+      <button class="cat-pill" data-category="farm">Granjas</button>
+      <button class="cat-pill" data-category="industrial">Empresas</button>
+      <button class="cat-pill" data-category="service">Servicios</button>
+      <button class="cat-pill" data-category="nature">Naturaleza</button>
+      <button class="cat-pill cat-demolish" data-tool="demolish">🔨 Demoler</button>
     </div>
 
-    <div id="construction-toolbar" class="dock-items-scroll">
-      <!-- Generado dinámicamente por UIManager -->
+    <!-- Contenedor con scroll horizontal táctil y tarjetas -->
+    <div id="carousel-items-scroll" class="carousel-cards-track">
+      <!-- Rellenado dinámicamente por UIManager -->
     </div>
   </nav>
 
-  <!-- CONTENEDOR DE TOASTS INFORMATIVOS -->
-  <div id="toast-container" class="toast-container"></div>
+  <!-- 6. INSPECTOR DE EDIFICIO Y MEJORAS DE NIVEL (BOTTOM SHEET) -->
+  <div id="inspector-sheet" class="inspector-bottom-sheet hidden">
+    <div class="sheet-handle"></div>
+    <div class="inspector-content">
+      <div class="inspector-header">
+        <div class="inspector-title-wrap">
+          <span id="insp-icon" class="insp-emoji">🏢</span>
+          <div>
+            <h3 id="insp-name">Nombre del Edificio</h3>
+            <span id="insp-level" class="insp-level-badge">Nivel 1</span>
+          </div>
+        </div>
+        <button id="btn-close-inspector" class="sheet-close-btn">&times;</button>
+      </div>
 
-  <!-- VELO PARA DIÁLOGOS MODALES -->
+      <p id="insp-desc" class="insp-description"></p>
+
+      <div id="insp-stats" class="insp-stats-grid"></div>
+
+      <div class="insp-bonus-box">
+        <strong>🌟 Bonificación Nivel Máximo:</strong>
+        <span id="insp-max-bonus"></span>
+      </div>
+
+      <div class="inspector-actions">
+        <button id="btn-upgrade-building" class="btn-upgrade">
+          <span>⚡ Mejorar a Nivel <span id="insp-next-lvl">2</span></span>
+          <strong id="insp-upgrade-cost">$0</strong>
+        </button>
+        <button id="btn-rotate-inspector" class="btn-secondary-insp" title="Rotar 90°">🔄 Rotar</button>
+        <button id="btn-demolish-inspector" class="btn-danger-insp" title="Demoler edificio">🔨 Demoler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toast-container" class="toast-container"></div>
   <div id="modal-overlay" class="modal-overlay"></div>
 
-  <!-- MODAL 1: DOS RAMAS DE CRECIMIENTO EMPRESARIAL -->
+  <!-- MODALES DE GESTIÓN MUNICIPAL (BOTTOM SHEETS) -->
   <div id="modal-corporations" class="game-modal">
     <div class="modal-header">
       <div class="modal-title-wrap">
         <span class="modal-emoji">🏭</span>
-        <h2>Ramas Empresariales y Políticas del Alcalde</h2>
+        <h2>Ramas Empresariales y Decretos</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>
-    <div id="modal-corporations-body" class="modal-body">
-      <!-- Rellenado por UIManager -->
-    </div>
+    <div id="modal-corporations-body" class="modal-body"></div>
   </div>
 
-  <!-- MODAL 2: ÁRBOL DE INVESTIGACIÓN CIENTÍFICA -->
   <div id="modal-research" class="game-modal">
     <div class="modal-header">
       <div class="modal-title-wrap">
         <span class="modal-emoji">🔬</span>
-        <h2>Investigación Científica y Tecnológica</h2>
+        <h2>Investigación y Tecnología</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>
-    <div id="modal-research-body" class="modal-body">
-      <!-- Rellenado por UIManager -->
-    </div>
+    <div id="modal-research-body" class="modal-body"></div>
   </div>
 
-  <!-- MODAL 3: GESTIÓN DE DESASTRES Y RESILIENCIA -->
   <div id="modal-disasters" class="game-modal">
     <div class="modal-header">
       <div class="modal-title-wrap">
         <span class="modal-emoji">🌋</span>
-        <h2>Monitoreo de Desastres Naturales</h2>
+        <h2>Centro de Monitoreo de Riesgos</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>
-    <div id="modal-disasters-body" class="modal-body">
-      <!-- Rellenado por UIManager -->
-    </div>
+    <div id="modal-disasters-body" class="modal-body"></div>
   </div>
 
-  <!-- MODAL 4: PARTIDA, AUTOGUARDADO Y AJUSTES -->
   <div id="modal-settings" class="game-modal">
     <div class="modal-header">
       <div class="modal-title-wrap">
         <span class="modal-emoji">💾</span>
-        <h2>Almacenamiento y Gestión de la Ciudad</h2>
+        <h2>Almacenamiento y Opciones</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>
     <div class="modal-body">
       <div class="settings-card">
         <h3>Autoguardado en Dispositivo</h3>
-        <p>Tu ciudad se autoguarda automáticamente cada 30 segundos en el almacenamiento local (LocalStorage) de tu navegador para que nunca pierdas tu progreso al recargar la página.</p>
-        <div class="settings-actions">
-          <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora Mismo</button>
-        </div>
+        <p>Tu ciudad se autoguarda cada 30s en LocalStorage.</p>
+        <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora</button>
       </div>
-
       <div class="settings-card">
-        <h3>Copia de Seguridad y Transferencia</h3>
-        <p>Exporta tu ciudad como archivo JSON para llevarla a otro dispositivo o compártela con otros alcaldes.</p>
+        <h3>Copia de Seguridad</h3>
         <div class="settings-actions">
           <button id="btn-export-city" class="btn-secondary">📁 Exportar Ciudad (.json)</button>
           <label class="btn-secondary file-label">
@@ -264,16 +268,13 @@
           </label>
         </div>
       </div>
-
       <div class="settings-card danger-card">
-        <h3>Zona de Demolición Total</h3>
-        <p>Reiniciar la ciudad borrará todos los datos guardados e iniciará un nuevo mandato con la partida por defecto.</p>
-        <button id="btn-reset-city" class="btn-danger">⚠️ Nueva Ciudad (Reiniciar Mandato)</button>
+        <h3>Zona de Demolición</h3>
+        <button id="btn-reset-city" class="btn-danger">⚠️ Nueva Ciudad (Reiniciar)</button>
       </div>
     </div>
   </div>
 
-  <!-- Scripts del Juego como Módulos ES6 -->
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

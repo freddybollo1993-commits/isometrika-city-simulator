@@ -1,56 +1,101 @@
 /**
- * GESTOR DE INTERFAZ DE USUARIO (UI / HUD)
- * Administra el panel de mando del alcalde, catálogo de construcción,
- * diálogos modales (Políticas de Empresa, Ciencia, Desastres),
- * y notificaciones visuales emergentes (toasts).
+ * GESTOR DE INTERFAZ DE USUARIO (UI / HUD) — V2.0 Mobile-First
+ * Administra el panel de mando ultra-compacto del alcalde, el carrusel
+ * horizontal de construcción con tarjetas, manipulador de colocación fantasma,
+ * inspector inferior de edificios con mejoras de nivel y modales municipales.
  */
 
 import { CONFIG } from './config.js';
 
+export const BUILDING_ICONS = {
+  road: '🛣️',
+  residential_low: '🏡',
+  residential_high: '🏢',
+  commercial_store: '🏬',
+  commercial_market: '🏪',
+  commercial_super: '🛒',
+  commercial_tower: '🏙️',
+  farm_organic: '🌾',
+  industrial_mass: '🏭',
+  industrial_tech: '🔬',
+  service_police: '👮',
+  service_fire: '🚒',
+  service_hospital: '🏥',
+  service_school: '🏫',
+  service_research: '📡',
+  service_cityhall: '🏛️',
+  service_barrier: '🛡️',
+  deco_plaza: '⛲',
+  deco_park: '🌳',
+  deco_botanical: '🌺',
+  deco_lamp: '🏮',
+};
+
 export class UIManager {
   constructor(game) {
     this.game = game;
-    this.selectedTool = null;
     this.activeModal = null;
+    this.currentInspected = null;
 
     this.cacheDOMElements();
     this.bindEvents();
-    this.buildConstructionToolbar();
+    this.buildCarousel();
   }
 
   cacheDOMElements() {
-    // HUD Stats
+    // HUD Stats Superior
     this.elFunds = document.getElementById('stat-funds');
     this.elCashflow = document.getElementById('stat-cashflow');
     this.elPopulation = document.getElementById('stat-population');
     this.elCapacity = document.getElementById('stat-capacity');
     this.elHappiness = document.getElementById('stat-happiness');
-    this.elHappinessBar = document.getElementById('bar-happiness');
     this.elUnemployment = document.getElementById('stat-unemployment');
     this.elSecurity = document.getElementById('stat-security');
-    this.elSecurityBar = document.getElementById('bar-security');
     this.elPollution = document.getElementById('stat-pollution');
-    this.elPollutionBar = document.getElementById('bar-pollution');
     this.elResearch = document.getElementById('stat-research');
     this.elEducation = document.getElementById('stat-education');
     this.elDay = document.getElementById('stat-day');
 
-    // Alertas y toasts
+    // Alertas y Toasts
     this.elAlertBanner = document.getElementById('alert-banner');
     this.elToastContainer = document.getElementById('toast-container');
     this.elSaveIndicator = document.getElementById('save-indicator');
 
-    // Barra de construcción
-    this.elToolbar = document.getElementById('construction-toolbar');
-    this.elCategoryTabs = document.querySelectorAll('.cat-tab');
+    // Carrusel de construcción
+    this.elCarousel = document.getElementById('construction-carousel');
+    this.elCarouselTrack = document.getElementById('carousel-items-scroll');
+    this.elBtnToggleCarousel = document.getElementById('btn-toggle-carousel');
+    this.elCategoryPills = document.querySelectorAll('.cat-pill');
 
-    // Modales
+    // Manipulador fantasma flotante
+    this.elGhostManipulator = document.getElementById('ghost-manipulator');
+    this.elGhostConfirmText = document.getElementById('ghost-confirm-text');
+    this.elBtnGhostConfirm = document.getElementById('btn-ghost-confirm');
+    this.elBtnGhostCancel = document.getElementById('btn-ghost-cancel');
+    this.elBtnGhostRotate = document.getElementById('btn-ghost-rotate');
+
+    // Inspector de edificio
+    this.elInspectorSheet = document.getElementById('inspector-sheet');
+    this.elInspIcon = document.getElementById('insp-icon');
+    this.elInspName = document.getElementById('insp-name');
+    this.elInspLevel = document.getElementById('insp-level');
+    this.elInspDesc = document.getElementById('insp-desc');
+    this.elInspStats = document.getElementById('insp-stats');
+    this.elInspMaxBonus = document.getElementById('insp-max-bonus');
+    this.elBtnUpgrade = document.getElementById('btn-upgrade-building');
+    this.elInspNextLvl = document.getElementById('insp-next-lvl');
+    this.elInspUpgradeCost = document.getElementById('insp-upgrade-cost');
+    this.elBtnRotateInspector = document.getElementById('btn-rotate-inspector');
+    this.elBtnDemolishInspector = document.getElementById('btn-demolish-inspector');
+    this.elBtnCloseInspector = document.getElementById('btn-close-inspector');
+
+    // Modales y menús
     this.elModals = document.querySelectorAll('.game-modal');
     this.elModalOverlay = document.getElementById('modal-overlay');
   }
 
   bindEvents() {
-    // Control de velocidad
+    // 1. Control de velocidad de simulación
     document.querySelectorAll('[data-speed]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const spd = parseInt(btn.dataset.speed, 10);
@@ -59,19 +104,86 @@ export class UIManager {
 
         document.querySelectorAll('[data-speed]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal' : '⏩ Velocidad rápida');
       });
     });
 
-    // Pestañas de categorías de construcción
-    this.elCategoryTabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        this.elCategoryTabs.forEach((t) => t.classList.remove('active'));
-        tab.classList.add('active');
-        this.filterToolbarCategory(tab.dataset.category);
+    // 2. Botón FAB para abrir/cerrar el carrusel de construcción
+    if (this.elBtnToggleCarousel) {
+      this.elBtnToggleCarousel.addEventListener('click', () => {
+        this.toggleCarousel();
+      });
+    }
+
+    // 3. Pestañas de categorías del carrusel
+    this.elCategoryPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        if (pill.dataset.tool === 'demolish') {
+          // Activar herramienta de demolición directa
+          this.game.selectDemolishTool();
+          this.hideCarousel();
+          return;
+        }
+
+        this.elCategoryPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        this.filterCarouselCategory(pill.dataset.category);
       });
     });
 
-    // Botones de modales del alcalde
+    // 4. Controles del Manipulador Fantasma
+    document.querySelectorAll('[data-nudge]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.nudgeGhost(btn.dataset.nudge);
+      });
+    });
+
+    if (this.elBtnGhostRotate) {
+      this.elBtnGhostRotate.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.rotateGhost();
+      });
+    }
+
+    if (this.elBtnGhostConfirm) {
+      this.elBtnGhostConfirm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.confirmGhostPlacement();
+      });
+    }
+
+    if (this.elBtnGhostCancel) {
+      this.elBtnGhostCancel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.cancelGhostPlacement();
+      });
+    }
+
+    // 5. Controles del Inspector de Edificio
+    if (this.elBtnCloseInspector) {
+      this.elBtnCloseInspector.addEventListener('click', () => this.closeInspector());
+    }
+
+    if (this.elBtnUpgrade) {
+      this.elBtnUpgrade.addEventListener('click', () => {
+        this.game.upgradeInspectedBuilding();
+      });
+    }
+
+    if (this.elBtnRotateInspector) {
+      this.elBtnRotateInspector.addEventListener('click', () => {
+        this.game.rotateInspectedBuilding();
+      });
+    }
+
+    if (this.elBtnDemolishInspector) {
+      this.elBtnDemolishInspector.addEventListener('click', () => {
+        this.game.demolishInspectedBuilding();
+      });
+    }
+
+    // 6. Botones de modales del alcalde (Borde izquierdo)
     document.querySelectorAll('[data-open-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.openModal(btn.dataset.openModal);
@@ -83,7 +195,7 @@ export class UIManager {
       el.addEventListener('click', () => this.closeModals());
     });
 
-    // Botones de acción en modales (Políticas, Investigación, Reparación)
+    // 7. Botones de acción en modales (Políticas, Reparación, Guardado)
     const btnRepair = document.getElementById('btn-repair-all');
     if (btnRepair) {
       btnRepair.addEventListener('click', () => {
@@ -97,7 +209,6 @@ export class UIManager {
       });
     }
 
-    // Botones de guardado / partida
     const btnSaveNow = document.getElementById('btn-save-now');
     if (btnSaveNow) {
       btnSaveNow.addEventListener('click', () => {
@@ -141,167 +252,245 @@ export class UIManager {
       });
     }
 
-    // Botón de audio
+    // 8. Botón de audio
     const btnMute = document.getElementById('btn-toggle-audio');
     if (btnMute) {
       btnMute.addEventListener('click', () => {
         const isMuted = this.game.audio.toggleMute();
         btnMute.textContent = isMuted ? '🔇' : '🔊';
         btnMute.title = isMuted ? 'Activar sonido' : 'Silenciar sonido';
+        this.showToast(isMuted ? '🔇 Audio silenciado' : '🔊 Audio activado');
       });
     }
 
-    // Centrar mapa
+    // 9. Centrar mapa y zoom
     const btnCenter = document.getElementById('btn-center-map');
     if (btnCenter) {
       btnCenter.addEventListener('click', () => {
         this.game.camera.centerOnGrid();
       });
     }
+
+    document.querySelectorAll('[data-zoom]').forEach((btn) => {
+      const z = btn.dataset.zoom;
+      btn.addEventListener('click', () => {
+        const factor = z === 'in' ? 1.2 : 0.82;
+        this.game.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
+      });
+    });
   }
 
   /**
-   * Genera dinámicamente los botones de construcción en el HUD inferior
+   * Genera el carrusel horizontal con tarjetas para todas las estructuras
    */
-  buildConstructionToolbar() {
-    this.elToolbar.innerHTML = '';
+  buildCarousel() {
+    if (!this.elCarouselTrack) return;
+    this.elCarouselTrack.innerHTML = '';
 
-    // Herramienta de Demolición
-    const demolishBtn = document.createElement('button');
-    demolishBtn.className = 'tool-btn tool-demolish';
-    demolishBtn.dataset.tool = 'demolish';
-    demolishBtn.dataset.category = 'all';
-    demolishBtn.innerHTML = `
-      <span class="tool-icon">🔨</span>
-      <span class="tool-title">Demoler</span>
-      <span class="tool-cost">$0</span>
-    `;
-    demolishBtn.title = 'Despeja la celda seleccionada';
-    demolishBtn.addEventListener('click', () => this.selectTool('demolish', demolishBtn));
-    this.elToolbar.appendChild(demolishBtn);
-
-    // Edificios del catálogo
     Object.values(CONFIG.BUILDINGS).forEach((b) => {
-      const btn = document.createElement('button');
-      btn.className = `tool-btn tool-${b.category}`;
-      btn.dataset.tool = b.id;
-      btn.dataset.category = b.category.startsWith('industrial') ? 'industrial' : b.category;
+      const card = document.createElement('div');
+      card.className = 'carousel-card';
+      card.dataset.buildingId = b.id;
+      card.dataset.category = b.category.startsWith('industrial') ? 'industrial' : b.category;
 
-      let icon = '🏗️';
-      if (b.id === 'road') icon = '🛣️';
-      else if (b.id === 'residential_low') icon = '🏡';
-      else if (b.id === 'residential_high') icon = '🏢';
-      else if (b.id === 'commercial') icon = '🏬';
-      else if (b.id === 'industrial_mass') icon = '🏭';
-      else if (b.id === 'industrial_tech') icon = '🔬';
-      else if (b.id === 'service_police') icon = '👮';
-      else if (b.id === 'service_fire') icon = '🚒';
-      else if (b.id === 'service_hospital') icon = '🏥';
-      else if (b.id === 'service_park') icon = '🌳';
-      else if (b.id === 'service_school') icon = '🏫';
-      else if (b.id === 'service_research') icon = '📡';
-      else if (b.id === 'service_barrier') icon = '🛡️';
+      const icon = BUILDING_ICONS[b.id] || '🏗️';
+      const sizeBadge = `${b.size || 1}x${b.size || 1}`;
 
-      // Distintivo especial para las dos ramas empresariales
-      let branchBadge = '';
-      if (b.branch === 'mass') {
-        branchBadge = '<span class="branch-pill mass">Masiva</span>';
-      } else if (b.branch === 'tech') {
-        branchBadge = '<span class="branch-pill tech">Calificada</span>';
-      }
-
-      btn.innerHTML = `
-        <div class="tool-header">
-          <span class="tool-icon">${icon}</span>
-          ${branchBadge}
+      card.innerHTML = `
+        <div class="card-top">
+          <span class="card-icon">${icon}</span>
+          <span class="card-size">${sizeBadge}</span>
         </div>
-        <span class="tool-title">${b.name}</span>
-        <span class="tool-cost">$${b.cost}</span>
+        <div class="card-name">${b.name}</div>
+        <div class="card-bottom">
+          <span class="card-cost">$${b.cost}</span>
+        </div>
       `;
 
-      btn.title = `${b.description} | Mantenimiento: $${b.upkeep}/día`;
-      btn.addEventListener('click', () => this.selectTool(b.id, btn));
+      card.title = `${b.name} (${sizeBadge}) - Costo: $${b.cost} | Mant: $${b.upkeep}/d\n${b.description}`;
 
-      this.elToolbar.appendChild(btn);
+      card.addEventListener('click', () => {
+        this.hideCarousel();
+        this.closeInspector();
+        this.game.startGhostPlacement(b.id);
+      });
+
+      this.elCarouselTrack.appendChild(card);
     });
   }
 
-  selectTool(toolId, btnElement) {
-    if (this.selectedTool === toolId) {
-      // Deseleccionar
-      this.selectedTool = null;
-      document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('selected'));
-    } else {
-      this.selectedTool = toolId;
-      document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('selected'));
-      if (btnElement) btnElement.classList.add('selected');
-    }
-    this.game.selectedTool = this.selectedTool;
-  }
-
-  filterToolbarCategory(category) {
-    document.querySelectorAll('.tool-btn').forEach((btn) => {
-      if (category === 'all' || btn.dataset.category === category || btn.dataset.tool === 'demolish') {
-        btn.style.display = 'flex';
+  filterCarouselCategory(cat) {
+    const cards = this.elCarouselTrack.querySelectorAll('.carousel-card');
+    cards.forEach((card) => {
+      if (cat === 'all' || card.dataset.category === cat) {
+        card.style.display = 'flex';
       } else {
-        btn.style.display = 'none';
+        card.style.display = 'none';
       }
     });
   }
 
+  toggleCarousel() {
+    if (!this.elCarousel) return;
+    const isHidden = this.elCarousel.classList.contains('hidden');
+    if (isHidden) {
+      this.showCarousel();
+    } else {
+      this.hideCarousel();
+    }
+  }
+
+  showCarousel() {
+    if (!this.elCarousel) return;
+    this.closeInspector();
+    this.elCarousel.classList.remove('hidden');
+  }
+
+  hideCarousel() {
+    if (!this.elCarousel) return;
+    this.elCarousel.classList.add('hidden');
+  }
+
   /**
-   * Actualiza los datos del HUD en cada tick
+   * Muestra el manipulador flotante para colocar la estructura fantasma
+   */
+  showGhostManipulator(def) {
+    if (!this.elGhostManipulator) return;
+    this.elGhostManipulator.classList.remove('hidden');
+    if (this.elGhostConfirmText) {
+      this.elGhostConfirmText.textContent = `Construir $${def.cost}`;
+    }
+  }
+
+  hideGhostManipulator() {
+    if (!this.elGhostManipulator) return;
+    this.elGhostManipulator.classList.add('hidden');
+  }
+
+  /**
+   * Muestra la hoja inferior (Bottom Sheet) del Inspector de Edificio
+   */
+  showInspector(gx, gy, building) {
+    this.currentInspected = { gx, gy, building };
+    const def = CONFIG.BUILDINGS[building.id];
+    if (!def || !this.elInspectorSheet) return;
+
+    this.hideCarousel();
+
+    const icon = BUILDING_ICONS[building.id] || '🏢';
+    const level = building.level || 1;
+
+    if (this.elInspIcon) this.elInspIcon.textContent = icon;
+    if (this.elInspName) this.elInspName.textContent = def.name;
+    
+    const levelBadge = level === 3 ? 'Nivel 3 (★★★ Máximo)' : level === 2 ? 'Nivel 2 (★★)' : 'Nivel 1 (★)';
+    if (this.elInspLevel) this.elInspLevel.textContent = levelBadge;
+    if (this.elInspDesc) this.elInspDesc.textContent = def.description;
+
+    // Métricas del nivel actual
+    const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+    if (this.elInspStats) {
+      let statsHTML = `
+        <div class="insp-stat-item">
+          <span>Dimensiones:</span>
+          <strong>${def.size || 1}x${def.size || 1}</strong>
+        </div>
+        <div class="insp-stat-item">
+          <span>Mantenimiento:</span>
+          <strong class="negative">-$${levelData.upkeep || def.upkeep}/d</strong>
+        </div>
+      `;
+
+      if (levelData.capacity) {
+        statsHTML += `<div class="insp-stat-item"><span>Capacidad:</span><strong>${levelData.capacity} hab.</strong></div>`;
+      }
+      if (levelData.jobs) {
+        statsHTML += `<div class="insp-stat-item"><span>Puestos de Empleo:</span><strong>${levelData.jobs}</strong></div>`;
+      }
+      if (levelData.revenue || levelData.revenuePerJob) {
+        const rev = levelData.revenue || levelData.revenuePerJob;
+        statsHTML += `<div class="insp-stat-item"><span>Ingreso Generado:</span><strong class="positive">+$${rev}/d</strong></div>`;
+      }
+      if (levelData.foodCapacity) {
+        statsHTML += `<div class="insp-stat-item"><span>Alimento:</span><strong class="positive">${levelData.foodCapacity} hab.</strong></div>`;
+      }
+      if (levelData.radius) {
+        statsHTML += `<div class="insp-stat-item"><span>Radio de Cobertura:</span><strong>${levelData.radius} celdas</strong></div>`;
+      }
+      if (levelData.researchPoints || levelData.research) {
+        const rp = levelData.researchPoints || levelData.research;
+        statsHTML += `<div class="insp-stat-item"><span>Ciencia:</span><strong class="tech-color">+${rp} RP/d</strong></div>`;
+      }
+      if (building.damage > 0) {
+        statsHTML += `<div class="insp-stat-item"><span>Daño Estructural:</span><strong class="danger-color">${Math.round(building.damage)}%</strong></div>`;
+      }
+
+      this.elInspStats.innerHTML = statsHTML;
+    }
+
+    // Bonificación de nivel máximo
+    if (this.elInspMaxBonus) {
+      this.elInspMaxBonus.textContent = def.maxBonus || 'Bonificación arquitectónica estándar activa.';
+    }
+
+    // Configuración del botón de mejora
+    if (this.elBtnUpgrade) {
+      if (def.levels && level < 3) {
+        const nextLvl = level + 1;
+        const nextData = def.levels[nextLvl];
+        this.elBtnUpgrade.disabled = false;
+        this.elBtnUpgrade.style.opacity = '1';
+        if (this.elInspNextLvl) this.elInspNextLvl.textContent = nextLvl;
+        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = `$${nextData.cost}`;
+      } else {
+        this.elBtnUpgrade.disabled = true;
+        this.elBtnUpgrade.style.opacity = '0.5';
+        if (this.elInspNextLvl) this.elInspNextLvl.textContent = 'MÁX';
+        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = '';
+      }
+    }
+
+    this.elInspectorSheet.classList.remove('hidden');
+  }
+
+  closeInspector() {
+    if (this.elInspectorSheet) {
+      this.elInspectorSheet.classList.add('hidden');
+    }
+    this.currentInspected = null;
+  }
+
+  /**
+   * Actualiza los datos del HUD superior ultra-compacto en cada tick
    */
   updateHUD(sim, research) {
-    // Fondos
-    this.elFunds.textContent = `$${sim.funds.toLocaleString()}`;
-    const cfSign = sim.netCashflow >= 0 ? '+' : '';
-    this.elCashflow.textContent = `${cfSign}$${sim.netCashflow}/d`;
-    this.elCashflow.className = `stat-delta ${sim.netCashflow >= 0 ? 'positive' : 'negative'}`;
+    if (this.elFunds) this.elFunds.textContent = `$${sim.funds.toLocaleString()}`;
+    if (this.elCashflow) {
+      const cfSign = sim.netCashflow >= 0 ? '+' : '';
+      this.elCashflow.textContent = `${cfSign}$${sim.netCashflow}/d`;
+      this.elCashflow.className = sim.netCashflow >= 0 ? 'delta-positive' : 'delta-negative';
+    }
 
-    // Demografía
-    this.elPopulation.textContent = sim.population.toLocaleString();
-    this.elCapacity.textContent = `/ ${sim.housingCapacity}`;
+    if (this.elPopulation) this.elPopulation.textContent = sim.population.toLocaleString();
+    if (this.elCapacity) this.elCapacity.textContent = `/ ${sim.housingCapacity}`;
+    if (this.elHappiness) this.elHappiness.textContent = `${sim.happiness}%`;
+    if (this.elUnemployment) {
+      this.elUnemployment.textContent = `${sim.unemploymentRate}%`;
+      this.elUnemployment.className = sim.unemploymentRate < 10 ? 'text-positive' : sim.unemploymentRate < 25 ? 'text-warn' : 'text-danger';
+    }
 
-    // Felicidad
-    this.elHappiness.textContent = `${sim.happiness}%`;
-    this.elHappinessBar.style.width = `${sim.happiness}%`;
-    this.elHappinessBar.className = `progress-fill ${
-      sim.happiness > 60 ? 'good' : sim.happiness > 35 ? 'warn' : 'danger'
-    }`;
-
-    // Economía Laboral
-    this.elUnemployment.textContent = `${sim.unemploymentRate}%`;
-    this.elUnemployment.className = `stat-value ${
-      sim.unemploymentRate < 10 ? 'positive' : sim.unemploymentRate < 25 ? 'warn' : 'negative'
-    }`;
-
-    // Seguridad
-    this.elSecurity.textContent = `${sim.security}%`;
-    this.elSecurityBar.style.width = `${sim.security}%`;
-    this.elSecurityBar.className = `progress-fill ${
-      sim.security > 65 ? 'good' : sim.security > 40 ? 'warn' : 'danger'
-    }`;
-
-    // Polución
-    this.elPollution.textContent = `${sim.pollution} ppm`;
-    const pollPct = Math.min(100, sim.pollution * 1.5);
-    this.elPollutionBar.style.width = `${pollPct}%`;
-    this.elPollutionBar.className = `progress-fill ${
-      sim.pollution < 20 ? 'good' : sim.pollution < 45 ? 'warn' : 'danger'
-    }`;
-
-    // Ciencia, Educación y Días
-    this.elResearch.textContent = `${Math.floor(research.points)} RP`;
+    if (this.elSecurity) this.elSecurity.textContent = `${sim.security}%`;
+    if (this.elPollution) this.elPollution.textContent = `${sim.pollution} ppm`;
+    if (this.elResearch) this.elResearch.textContent = `${Math.floor(research.points)} RP`;
     if (this.elEducation) this.elEducation.textContent = `${sim.education || 20}%`;
-    this.elDay.textContent = `Día ${sim.day}`;
+    if (this.elDay) this.elDay.textContent = `Día ${sim.day}`;
 
     // Banner de advertencia de desastre
     this.updateDisasterBanner(sim.disasters);
   }
 
   updateDisasterBanner(disasters) {
-    if (!disasters) return;
+    if (!disasters || !this.elAlertBanner) return;
 
     if (disasters.warning) {
       this.elAlertBanner.className = 'alert-banner warning active';
@@ -334,7 +523,7 @@ export class UIManager {
     const modal = document.getElementById(`modal-${modalId}`);
     if (modal) {
       modal.classList.add('active');
-      this.elModalOverlay.classList.add('active');
+      if (this.elModalOverlay) this.elModalOverlay.classList.add('active');
       this.activeModal = modalId;
 
       if (modalId === 'corporations') this.updateCorporationsModalContent();
@@ -345,7 +534,7 @@ export class UIManager {
 
   closeModals() {
     this.elModals.forEach((m) => m.classList.remove('active'));
-    this.elModalOverlay.classList.remove('active');
+    if (this.elModalOverlay) this.elModalOverlay.classList.remove('active');
     this.activeModal = null;
   }
 
@@ -445,7 +634,6 @@ export class UIManager {
       </div>
     `;
 
-    // Asignar eventos de alternancia de políticas
     elContent.querySelectorAll('.btn-toggle-policy').forEach((btn) => {
       btn.addEventListener('click', () => {
         const pid = btn.dataset.policyId;
@@ -524,17 +712,15 @@ export class UIManager {
    */
   updateDisasterModalContent() {
     const disasters = this.game.disasters;
-    const sim = this.game.simulation;
     const elContent = document.getElementById('modal-disasters-body');
     if (!elContent) return;
 
-    // Calcular cuántos edificios dañados hay en la ciudad
     let damagedCount = 0;
     let totalEstDamage = 0;
     for (let gy = 0; gy < this.game.grid.size; gy++) {
       for (let gx = 0; gx < this.game.grid.size; gx++) {
         const t = this.game.grid.tiles[gy][gx];
-        if (t && t.building && t.damage > 0) {
+        if (t && t.building && t.building.isRoot && t.damage > 0) {
           damagedCount++;
           totalEstDamage += Math.round(t.damage * 1.5);
         }
@@ -600,9 +786,6 @@ export class UIManager {
     }
   }
 
-  /**
-   * Muestra notificación de autoguardado en la esquina
-   */
   showSaveIndicator() {
     if (!this.elSaveIndicator) return;
     this.elSaveIndicator.classList.add('visible');
@@ -611,10 +794,8 @@ export class UIManager {
     }, 2500);
   }
 
-  /**
-   * Muestra un toast emergente moderno
-   */
   showToast(message) {
+    if (!this.elToastContainer) return;
     const toast = document.createElement('div');
     toast.className = 'game-toast';
     toast.textContent = message;

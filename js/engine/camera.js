@@ -44,12 +44,19 @@ export class Camera {
     this.shakeOffsetX = 0;
     this.shakeOffsetY = 0;
 
+    // Filtro condicional para ignorar arrastre de mapa (ej. al manipular fantasma)
+    this.dragFilter = null;
+
     this.setupListeners();
   }
 
   setupListeners() {
     // 1. RATÓN: Inicio de pulsación
     this.canvas.addEventListener('mousedown', (e) => {
+      if (this.dragFilter && !this.dragFilter(e.clientX, e.clientY)) {
+        return;
+      }
+
       this.isMouseDown = true;
       this.wasDragging = false;
       this.isDragging = false;
@@ -108,6 +115,9 @@ export class Camera {
       'touchstart',
       (e) => {
         if (e.touches.length === 1) {
+          if (this.dragFilter && !this.dragFilter(e.touches[0].clientX, e.touches[0].clientY)) {
+            return;
+          }
           this.isMouseDown = true;
           this.isDragging = false;
           this.wasDragging = false;

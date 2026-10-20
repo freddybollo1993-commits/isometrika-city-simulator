@@ -1,7 +1,8 @@
 /**
- * CONTROLADOR PRINCIPAL Y BUCLE DEL JUEGO
- * Coordina la inicialización de módulos, interacción con el canvas,
- * atajos de teclado y sincronización entre renderizado y simulación.
+ * CONTROLADOR PRINCIPAL Y BUCLE DEL JUEGO — V2.0 Landscape Mobile-First
+ * Coordina la simulación, renderizado a 60 FPS, manipulador de colocación
+ * fantasma con arrastre directo y flechas de ajuste fino, rotación en 4 orientaciones,
+ * e inspección de edificios con mejoras de 3 niveles.
  */
 
 import { CONFIG } from './game/config.js';
@@ -22,9 +23,20 @@ export class Game {
     this.canvas = document.getElementById('city-canvas');
     this.ctx = this.canvas.getContext('2d');
 
-    // Estado del cursor
+    // Estado del cursor y selección
     this.hoverTile = null;
-    this.selectedTool = null;
+    this.selectedTool = null; // 'demolish' o null
+
+    // Estado del Manipulador Fantasma (Ghost Placement)
+    this.ghostState = {
+      active: false,
+      buildingId: null,
+      gx: Math.floor(CONFIG.CANVAS.GRID_SIZE / 2),
+      gy: Math.floor(CONFIG.CANVAS.GRID_SIZE / 2),
+      rotation: 0, // 0: SE, 1: SW, 2: NW, 3: NE
+    };
+    this.isDraggingGhost = false;
+    this.ghostDragOffset = { gx: 0, gy: 0 };
 
     // Inicializar subsistemas
     this.audio = new AudioManager();
@@ -46,18 +58,17 @@ export class Game {
     this.storage = new StorageManager(this.simulation, this.grid, this.research);
     this.ui = new UIManager(this);
 
-    // Ajustar dimensiones del canvas y pantalla
+    // Dimensionar pantalla
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
 
-    // Cargar partida guardada si existe en el dispositivo
+    // Cargar partida previa o fundar ciudad inicial
     if (this.storage.hasSavedGame()) {
       const loaded = this.storage.load();
       if (loaded) {
-        this.ui.showToast('📂 Ciudad previa restaurada desde el almacenamiento local');
+        this.ui.showToast('📂 Ciudad previa restaurada');
       }
     } else {
-      // Crear un pequeño asentamiento fundacional para comenzar
       this.setupInitialTown();
     }
 
@@ -69,10 +80,10 @@ export class Game {
     // Centrar la cámara en la ciudad
     this.camera.centerOnGrid();
 
-    // Configurar interacciones de entrada
+    // Configurar interacciones
+    this.setupCameraFilter();
     this.bindCanvasEvents();
     this.bindKeyboardShortcuts();
-    this.bindDpadControls();
 
     // Iniciar bucle de simulación por intervalos
     this.lastTickTime = performance.now();
@@ -87,20 +98,20 @@ export class Game {
   }
 
   /**
-   * Crea una infraestructura base con carreteras y casas para los primeros colonos
+   * Crea un asentamiento inicial equilibrado con calles, casas y comercio
    */
   setupInitialTown() {
     const center = Math.floor(CONFIG.CANVAS.GRID_SIZE / 2);
 
-    // Pequeño tramo de carretera inicial
+    // Carretera inicial
     for (let gx = center - 2; gx <= center + 2; gx++) {
       this.grid.placeBuilding(gx, center - 2, 'road');
     }
 
-    // Dos residencias y un comercio para comenzar
-    this.grid.placeBuilding(center - 1, center - 3, 'residential_low');
-    this.grid.placeBuilding(center + 1, center - 3, 'residential_low');
-    this.grid.placeBuilding(center, center - 1, 'commercial');
+    // Casas y tienda de barrio
+    this.grid.placeBuilding(center - 1, center - 3, 'residential_low', 0);
+    this.grid.placeBuilding(center + 1, center - 3, 'residential_low', 0);
+    this.grid.placeBuilding(center, center - 1, 'commercial_store', 0);
   }
 
   handleResize() {
@@ -115,8 +126,40 @@ export class Game {
     this.canvas.style.height = `${h}px`;
   }
 
+  /**
+   * Configura el filtro de arrastre de cámara para permitir mover el fantasma con el dedo
+   */
+  setupCameraFilter() {
+    this.camera.dragFilter = (clientX, clientY) => {
+      if (!this.ghostState.active || !this.ghostState.buildingId) {
+        return true;
+      }
+
+      const worldPos = this.camera.screenToWorld(clientX, clientY);
+      const g = IsoMath.isoToGrid(worldPos.x, worldPos.y);
+      const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+      const bSize = def ? (def.size || 1) : 1;
+
+      // Si el toque cae dentro del área de la estructura fantasma (+ margen de holgura)
+      if (
+        g.gx >= this.ghostState.gx - 0.5 &&
+        g.gx <= this.ghostState.gx + bSize + 0.5 &&
+        g.gy >= this.ghostState.gy - 0.5 &&
+        g.gy <= this.ghostState.gy + bSize + 0.5
+      ) {
+        this.isDraggingGhost = true;
+        this.ghostDragOffset = {
+          gx: g.gx - this.ghostState.gx,
+          gy: g.gy - this.ghostState.gy,
+        };
+        return false; // Intercepta el toque: arrastra el fantasma en vez de la cámara
+      }
+
+      return true; // Toques fuera del fantasma desplazan la cámara
+    };
+  }
+
   bindCanvasEvents() {
-    // Detección de celda bajo el cursor
     const updateHoverTile = (clientX, clientY) => {
       const worldPos = this.camera.screenToWorld(clientX, clientY);
       const gridCoords = IsoMath.isoToGrid(worldPos.x, worldPos.y);
@@ -126,15 +169,45 @@ export class Game {
       } else {
         this.hoverTile = null;
       }
+
+      // Si se está arrastrando el fantasma directamente sobre el canvas
+      if (this.isDraggingGhost && this.ghostState.active && this.ghostState.buildingId) {
+        const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+        const bSize = def ? (def.size || 1) : 1;
+        const maxG = this.grid.size - bSize;
+
+        const targetGx = Math.round(gridCoords.gx - this.ghostDragOffset.gx);
+        const targetGy = Math.round(gridCoords.gy - this.ghostDragOffset.gy);
+
+        this.ghostState.gx = Math.max(0, Math.min(maxG, targetGx));
+        this.ghostState.gy = Math.max(0, Math.min(maxG, targetGy));
+      }
     };
 
     this.canvas.addEventListener('mousemove', (e) => {
       updateHoverTile(e.clientX, e.clientY);
     });
 
-    // Clic para construir, demoler o inspeccionar
+    window.addEventListener('mouseup', () => {
+      this.isDraggingGhost = false;
+    });
+
+    this.canvas.addEventListener(
+      'touchmove',
+      (e) => {
+        if (e.touches.length === 1) {
+          updateHoverTile(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      },
+      { passive: true }
+    );
+
+    window.addEventListener('touchend', () => {
+      this.isDraggingGhost = false;
+    });
+
+    // Clic / Toque sobre el canvas
     this.canvas.addEventListener('click', (e) => {
-      // Si el usuario estuvo arrastrando o moviendo la cámara, no construir
       if (this.camera.wasDragging || this.camera.isDragging) {
         this.camera.wasDragging = false;
         return;
@@ -147,54 +220,50 @@ export class Game {
       const { gx, gy } = this.hoverTile;
       const tile = this.grid.getTile(gx, gy);
 
-      // CASO 1: HERRAMIENTA DE DEMOLICIÓN
+      // CASO 1: HERRAMIENTA DE DEMOLICIÓN ACTIVA
       if (this.selectedTool === 'demolish') {
         if (tile && tile.building) {
           const success = this.grid.demolish(gx, gy);
           if (success) {
             this.audio.playDemolish();
             this.ui.showToast('💥 Estructura demolida');
+            this.ui.updateHUD(this.simulation, this.research);
           }
         }
         return;
       }
 
-      // CASO 2: CONSTRUCCIÓN DE EDIFICIO
-      if (this.selectedTool) {
-        const def = CONFIG.BUILDINGS[this.selectedTool];
-        if (!def) return;
+      // CASO 2: COLOCACIÓN FANTASMA ACTIVA (Un toque en el suelo reubica el fantasma)
+      if (this.ghostState.active && this.ghostState.buildingId) {
+        const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+        const bSize = def ? (def.size || 1) : 1;
+        const maxG = this.grid.size - bSize;
 
-        if (this.simulation.funds < def.cost) {
-          this.ui.showToast(`💸 Fondos insuficientes. Requiere $${def.cost}`);
-          return;
+        this.ghostState.gx = Math.max(0, Math.min(maxG, gx));
+        this.ghostState.gy = Math.max(0, Math.min(maxG, gy));
+        this.audio.playClick();
+        return;
+      }
+
+      // CASO 3: INSPECCIÓN DE EDIFICIO CONSTRUIDO
+      if (tile && tile.building) {
+        let rootGx = gx;
+        let rootGy = gy;
+        if (tile.building.isChild) {
+          rootGx = tile.building.rootGx;
+          rootGy = tile.building.rootGy;
         }
 
-        const check = this.grid.canBuild(gx, gy, this.selectedTool);
-        if (!check.allowed) {
-          this.ui.showToast(`⚠️ ${check.reason}`);
-          return;
-        }
-
-        const built = this.grid.placeBuilding(gx, gy, this.selectedTool);
-        if (built) {
-          this.simulation.funds -= def.cost;
-          this.audio.playBuild();
+        const rootTile = this.grid.getTile(rootGx, rootGy);
+        if (rootTile && rootTile.building) {
+          this.audio.playClick();
+          this.ui.showInspector(rootGx, rootGy, rootTile.building);
         }
         return;
       }
 
-      // CASO 3: SIN HERRAMIENTA SELECCIONADA -> Reparación de daño individual
-      if (tile && tile.building && tile.damage > 0) {
-        const repairCost = Math.round(tile.damage * 1.5);
-        if (this.simulation.funds >= repairCost) {
-          this.simulation.funds -= repairCost;
-          this.grid.repairTile(gx, gy, 100);
-          this.audio.playBuild();
-          this.ui.showToast(`🛠️ Estructura reparada por $${repairCost}`);
-        } else {
-          this.ui.showToast(`⚠️ Fondos insuficientes para reparar ($${repairCost})`);
-        }
-      }
+      // CASO 4: Clic en terreno vacío -> cerrar inspector si estaba abierto
+      this.ui.closeInspector();
     });
   }
 
@@ -204,74 +273,267 @@ export class Game {
 
       switch (e.key) {
         case '1':
-          this.ui.selectTool('road');
+          this.startGhostPlacement('road');
           break;
         case '2':
-          this.ui.selectTool('residential_low');
+          this.startGhostPlacement('residential_low');
           break;
         case '3':
-          this.ui.selectTool('residential_high');
+          this.startGhostPlacement('residential_high');
           break;
         case '4':
-          this.ui.selectTool('commercial');
+          this.startGhostPlacement('commercial_store');
           break;
         case '5':
-          this.ui.selectTool('industrial_mass'); // Rama masiva
+          this.startGhostPlacement('industrial_mass');
           break;
         case '6':
-          this.ui.selectTool('industrial_tech'); // Rama calificada
+          this.startGhostPlacement('industrial_tech');
+          break;
+        case 'r':
+        case 'R':
+          if (this.ghostState.active) this.rotateGhost();
           break;
         case 'x':
         case 'X':
         case 'Delete':
-          this.ui.selectTool('demolish');
+          this.selectDemolishTool();
           break;
         case 'Escape':
-          this.ui.selectTool(null);
+          this.cancelGhostPlacement();
+          this.selectedTool = null;
+          this.ui.closeInspector();
           this.ui.closeModals();
           break;
+        case 'Enter':
+          if (this.ghostState.active) this.confirmGhostPlacement();
+          break;
         case ' ':
-          // Pausa
           this.simulation.isPaused = !this.simulation.isPaused;
           this.ui.showToast(this.simulation.isPaused ? '⏸️ Simulación pausada' : '▶️ Simulación en marcha');
           e.preventDefault();
-          break;
-        case '+':
-        case '=':
-          this.camera.applyZoomAt(1.15, window.innerWidth / 2, window.innerHeight / 2);
-          break;
-        case '-':
-        case '_':
-          this.camera.applyZoomAt(0.85, window.innerWidth / 2, window.innerHeight / 2);
           break;
       }
     });
   }
 
-  bindDpadControls() {
-    document.querySelectorAll('[data-pan]').forEach((btn) => {
-      const dir = btn.dataset.pan;
-      const step = 80;
-      btn.addEventListener('click', () => {
-        if (dir === 'up') this.camera.panBy(0, step);
-        else if (dir === 'down') this.camera.panBy(0, -step);
-        else if (dir === 'left') this.camera.panBy(step, 0);
-        else if (dir === 'right') this.camera.panBy(-step, 0);
-        else if (dir === 'center') this.camera.centerOnGrid();
-      });
-    });
+  // =========================================================================
+  // GESTIÓN DEL MANIPULADOR FANTASMA (COLOCACIÓN, AJUSTE Y ROTACIÓN)
+  // =========================================================================
 
-    document.querySelectorAll('[data-zoom]').forEach((btn) => {
-      const z = btn.dataset.zoom;
-      btn.addEventListener('click', () => {
-        const factor = z === 'in' ? 1.25 : 0.8;
-        this.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
-      });
-    });
+  startGhostPlacement(buildingId) {
+    this.selectedTool = null;
+    this.ui.closeInspector();
+
+    const def = CONFIG.BUILDINGS[buildingId];
+    if (!def) return;
+
+    const bSize = def.size || 1;
+    let targetGx = Math.floor(this.grid.size / 2);
+    let targetGy = Math.floor(this.grid.size / 2);
+
+    if (this.hoverTile) {
+      targetGx = this.hoverTile.gx;
+      targetGy = this.hoverTile.gy;
+    } else {
+      const worldCenter = this.camera.screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
+      const g = IsoMath.isoToGrid(worldCenter.x, worldCenter.y);
+      if (IsoMath.isInBounds(g.gx, g.gy)) {
+        targetGx = g.gx;
+        targetGy = g.gy;
+      }
+    }
+
+    const maxG = this.grid.size - bSize;
+    targetGx = Math.max(0, Math.min(maxG, targetGx));
+    targetGy = Math.max(0, Math.min(maxG, targetGy));
+
+    this.ghostState = {
+      active: true,
+      buildingId,
+      gx: targetGx,
+      gy: targetGy,
+      rotation: 0,
+    };
+
+    this.audio.playClick();
+    this.ui.showGhostManipulator(def);
+  }
+
+  nudgeGhost(dir) {
+    if (!this.ghostState.active || !this.ghostState.buildingId) return;
+
+    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+    const bSize = def ? (def.size || 1) : 1;
+    const maxG = this.grid.size - bSize;
+
+    // Desplazamiento según proyección isométrica de la pantalla
+    if (dir === 'up') {
+      this.ghostState.gx -= 1;
+      this.ghostState.gy -= 1;
+    } else if (dir === 'down') {
+      this.ghostState.gx += 1;
+      this.ghostState.gy += 1;
+    } else if (dir === 'left') {
+      this.ghostState.gx -= 1;
+      this.ghostState.gy += 1;
+    } else if (dir === 'right') {
+      this.ghostState.gx += 1;
+      this.ghostState.gy -= 1;
+    }
+
+    this.ghostState.gx = Math.max(0, Math.min(maxG, this.ghostState.gx));
+    this.ghostState.gy = Math.max(0, Math.min(maxG, this.ghostState.gy));
+    this.audio.playClick();
+  }
+
+  rotateGhost() {
+    if (!this.ghostState.active) return;
+    this.ghostState.rotation = (this.ghostState.rotation + 1) % 4;
+    this.audio.playClick();
+  }
+
+  confirmGhostPlacement() {
+    if (!this.ghostState.active || !this.ghostState.buildingId) return;
+
+    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+    if (!def) return;
+
+    if (this.simulation.funds < def.cost) {
+      this.ui.showToast(`💸 Fondos insuficientes. Requiere $${def.cost}`);
+      return;
+    }
+
+    const check = this.grid.canBuild(
+      this.ghostState.gx,
+      this.ghostState.gy,
+      this.ghostState.buildingId
+    );
+
+    if (!check.allowed) {
+      this.ui.showToast(`⚠️ ${check.reason}`);
+      return;
+    }
+
+    const built = this.grid.placeBuilding(
+      this.ghostState.gx,
+      this.ghostState.gy,
+      this.ghostState.buildingId,
+      this.ghostState.rotation
+    );
+
+    if (built) {
+      this.simulation.funds -= def.cost;
+      this.audio.playBuild();
+      this.ui.showToast(`🏗️ ${def.name} construida con éxito`);
+      this.ui.updateHUD(this.simulation, this.research);
+
+      // Si ya no dispone de fondos para colocar otra, cerramos el manipulador
+      if (this.simulation.funds < def.cost) {
+        this.cancelGhostPlacement();
+      }
+    }
+  }
+
+  cancelGhostPlacement() {
+    this.ghostState.active = false;
+    this.ghostState.buildingId = null;
+    this.ui.hideGhostManipulator();
+  }
+
+  selectDemolishTool() {
+    this.cancelGhostPlacement();
+    this.ui.closeInspector();
+    this.selectedTool = 'demolish';
+    this.ui.showToast('🔨 Modo demolición activado. Toca cualquier estructura para demolerla.');
+  }
+
+  // =========================================================================
+  // ACCIONES DEL INSPECTOR DE EDIFICIO Y MEJORAS DE NIVEL
+  // =========================================================================
+
+  upgradeInspectedBuilding() {
+    if (!this.ui.currentInspected) return;
+
+    const { gx, gy } = this.ui.currentInspected;
+    const tile = this.grid.getTile(gx, gy);
+    if (!tile || !tile.building) return;
+
+    let rootGx = gx;
+    let rootGy = gy;
+    if (tile.building.isChild) {
+      rootGx = tile.building.rootGx;
+      rootGy = tile.building.rootGy;
+    }
+
+    const rootTile = this.grid.getTile(rootGx, rootGy);
+    if (!rootTile || !rootTile.building) return;
+
+    const b = rootTile.building;
+    const def = CONFIG.BUILDINGS[b.id];
+    if (!def || !def.levels) return;
+
+    const nextLvl = (b.level || 1) + 1;
+    const levelData = def.levels[nextLvl];
+    if (!levelData) return;
+
+    if (this.simulation.funds < levelData.cost) {
+      this.ui.showToast(`💸 Fondos insuficientes para mejorar ($${levelData.cost})`);
+      return;
+    }
+
+    const res = this.grid.upgradeBuilding(rootGx, rootGy);
+    if (res.success) {
+      this.simulation.funds -= res.cost;
+      this.audio.playChime();
+      this.ui.showToast(`⚡ ¡${def.name} mejorado a Nivel ${res.newLevel}!`);
+      if (res.maxBonus) {
+        this.ui.showToast(`🌟 ${res.maxBonus}`);
+      }
+      this.ui.showInspector(rootGx, rootGy, rootTile.building);
+      this.ui.updateHUD(this.simulation, this.research);
+    } else {
+      this.ui.showToast(`⚠️ ${res.reason}`);
+    }
+  }
+
+  rotateInspectedBuilding() {
+    if (!this.ui.currentInspected) return;
+    const { gx, gy } = this.ui.currentInspected;
+
+    let rootGx = gx;
+    let rootGy = gy;
+    const tile = this.grid.getTile(gx, gy);
+    if (tile && tile.building && tile.building.isChild) {
+      rootGx = tile.building.rootGx;
+      rootGy = tile.building.rootGy;
+    }
+
+    const ok = this.grid.rotateBuilding(rootGx, rootGy);
+    if (ok) {
+      this.audio.playClick();
+      this.ui.showToast('🔄 Edificio rotado 90°');
+    }
+  }
+
+  demolishInspectedBuilding() {
+    if (!this.ui.currentInspected) return;
+    const { gx, gy } = this.ui.currentInspected;
+
+    const ok = this.grid.demolish(gx, gy);
+    if (ok) {
+      this.audio.playDemolish();
+      this.ui.closeInspector();
+      this.ui.showToast('💥 Estructura demolida');
+      this.ui.updateHUD(this.simulation, this.research);
+    }
   }
 
   resetGame() {
     this.storage.clear();
+    this.cancelGhostPlacement();
+    this.ui.closeInspector();
+
     this.grid = new Grid();
     this.corporations = new CorporationsManager();
     this.research = new ResearchManager();
@@ -299,7 +561,7 @@ export class Game {
       this.grid,
       this.camera,
       this.hoverTile,
-      this.selectedTool,
+      this.ghostState,
       this.disasters
     );
 

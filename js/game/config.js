@@ -1,33 +1,32 @@
 /**
- * CONFIGURACIÓN CENTRAL DE ISOMETRICA
- * Constantes de simulación, balance económico, paleta de colores minimalista
- * y catálogo de infraestructuras y tecnologías.
+ * CONFIGURACIÓN CENTRAL DE ISOMETRICA (V2.0)
+ * Catálogo completo de estructuras estandarizadas (1x1 y 2x2),
+ * esquema de progresión de 3 niveles y bonificaciones de nivel máximo.
  */
 
 export const CONFIG = {
   CANVAS: {
     TILE_WIDTH: 64,
     TILE_HEIGHT: 32,
-    GRID_SIZE: 28, // Cuadrícula 28x28
+    GRID_SIZE: 28,
     MIN_ZOOM: 0.5,
     MAX_ZOOM: 2.2,
     DEFAULT_ZOOM: 1.0,
   },
 
   SIMULATION: {
-    TICK_INTERVAL_MS: 1000, // 1 segundo = 1 tick de simulación (1 día en la ciudad)
-    AUTOSAVE_INTERVAL_MS: 30000, // Cada 30 segundos
-    INITIAL_FUNDS: 3500,
+    TICK_INTERVAL_MS: 1000,
+    AUTOSAVE_INTERVAL_MS: 30000,
+    INITIAL_FUNDS: 3800,
     INITIAL_POPULATION: 0,
-    INITIAL_RESEARCH: 50,
+    INITIAL_RESEARCH: 60,
     INITIAL_HAPPINESS: 75,
     INITIAL_SECURITY: 80,
     INITIAL_POLLUTION: 5,
-    WORKFORCE_RATIO: 0.65, // 65% de la población está en edad laboral
-    BASE_DISASTER_INTERVAL_TICKS: 75, // Frecuencia base de evaluación de desastres
+    WORKFORCE_RATIO: 0.65,
+    BASE_DISASTER_INTERVAL_TICKS: 75,
   },
 
-  // Paleta de color minimalista estilo arquitectura contemporánea / nórdica
   PALETTE: {
     bg: '#e8edf2',
     gridLines: 'rgba(180, 195, 205, 0.35)',
@@ -40,7 +39,7 @@ export const CONFIG = {
     selectionValid: 'rgba(74, 222, 128, 0.45)',
     selectionInvalid: 'rgba(239, 68, 68, 0.45)',
     selectionHover: 'rgba(96, 165, 250, 0.35)',
-    shadow: 'rgba(15, 23, 42, 0.18)',
+    shadow: 'rgba(15, 23, 42, 0.22)',
     cracks: '#2d1a12',
     waterOverlay: 'rgba(78, 168, 222, 0.55)',
     heatHaze: 'rgba(249, 115, 22, 0.22)',
@@ -49,211 +48,423 @@ export const CONFIG = {
     smokeGrey: 'rgba(100, 116, 139, 0.6)',
   },
 
-  // Catálogo de edificaciones e infraestructuras
+  // CATÁLOGO COMPLETO DE ESTRUCTURAS
   BUILDINGS: {
+    // === INFRAESTRUCTURA ===
     road: {
       id: 'road',
       name: 'Carretera Asfaltada',
       category: 'infra',
+      size: 1, // 1x1
       cost: 20,
       upkeep: 1,
       description: 'Conecta zonas y permite la movilidad urbana.',
-      colorTop: '#4b5563',
-      colorLeft: '#374151',
-      colorRight: '#1f2937',
       height: 4,
     },
+
+    // === VIVIENDA (CASAS Y DEPARTAMENTOS) ===
     residential_low: {
       id: 'residential_low',
-      name: 'Residencia Suburbana',
+      name: 'Casa Unifamiliar',
       category: 'residential',
-      cost: 120,
-      upkeep: 4,
-      capacity: 18,
-      taxPerCapita: 1.8,
-      pollution: 1,
-      description: 'Viviendas de baja densidad con techos a dos aguas.',
+      size: 1, // 1x1
+      height: 28,
+      cost: 100,
+      upkeep: 3,
+      levels: {
+        1: { cost: 100, upkeep: 3, capacity: 12, tax: 1.8, pollution: 1 },
+        2: { cost: 180, upkeep: 5, capacity: 24, tax: 2.2, pollution: 1 },
+        3: { cost: 320, upkeep: 8, capacity: 40, tax: 2.6, pollution: 0 },
+      },
+      maxBonus: 'Autonomía Solar: Genera energía limpia, eleva felicidad +15% y reduce polución -1 ppm.',
+      description: 'Vivienda de baja densidad con porche y tejado a dos aguas.',
       colorTop: '#fde047',
       colorLeft: '#facc15',
       colorRight: '#eab308',
       roofColor: '#fb923c',
-      height: 28,
     },
     residential_high: {
       id: 'residential_high',
-      name: 'Torre Residencial Eco',
+      name: 'Torre de Departamentos',
       category: 'residential',
-      cost: 520,
+      size: 2, // 2x2
+      height: 72,
+      cost: 500,
       upkeep: 16,
-      capacity: 85,
-      taxPerCapita: 2.2,
-      pollution: 3,
-      description: 'Edificio de gran altura con terrazas verdes.',
+      levels: {
+        1: { cost: 500, upkeep: 16, capacity: 75, tax: 2.2, pollution: 3 },
+        2: { cost: 850, upkeep: 28, capacity: 140, tax: 2.6, pollution: 4 },
+        3: { cost: 1400, upkeep: 45, capacity: 220, tax: 3.0, pollution: 2 },
+      },
+      maxBonus: 'Jardines Colgantes: Sin penalización por hacinamiento y recaudación fiscal +25%.',
+      description: 'Complejo residencial moderno con balcones y terrazas verdes.',
       colorTop: '#cbd5e1',
       colorLeft: '#94a3b8',
       colorRight: '#64748b',
       roofColor: '#22c55e',
-      height: 68,
     },
-    commercial: {
-      id: 'commercial',
-      name: 'Distrito Comercial',
+
+    // === COMERCIO Y MERCADOS ===
+    commercial_store: {
+      id: 'commercial_store',
+      name: 'Tienda de Barrio',
       category: 'commercial',
-      cost: 320,
-      upkeep: 12,
-      jobs: 32,
-      revenuePerJob: 3.5,
-      pollution: 4,
-      description: 'Tiendas, boutiques y oficinas de servicios.',
+      size: 1, // 1x1
+      height: 34,
+      cost: 220,
+      upkeep: 8,
+      levels: {
+        1: { cost: 220, upkeep: 8, jobs: 15, revenue: 3.5, pollution: 2 },
+        2: { cost: 360, upkeep: 14, jobs: 28, revenue: 4.2, pollution: 2 },
+        3: { cost: 580, upkeep: 22, jobs: 45, revenue: 5.0, pollution: 1 },
+      },
+      maxBonus: 'Comercio de Proximidad: Felicidad +15% en casas cercanas y propinas turísticas extra.',
+      description: 'Boutique minorista con toldo y vitrina comercial.',
       colorTop: '#93c5fd',
       colorLeft: '#60a5fa',
       colorRight: '#3b82f6',
-      roofColor: '#1d4ed8',
-      height: 44,
+    },
+    commercial_market: {
+      id: 'commercial_market',
+      name: 'Mercado Popular',
+      category: 'commercial',
+      size: 1, // 1x1
+      height: 28,
+      cost: 280,
+      upkeep: 10,
+      levels: {
+        1: { cost: 280, upkeep: 10, jobs: 30, revenue: 3.2, pollution: 3 },
+        2: { cost: 450, upkeep: 18, jobs: 55, revenue: 3.8, pollution: 4 },
+        3: { cost: 750, upkeep: 28, jobs: 85, revenue: 4.6, pollution: 2 },
+      },
+      maxBonus: 'Feria Gastronómica: Inmigración +30% y absorbe desempleo no calificado de inmediato.',
+      description: 'Puestos techados con alimentos frescos, frutas y artesanías locales.',
+      colorTop: '#fdba74',
+      colorLeft: '#fb923c',
+      colorRight: '#f97316',
+    },
+    commercial_super: {
+      id: 'commercial_super',
+      name: 'Supermercado de Abasto',
+      category: 'commercial',
+      size: 2, // 2x2
+      height: 40,
+      cost: 650,
+      upkeep: 24,
+      levels: {
+        1: { cost: 650, upkeep: 24, jobs: 60, revenue: 4.0, pollution: 4 },
+        2: { cost: 1100, upkeep: 42, jobs: 110, revenue: 4.8, pollution: 5 },
+        3: { cost: 1800, upkeep: 65, jobs: 170, revenue: 5.6, pollution: 3 },
+      },
+      maxBonus: 'Logística Resiliente: Suministro ininterrumpido que protege la felicidad ante desastres.',
+      description: 'Hipermercado con muelles de carga y estacionamiento exterior.',
+      colorTop: '#67e8f9',
+      colorLeft: '#22d3ee',
+      colorRight: '#06b6d4',
+    },
+    commercial_tower: {
+      id: 'commercial_tower',
+      name: 'Edificio de Oficinas',
+      category: 'commercial',
+      size: 2, // 2x2
+      height: 80,
+      cost: 900,
+      upkeep: 35,
+      levels: {
+        1: { cost: 900, upkeep: 35, jobs: 90, revenue: 5.0, pollution: 5 },
+        2: { cost: 1600, upkeep: 60, jobs: 160, revenue: 6.2, pollution: 6 },
+        3: { cost: 2600, upkeep: 95, jobs: 260, revenue: 7.5, pollution: 4 },
+      },
+      maxBonus: 'Distrito Financiero: Multiplica los ingresos comerciales de toda la ciudad en +15%.',
+      description: 'Rascacielos corporativo con fachada acristalada de alta tecnología.',
+      colorTop: '#cbd5e1',
+      colorLeft: '#94a3b8',
+      colorRight: '#475569',
     },
 
-    // RAMA 1: CONTRATACIÓN MASIVA (Alta producción, alta contaminación, empleos masivos)
+    // === AGRICULTURA ===
+    farm_organic: {
+      id: 'farm_organic',
+      name: 'Granja Agrícola Orgánica',
+      category: 'farm',
+      size: 2, // 2x2
+      height: 20,
+      cost: 320,
+      upkeep: 10,
+      levels: {
+        1: { cost: 320, upkeep: 10, jobs: 25, foodCapacity: 100, happiness: 5 },
+        2: { cost: 550, upkeep: 18, jobs: 45, foodCapacity: 250, happiness: 10 },
+        3: { cost: 950, upkeep: 28, jobs: 70, foodCapacity: 500, happiness: 18 },
+      },
+      maxBonus: 'Invernaderos Hidropónicos: Inmunidad a sequías y olas de calor; salud pública +20%.',
+      description: 'Cultivos parcelados, silos de granos y huertos periurbanos.',
+      colorTop: '#bef264',
+      colorLeft: '#a3e635',
+      colorRight: '#65a30d',
+    },
+
+    // === EMPRESAS (RAMAS CORPORATIVAS) ===
     industrial_mass: {
       id: 'industrial_mass',
       name: 'Fábrica de Contratación Masiva',
-      category: 'industrial_mass',
+      category: 'industrial',
       branch: 'mass',
+      size: 2, // 2x2
+      height: 52,
       cost: 420,
       upkeep: 18,
-      jobs: 90, // Gran capacidad de contratación sin requisitos de educación
-      revenuePerJob: 3.8, // Gran volumen de producción bruta
-      pollution: 28, // Alta contaminación atmosférica e industrial
-      description: 'Fábrica de manufactura pesada. Emplea a decenas de obreros rápidamente, pero genera polución intensa.',
+      levels: {
+        1: { cost: 420, upkeep: 18, jobs: 90, revenuePerJob: 3.8, pollution: 28 },
+        2: { cost: 800, upkeep: 32, jobs: 180, revenuePerJob: 4.4, pollution: 45 },
+        3: { cost: 1500, upkeep: 55, jobs: 300, revenuePerJob: 5.2, pollution: 65 },
+      },
+      maxBonus: 'Líneas Automatizadas: Duplica ingresos brutos de exportación y desbloquea superproducción.',
+      description: 'Industria pesada. Emplea a gran volumen pero emite densas nubes de smog.',
       colorTop: '#d97706',
       colorLeft: '#b45309',
       colorRight: '#92400e',
       chimney: true,
-      height: 48,
     },
-
-    // RAMA 2: CONTRATACIÓN CALIFICADA (Alto valor agregado, baja emisión, impulsa ciencia)
     industrial_tech: {
       id: 'industrial_tech',
       name: 'Complejo Tecnológico Calificado',
-      category: 'industrial_tech',
+      category: 'industrial',
       branch: 'tech',
+      size: 2, // 2x2
+      height: 64,
       cost: 850,
       upkeep: 35,
-      jobs: 45, // Requiere personal cualificado
-      revenuePerJob: 6.8, // Alto valor de innovación y patentes
-      pollution: -4, // Absorción neta con techos solares y biotecnología
-      researchPoints: 5, // Aporta investigación continua
-      description: 'Hub de bioingeniería y computación cuántica. Empleos altamente calificados que reducen emisiones.',
+      levels: {
+        1: { cost: 850, upkeep: 35, jobs: 45, revenuePerJob: 6.8, pollution: -4, research: 5 },
+        2: { cost: 1500, upkeep: 58, jobs: 85, revenuePerJob: 8.2, pollution: -10, research: 12 },
+        3: { cost: 2400, upkeep: 88, jobs: 140, revenuePerJob: 10.0, pollution: -20, research: 24 },
+      },
+      maxBonus: 'Centro Cuántico: Absorbe polución en 3 celdas a la redonda y reduce costos de ciencia -30%.',
+      description: 'Hub de bioingeniería y computación limpia con empleo altamente remunerado.',
       colorTop: '#38bdf8',
       colorLeft: '#0284c7',
       colorRight: '#0369a1',
       glow: true,
-      height: 58,
     },
 
-    // SERVICIOS PÚBLICOS Y SEGURIDAD
+    // === INSTITUCIONES PÚBLICAS Y SERVICIOS ===
     service_police: {
       id: 'service_police',
-      name: 'Comisaría de Seguridad Ciudadana',
+      name: 'Comisaría de Seguridad',
       category: 'service',
+      size: 1, // 1x1
+      height: 38,
       cost: 350,
       upkeep: 28,
-      radius: 8,
-      securityBoost: 25,
-      description: 'Patrullaje preventivo que reduce el crimen y aumenta la seguridad vecinal.',
+      levels: {
+        1: { cost: 350, upkeep: 28, radius: 7, securityBoost: 25 },
+        2: { cost: 550, upkeep: 42, radius: 10, securityBoost: 45 },
+        3: { cost: 900, upkeep: 65, radius: 14, securityBoost: 70 },
+      },
+      maxBonus: 'Patrullaje con IA: Erradica el crimen en su radio incluso ante alto desempleo.',
+      description: 'Patrullaje preventivo que reduce la delincuencia barrial.',
       colorTop: '#818cf8',
       colorLeft: '#6366f1',
       colorRight: '#4f46e5',
       siren: true,
-      height: 38,
     },
     service_fire: {
       id: 'service_fire',
-      name: 'Estación Central de Bomberos',
+      name: 'Estación de Bomberos',
       category: 'service',
+      size: 1, // 1x1
+      height: 38,
       cost: 350,
       upkeep: 28,
-      radius: 8,
-      fireDefense: 35,
-      description: 'Equipo de respuesta inmediata contra incendios urbanos y siniestros.',
+      levels: {
+        1: { cost: 350, upkeep: 28, radius: 7, fireDefense: 35 },
+        2: { cost: 550, upkeep: 42, radius: 10, fireDefense: 60 },
+        3: { cost: 900, upkeep: 65, radius: 14, fireDefense: 90 },
+      },
+      maxBonus: 'Drones de Respuesta Rápida: Extingue incendios por olas de calor en menos de 2s.',
+      description: 'Cuerpo de rescate y extinción de incendios urbanos.',
       colorTop: '#f87171',
       colorLeft: '#ef4444',
       colorRight: '#dc2626',
-      height: 38,
     },
     service_hospital: {
       id: 'service_hospital',
-      name: 'Hospital de Alta Resolución',
+      name: 'Hospital Central de Alta Resolución',
       category: 'service',
-      cost: 600,
+      size: 2, // 2x2
+      height: 48,
+      cost: 650,
       upkeep: 45,
-      radius: 9,
-      healthBoost: 30,
-      description: 'Atención médica integral que mitiga los efectos de olas de calor y accidentes.',
+      levels: {
+        1: { cost: 650, upkeep: 45, radius: 9, healthBoost: 30 },
+        2: { cost: 1100, upkeep: 75, radius: 13, healthBoost: 55 },
+        3: { cost: 1900, upkeep: 110, radius: 24, healthBoost: 85 },
+      },
+      maxBonus: 'Helipuerto de Trauma: Cero muertes por catástrofes y recuperación post-sismo acelerada.',
+      description: 'Atención médica integral con helipuerto y pabellón de urgencias.',
       colorTop: '#ffffff',
       colorLeft: '#e2e8f0',
       colorRight: '#cbd5e1',
       cross: true,
-      height: 42,
-    },
-    service_park: {
-      id: 'service_park',
-      name: 'Parque Bioclimático',
-      category: 'service',
-      cost: 95,
-      upkeep: 6,
-      radius: 5,
-      happinessBoost: 12,
-      coolingBonus: 15,
-      pollutionReduction: 6,
-      description: 'Área verde con árboles nativos. Eleva la felicidad y refresca el microclima.',
-      colorTop: '#4ade80',
-      colorLeft: '#22c55e',
-      colorRight: '#16a34a',
-      trees: true,
-      height: 8,
-    },
-    service_research: {
-      id: 'service_research',
-      name: 'Instituto de Ciencias Aplicadas',
-      category: 'service',
-      cost: 1100,
-      upkeep: 75,
-      researchPoints: 16,
-      description: 'Centro científico que genera puntos de investigación para mitigar catástrofes y optimizar industrias.',
-      colorTop: '#e0e7ff',
-      colorLeft: '#c7d2fe',
-      colorRight: '#a5b4fc',
-      dome: true,
-      height: 52,
-    },
-    service_barrier: {
-      id: 'service_barrier',
-      name: 'Dique de Contención Fluvial',
-      category: 'service',
-      cost: 220,
-      upkeep: 12,
-      floodDefense: true,
-      description: 'Muralla geotécnica que previene inundaciones provenientes de ríos y costas.',
-      colorTop: '#94a3b8',
-      colorLeft: '#64748b',
-      colorRight: '#475569',
-      height: 16,
     },
     service_school: {
       id: 'service_school',
       name: 'Academia y Centro Técnico',
       category: 'service',
+      size: 1, // 1x1
+      height: 36,
       cost: 480,
       upkeep: 26,
-      radius: 8,
-      educationBoost: 22,
-      description: 'Eleva la formación ciudadana, requerida para el auge de empresas calificadas y reducción de criminalidad.',
+      levels: {
+        1: { cost: 480, upkeep: 26, radius: 8, educationBoost: 25 },
+        2: { cost: 780, upkeep: 42, radius: 11, educationBoost: 50 },
+        3: { cost: 1250, upkeep: 68, radius: 15, educationBoost: 80 },
+      },
+      maxBonus: 'Cátedra STEM: Convierte el 80% de la mano de obra en trabajadores calificados.',
+      description: 'Formación ciudadana que impulsa las empresas de tecnología y ciencia.',
       colorTop: '#fed7aa',
       colorLeft: '#fb923c',
       colorRight: '#ea580c',
       academy: true,
-      height: 36,
+    },
+    service_research: {
+      id: 'service_research',
+      name: 'Instituto de Ciencias e Innovación',
+      category: 'service',
+      size: 2, // 2x2
+      height: 56,
+      cost: 1100,
+      upkeep: 75,
+      levels: {
+        1: { cost: 1100, upkeep: 75, researchPoints: 18 },
+        2: { cost: 1900, upkeep: 120, researchPoints: 40 },
+        3: { cost: 3100, upkeep: 180, researchPoints: 75 },
+      },
+      maxBonus: 'Observatorio Sísmico y Satelital: Aviso con 15s de anticipación ante catástrofes.',
+      description: 'Genera puntos de investigación (RP) para mitigar catástrofes y optimizar industrias.',
+      colorTop: '#e0e7ff',
+      colorLeft: '#c7d2fe',
+      colorRight: '#a5b4fc',
+      dome: true,
+    },
+    service_cityhall: {
+      id: 'service_cityhall',
+      name: 'Alcaldía y Palacio Municipal',
+      category: 'service',
+      size: 2, // 2x2
+      height: 54,
+      cost: 800,
+      upkeep: 40,
+      levels: {
+        1: { cost: 800, upkeep: 40, happiness: 10 },
+        2: { cost: 1400, upkeep: 65, happiness: 18, policyDiscount: 0.2 },
+        3: { cost: 2200, upkeep: 95, happiness: 30, policyDiscount: 0.4 },
+      },
+      maxBonus: 'Gabinete Metropolitano: Felicidad pasiva +10% y 2 políticas adicionales sin coste.',
+      description: 'Sede del gobierno municipal del alcalde y centro cívico.',
+      colorTop: '#fef08a',
+      colorLeft: '#eab308',
+      colorRight: '#ca8a04',
+      palace: true,
+    },
+    service_barrier: {
+      id: 'service_barrier',
+      name: 'Dique de Contención Fluvial',
+      category: 'service',
+      size: 1, // 1x1
+      height: 16,
+      cost: 220,
+      upkeep: 12,
+      levels: {
+        1: { cost: 220, upkeep: 12, defense: 1 },
+        2: { cost: 380, upkeep: 18, defense: 2 },
+        3: { cost: 600, upkeep: 25, defense: 4, hydroPower: 35 },
+      },
+      maxBonus: 'Compuertas Geotécnicas: Genera hidroelectricidad limpia (+$$35/d) y blinda 4 celdas ribereñas.',
+      description: 'Muralla geotécnica que previene inundaciones del río.',
+      colorTop: '#94a3b8',
+      colorLeft: '#64748b',
+      colorRight: '#475569',
+      floodDefense: true,
+    },
+
+    // === NATURALEZA Y ELEMENTOS DECORATIVOS ===
+    deco_plaza: {
+      id: 'deco_plaza',
+      name: 'Plaza Cívica con Fuente',
+      category: 'nature',
+      size: 1, // 1x1
+      height: 8,
+      cost: 120,
+      upkeep: 5,
+      levels: {
+        1: { cost: 120, upkeep: 5, happiness: 8 },
+        2: { cost: 220, upkeep: 8, happiness: 16 },
+        3: { cost: 380, upkeep: 14, happiness: 28 },
+      },
+      maxBonus: 'Monumento Iluminado: Duplica el valor del suelo y la recaudación de comercios vecinos.',
+      description: 'Plaza pavimentada con fuente de agua central y bancos de descanso.',
+      colorTop: '#e2e8f0',
+      colorLeft: '#cbd5e1',
+      colorRight: '#94a3b8',
+      fountain: true,
+    },
+    deco_park: {
+      id: 'deco_park',
+      name: 'Parque Bioclimático',
+      category: 'nature',
+      size: 1, // 1x1
+      height: 10,
+      cost: 95,
+      upkeep: 6,
+      levels: {
+        1: { cost: 95, upkeep: 6, happiness: 12, cooling: 15, pollutionReduction: 6 },
+        2: { cost: 180, upkeep: 10, happiness: 22, cooling: 25, pollutionReduction: 12 },
+        3: { cost: 300, upkeep: 16, happiness: 35, cooling: 40, pollutionReduction: 22 },
+      },
+      maxBonus: 'Pulmón Verde con Lago: Enfría el microclima -4°C, eliminando riesgo de fuego.',
+      description: 'Arboleda nativa que refresca la ciudad y absorbe smog.',
+      colorTop: '#86efac',
+      colorLeft: '#4ade80',
+      colorRight: '#22c55e',
+      trees: true,
+    },
+    deco_botanical: {
+      id: 'deco_botanical',
+      name: 'Jardín Botánico y Reserva',
+      category: 'nature',
+      size: 2, // 2x2
+      height: 18,
+      cost: 500,
+      upkeep: 20,
+      levels: {
+        1: { cost: 500, upkeep: 20, happiness: 25, pollutionReduction: 18, research: 3 },
+        2: { cost: 850, upkeep: 35, happiness: 45, pollutionReduction: 35, research: 5 },
+        3: { cost: 1400, upkeep: 55, happiness: 70, pollutionReduction: 60, research: 8 },
+      },
+      maxBonus: 'Santuario Ecológico: Neutraliza polución de hasta 2 fábricas y aporta +8 RP/d en biociencia.',
+      description: 'Gran reserva botánica con invernaderos de cristal y flora protegida.',
+      colorTop: '#4ade80',
+      colorLeft: '#22c55e',
+      colorRight: '#16a34a',
+      botanical: true,
+    },
+    deco_lamp: {
+      id: 'deco_lamp',
+      name: 'Alumbrado y Señalética',
+      category: 'nature',
+      size: 1, // 1x1
+      height: 18,
+      cost: 30,
+      upkeep: 1,
+      levels: {
+        1: { cost: 30, upkeep: 1, trafficSpeed: 1.05 },
+        2: { cost: 50, upkeep: 2, trafficSpeed: 1.10 },
+        3: { cost: 90, upkeep: 3, trafficSpeed: 1.25 },
+      },
+      maxBonus: 'Avenida Inteligente: Acelera la velocidad de vehículos y ambulancias en +35%.',
+      description: 'Farola urbana con sensor crepuscular y señalización vial.',
+      lamp: true,
     },
   },
 
