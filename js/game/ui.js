@@ -62,11 +62,11 @@ export class UIManager {
     this.elStatsChevron = document.getElementById('stats-chevron');
     this.elBtnCloseStats = document.getElementById('btn-close-stats');
 
-    // Menú desplegable maestro de gestión y sistema
-    this.elGameMenuContainer = document.getElementById('game-menu-container');
-    this.elBtnGameMenu = document.getElementById('btn-game-menu');
-    this.elGameMenuDropdown = document.getElementById('game-menu-dropdown');
-    this.elBtnCloseGameMenu = document.getElementById('btn-close-game-menu');
+    // Menú desplegable de configuración y sistema (Engranaje)
+    this.elGameMenuContainer = document.getElementById('gear-menu-container') || document.getElementById('game-menu-container');
+    this.elBtnGameMenu = document.getElementById('btn-gear-menu') || document.getElementById('btn-game-menu');
+    this.elGameMenuDropdown = document.getElementById('gear-menu-dropdown') || document.getElementById('game-menu-dropdown');
+    this.elBtnCloseGameMenu = document.getElementById('btn-close-gear-menu') || document.getElementById('btn-close-game-menu');
 
     // Resumen at-a-glance en el botón desplegable (Dual: Estado y Empresa)
     this.elQuickFunds = document.getElementById('quick-funds');
@@ -319,12 +319,13 @@ export class UIManager {
       });
     }
 
-    // 8. Botones de modales del alcalde (Borde izquierdo)
+    // 8. Botones de modales del alcalde (Barra lateral izquierda y modales)
     document.querySelectorAll('[data-open-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.dataset.ecoTabTarget) {
           this.currentEcoTab = btn.dataset.ecoTabTarget;
         }
+        if (this.game.audio) this.game.audio.playClick();
         this.openModal(btn.dataset.openModal);
       });
     });

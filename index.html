@@ -249,79 +249,27 @@
           </div>
         </div>
 
-        <!-- Menú Desplegable Maestro de Gestión, Cámara y Sistema -->
-        <div id="game-menu-container" class="game-menu-container">
-          <button id="btn-game-menu" class="btn-game-menu" title="Menú de Gestión, Opciones y Sistema">
-            <span class="menu-icon">☰</span>
-            <span class="menu-text">Menú</span>
+        <!-- Menú Desplegable de Configuración y Sistema (Icono de Engranaje) -->
+        <div id="gear-menu-container" class="gear-menu-container">
+          <button id="btn-gear-menu" class="btn-gear-menu" title="Configuración, Cámara y Sistema" aria-label="Configuración">
+            <span class="gear-icon">⚙️</span>
           </button>
 
-          <!-- Dropdown Desplegable -->
-          <div id="game-menu-dropdown" class="game-menu-dropdown hidden">
-            <div class="game-menu-header">
-              <div class="game-menu-title">
-                <span class="game-menu-emoji">🏛️</span>
+          <!-- Dropdown Desplegable de Configuración -->
+          <div id="gear-menu-dropdown" class="gear-menu-dropdown hidden">
+            <div class="gear-menu-header">
+              <div class="gear-menu-title">
+                <span class="gear-menu-emoji">⚙️</span>
                 <div>
-                  <h3>Centro de Gestión y Opciones</h3>
-                  <small>Estrategia, cámara y sistema</small>
+                  <h3>Configuración y Opciones</h3>
+                  <small>Cámara, audio y partida</small>
                 </div>
               </div>
-              <button id="btn-close-game-menu" class="stats-close-btn" title="Cerrar menú">&times;</button>
+              <button id="btn-close-gear-menu" class="stats-close-btn" title="Cerrar configuración">&times;</button>
             </div>
 
-            <div class="game-menu-body">
-              <!-- SECCIÓN 1: GESTIÓN MUNICIPAL & ESTRATEGIA -->
-              <div class="menu-group-section">
-                <span class="menu-group-title">🏛️ GESTIÓN Y ESTRATEGIA</span>
-                <div class="menu-items-grid">
-                  <button class="menu-nav-item" data-open-modal="economy" data-eco-tab-target="state">
-                    <span class="item-icon-box icon-finance">💰</span>
-                    <div class="item-text">
-                      <strong>Finanzas & Tributos</strong>
-                      <small>Presupuesto, impuestos y curva de Laffer</small>
-                    </div>
-                    <span class="item-arrow">›</span>
-                  </button>
-
-                  <button class="menu-nav-item" data-open-modal="economy" data-eco-tab-target="audit">
-                    <span class="item-icon-box icon-audit">📋</span>
-                    <div class="item-text">
-                      <strong>Auditoría en Vivo</strong>
-                      <small>Diagnóstico en tiempo real y cuellos de botella</small>
-                    </div>
-                    <span class="item-arrow">›</span>
-                  </button>
-
-                  <button class="menu-nav-item" data-open-modal="corporations">
-                    <span class="item-icon-box icon-corp">🏭</span>
-                    <div class="item-text">
-                      <strong>Empresas & Decretos</strong>
-                      <small>Holding privado, ramas y políticas urbanas</small>
-                    </div>
-                    <span class="item-arrow">›</span>
-                  </button>
-
-                  <button class="menu-nav-item" data-open-modal="research">
-                    <span class="item-icon-box icon-research">🔬</span>
-                    <div class="item-text">
-                      <strong>Ciencia & Investigación</strong>
-                      <small>Árbol tecnológico e I+D municipal</small>
-                    </div>
-                    <span class="item-arrow">›</span>
-                  </button>
-
-                  <button class="menu-nav-item" data-open-modal="disasters">
-                    <span class="item-icon-box icon-disaster">🌋</span>
-                    <div class="item-text">
-                      <strong>Centro de Riesgos</strong>
-                      <small>Monitoreo sísmico y reparación de catástrofes</small>
-                    </div>
-                    <span class="item-arrow">›</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- SECCIÓN 2: CÁMARA Y PERSPECTIVA -->
+            <div class="gear-menu-body">
+              <!-- SECCIÓN 1: CÁMARA Y PERSPECTIVA -->
               <div class="menu-group-section">
                 <span class="menu-group-title">🎥 CÁMARA Y PERSPECTIVA</span>
                 <div class="menu-camera-actions">
@@ -340,9 +288,9 @@
                 </div>
               </div>
 
-              <!-- SECCIÓN 3: SISTEMA Y CONFIGURACIÓN -->
+              <!-- SECCIÓN 2: AUDIO Y PANTALLA -->
               <div class="menu-group-section">
-                <span class="menu-group-title">⚙️ SISTEMA Y PARTIDA</span>
+                <span class="menu-group-title">🔊 AUDIO Y PANTALLA</span>
                 <div class="menu-system-grid">
                   <button id="menu-btn-audio" class="menu-system-pill" title="Alternar audio y sonido">
                     <span id="menu-audio-icon">🔊</span>
@@ -352,6 +300,13 @@
                     <span>⛶</span>
                     <span>Pantalla Completa</span>
                   </button>
+                </div>
+              </div>
+
+              <!-- SECCIÓN 3: PARTIDA Y SISTEMA -->
+              <div class="menu-group-section">
+                <span class="menu-group-title">💾 PARTIDA Y SISTEMA</span>
+                <div class="menu-system-grid">
                   <button id="menu-btn-save" class="menu-system-pill primary-pill" title="Guardar partida ahora">
                     <span>💾</span>
                     <span>Guardar Partida</span>
@@ -372,6 +327,30 @@
       </div>
     </div>
   </header>
+
+  <!-- BARRA DE GESTIÓN URBANA (5 ICONOS INDEPENDIENTES EN EL LADO IZQUIERDO) -->
+  <aside class="hud-left-management" aria-label="Gestión Urbana">
+    <button class="mgmt-icon-btn mgmt-btn-finance" data-open-modal="economy" data-eco-tab-target="state" title="Finanzas & Tributos" aria-label="Finanzas y Tributos">
+      <span class="mgmt-emoji">💰</span>
+      <span class="mgmt-tooltip">Finanzas & Tributos</span>
+    </button>
+    <button class="mgmt-icon-btn mgmt-btn-audit" data-open-modal="economy" data-eco-tab-target="audit" title="Auditoría en Vivo" aria-label="Auditoría en Vivo">
+      <span class="mgmt-emoji">📋</span>
+      <span class="mgmt-tooltip">Auditoría en Vivo</span>
+    </button>
+    <button class="mgmt-icon-btn mgmt-btn-corp" data-open-modal="corporations" title="Empresas & Decretos" aria-label="Empresas y Decretos">
+      <span class="mgmt-emoji">🏭</span>
+      <span class="mgmt-tooltip">Empresas & Decretos</span>
+    </button>
+    <button class="mgmt-icon-btn mgmt-btn-research" data-open-modal="research" title="Ciencia & Investigación" aria-label="Ciencia e Investigación">
+      <span class="mgmt-emoji">🔬</span>
+      <span class="mgmt-tooltip">Ciencia & Investigación</span>
+    </button>
+    <button class="mgmt-icon-btn mgmt-btn-disaster" data-open-modal="disasters" title="Centro de Riesgos" aria-label="Centro de Riesgos">
+      <span class="mgmt-emoji">🌋</span>
+      <span class="mgmt-tooltip">Centro de Riesgos</span>
+    </button>
+  </aside>
 
   <!-- 3. MANIPULADOR FANTASMA FLOTANTE (ARRASTRE, FLECHAS Y ROTAR) -->
   <div id="ghost-manipulator" class="ghost-manipulator hidden">
