@@ -62,7 +62,7 @@
 
           <div class="stats-grid-dashboard">
             <!-- 1. El Estado (El Alcalde) -->
-            <div class="stat-card-box stat-card-state" data-open-modal="economy" style="cursor: pointer;" title="Toca para gestionar presupuesto estatal e impuestos">
+            <div class="stat-card-box stat-card-state" data-open-modal="economy" data-eco-tab-target="state" style="cursor: pointer;" title="Toca para gestionar presupuesto estatal e impuestos">
               <div class="stat-card-head">
                 <span class="sc-icon">🏛️</span>
                 <h4>Tesoro del Estado ↗</h4>
@@ -75,7 +75,7 @@
             </div>
 
             <!-- 2. El Sector Privado (El Empresario) -->
-            <div class="stat-card-box stat-card-corp" data-open-modal="economy" style="cursor: pointer;" title="Toca para ver balance corporativo y ventas">
+            <div class="stat-card-box stat-card-corp" data-open-modal="economy" data-eco-tab-target="corp" style="cursor: pointer;" title="Toca para ver balance corporativo y ventas">
               <div class="stat-card-head">
                 <span class="sc-icon">💼</span>
                 <h4>Capital Privado ↗</h4>
@@ -88,7 +88,7 @@
             </div>
 
             <!-- 3. Equilibrio Estado-Empresa (Armonía) -->
-            <div class="stat-card-box" data-open-modal="economy" style="cursor: pointer;" title="Equilibrio entre bienestar público y rentabilidad privada">
+            <div class="stat-card-box" data-open-modal="economy" data-eco-tab-target="balance" style="cursor: pointer;" title="Equilibrio entre bienestar público y rentabilidad privada">
               <div class="stat-card-head">
                 <span class="sc-icon">⚖️</span>
                 <h4>Armonía Estado-Empresa</h4>
@@ -258,11 +258,15 @@
   </header>
 
   <!-- 2. CONTROLES DISCRETOS EN BORDES EXTREMOS -->
-  <!-- Borde Izquierdo: Acceso a Decretos, Ciencia, Finanzas y Partida -->
+  <!-- Borde Izquierdo: Acceso a Decretos, Ciencia, Finanzas, Auditoría y Partida -->
   <aside class="edge-actions-left">
-    <button class="edge-btn" data-open-modal="economy" title="Finanzas Municipales y Mercado Global">
+    <button class="edge-btn" data-open-modal="economy" data-eco-tab-target="state" title="Finanzas Municipales, Tributos y Presupuesto">
       <span class="e-icon">💰</span>
       <span class="e-text">Finanzas</span>
+    </button>
+    <button class="edge-btn" data-open-modal="economy" data-eco-tab-target="audit" title="Auditoría y Diagnóstico Estratégico en Vivo">
+      <span class="e-icon">📋</span>
+      <span class="e-text">Auditoría</span>
     </button>
     <button class="edge-btn" data-open-modal="corporations" title="Empresas y Decretos">
       <span class="e-icon">🏭</span>
@@ -419,8 +423,8 @@
   <div id="modal-economy" class="game-modal modal-glassmorphic">
     <div class="modal-header">
       <div class="modal-title-wrap">
-        <span class="modal-emoji">💰</span>
-        <h2>Finanzas Municipales y Mercado Global</h2>
+        <span class="modal-emoji">🏛️</span>
+        <h2>Gestión Híbrida: Estado, Empresa y Tributos</h2>
       </div>
       <button class="modal-close">&times;</button>
     </div>

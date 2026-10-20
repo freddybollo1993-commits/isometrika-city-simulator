@@ -1091,6 +1091,18 @@ html, body {
 /* ==========================================================================
    PANEL FINANCIERO Y COMERCIAL GLASSMORPHISM (city-builder-economy)
    ========================================================================== */
+#modal-economy {
+  max-width: 760px;
+  max-height: 86vh;
+}
+
+@media (max-width: 768px) {
+  #modal-economy {
+    width: 98%;
+    max-height: 90vh;
+  }
+}
+
 .modal-glassmorphic {
   background: rgba(15, 23, 42, 0.94) !important;
   backdrop-filter: blur(24px) !important;
@@ -1119,40 +1131,52 @@ html, body {
   color: #ffffff;
 }
 
-/* Pestañas de Perspectiva Dual en el Panel Financiero */
+/* Pestañas de Perspectiva Dual en el Panel Financiero (Sticky) */
 .eco-tabs-nav {
+  position: sticky;
+  top: -18px;
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  margin: -18px -18px 0 -18px;
+  padding: 12px 18px 10px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   gap: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 8px;
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .eco-tab-btn {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #94a3b8;
   border-radius: var(--radius-pill);
-  padding: 6px 14px;
+  padding: 8px 14px;
+  min-height: 40px;
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .eco-tab-btn:hover {
   color: #ffffff;
-  background: rgba(51, 65, 85, 0.8);
+  background: rgba(51, 65, 85, 0.85);
   border-color: rgba(56, 189, 248, 0.4);
 }
 
 .eco-tab-btn.active {
-  background: rgba(56, 189, 248, 0.2);
+  background: rgba(56, 189, 248, 0.22);
   color: #38bdf8;
   border-color: #38bdf8;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
 }
 
 /* Tarjetas de Rescate y Transferencia de Emergencia */
@@ -1316,28 +1340,67 @@ html, body {
 }
 
 .eco-tax-pct-badge {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 900;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-pill);
   background: rgba(56, 189, 248, 0.2);
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.4);
 }
 
-.eco-slider-wrap {
+/* Fila de Controles de Impuestos con Botones Pasadores */
+.eco-slider-control-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.eco-slider {
+.eco-stepper-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  font-size: 1.35rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
+}
+
+.eco-stepper-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  transform: scale(1.05);
+}
+
+.eco-stepper-btn:active {
+  transform: scale(0.95);
+  background: rgba(56, 189, 248, 0.4);
+}
+
+.eco-slider-wrap {
   flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.eco-slider {
+  width: 100%;
   -webkit-appearance: none;
   appearance: none;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(71, 85, 105, 0.6);
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(51, 65, 85, 0.7);
   outline: none;
   transition: background 0.2s;
   cursor: pointer;
@@ -1346,12 +1409,12 @@ html, body {
 .eco-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: #38bdf8;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
   cursor: pointer;
   transition: transform 0.1s, background 0.2s;
 }
@@ -1363,21 +1426,125 @@ html, body {
 }
 
 .eco-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: #38bdf8;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
   cursor: pointer;
 }
 
+/* Barra de Pista Visual de Laffer (Zonas Verde, Amarillo, Rojo) */
+.eco-laffer-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  overflow: hidden;
+  margin: 4px 0 2px 0;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.eco-laffer-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.eco-laffer-segment.zone-green {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.45), rgba(34, 197, 94, 0.6));
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.eco-laffer-segment.zone-yellow {
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.5), rgba(234, 179, 8, 0.65));
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.eco-laffer-segment.zone-red {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.5), rgba(239, 68, 68, 0.7));
+}
+
+.eco-gauge-pin {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 5px;
+  border-radius: 3px;
+  background: #ffffff;
+  box-shadow: 0 0 8px #ffffff, 0 0 14px #38bdf8;
+  transform: translateX(-50%);
+  transition: left 0.12s ease;
+  pointer-events: none;
+}
+
 .eco-laffer-feedback {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 600;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.eco-tax-yield-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+/* Barra de Presets Rápidos de Impuestos */
+.eco-presets-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  margin-bottom: 6px;
+}
+
+.presets-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.presets-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.eco-preset-pill {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.eco-preset-pill:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
 }
 
 /* Desglose Presupuestario: Ingresos vs Gastos */
@@ -1921,5 +2088,170 @@ html, body {
   background: linear-gradient(90deg, #10b981, #34d399);
   transition: width 0.3s ease;
 }
+
+/* ==========================================================================
+   ESTILOS DE LA AUDITORÍA EN VIVO Y DIAGNÓSTICO EN TIEMPO REAL
+   ========================================================================== */
+.audit-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.audit-score-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.audit-score-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-score-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.audit-score-desc {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.audit-score-badge {
+  font-size: 1.55rem;
+  font-weight: 900;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.audit-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 4px solid #64748b;
+  transition: all 0.2s ease;
+}
+
+.audit-card.severity-danger {
+  border-left-color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.audit-card.severity-warn {
+  border-left-color: var(--color-warning);
+  background: rgba(234, 179, 8, 0.07);
+}
+
+.audit-card.severity-good {
+  border-left-color: var(--color-success);
+  background: rgba(34, 197, 94, 0.07);
+}
+
+.audit-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-card-head h4 {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audit-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.audit-badge.badge-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.audit-badge.badge-warn {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.audit-badge.badge-good {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.audit-card p {
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.audit-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.audit-advice {
+  font-size: 0.70rem;
+  color: #94a3b8;
+  font-style: italic;
+  flex: 1;
+  min-width: 180px;
+}
+
+.btn-audit-jump {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-audit-jump:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
 
 

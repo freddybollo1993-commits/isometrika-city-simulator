@@ -1450,19 +1450,22 @@ export class UIManager {
 
     if (!isRendered || isInitial) {
       elContent.innerHTML = `
-        <!-- Selector de Perspectiva Dual y Ciudadanos -->
+        <!-- Selector de Perspectiva Dual, Ciudadanos y Auditoría en Vivo -->
         <div class="eco-tabs-nav">
           <button class="eco-tab-btn ${this.currentEcoTab === 'state' ? 'active' : ''}" data-eco-tab="state">
-            <span>🏛️ El Estado (Alcalde)</span>
+            <span>🏛️ Tributos & Estado</span>
           </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'corp' ? 'active' : ''}" data-eco-tab="corp">
-            <span>💼 Sector Privado (Empresario)</span>
+            <span>💼 Sector Privado</span>
           </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'citizens' ? 'active' : ''}" data-eco-tab="citizens">
-            <span>👥 Ciudadanos & Salarios</span>
+            <span>👥 Ciudadanos</span>
           </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'balance' ? 'active' : ''}" data-eco-tab="balance">
-            <span>⚖️ Equilibrio & Rescate</span>
+            <span>⚖️ Equilibrio</span>
+          </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'audit' ? 'active' : ''}" data-eco-tab="audit">
+            <span>📋 Auditoría en Vivo</span>
           </button>
         </div>
 
@@ -1483,9 +1486,12 @@ export class UIManager {
 
       // Vincular eventos según pestaña
       if (this.currentEcoTab === 'state') {
-        this._bindTaxSlider('res', 'residential');
-        this._bindTaxSlider('comm', 'commercial');
-        this._bindTaxSlider('ind', 'industrial');
+        this._bindTaxControls('res', 'residential', eco);
+        this._bindTaxControls('comm', 'commercial', eco);
+        this._bindTaxControls('ind', 'industrial', eco);
+        this._bindTaxPresets(elContent, eco);
+      } else if (this.currentEcoTab === 'audit') {
+        this._bindAuditJumpButtons(elContent);
       } else if (this.currentEcoTab === 'balance') {
         const btnBailout = elContent.querySelector('#btn-action-bailout');
         if (btnBailout) {
@@ -1557,6 +1563,10 @@ export class UIManager {
         setTxt('#eco-state-inc-util', `+$${stateInc.utilityDividends || 0}/d`);
         setTxt('#eco-state-inc-total', `+$${stateInc.total || 0}/d`);
 
+        setTxt('#eco-live-tax-yield-res', `+$${stateInc.residentialTax || 0}/d`);
+        setTxt('#eco-live-tax-yield-comm', `+$${stateInc.commercialTax || 0}/d`);
+        setTxt('#eco-live-tax-yield-ind', `+$${stateInc.industrialTax || 0}/d`);
+
         setTxt('#eco-state-exp-road', `-$${stateExp.roadUpkeep || 0}/d`);
         setTxt('#eco-state-exp-serv', `-$${stateExp.serviceUpkeep || 0}/d`);
         setTxt('#eco-state-exp-policy', `-$${stateExp.policyCosts || 0}/d`);
@@ -1609,6 +1619,14 @@ export class UIManager {
         setTxt('#eco-price-energy', `$${prices.energy || 0.85} /MW`);
         setTxt('#eco-price-water', `$${prices.water || 0.65} /kL`);
       }
+      // Si está en pestaña Auditoría en Vivo
+      else if (this.currentEcoTab === 'audit') {
+        const area = elContent.querySelector('#eco-tab-content-area');
+        if (area) {
+          area.innerHTML = this._renderEcoTabContent('audit', eco, sim);
+          this._bindAuditJumpButtons(area);
+        }
+      }
     }
   }
 
@@ -1633,7 +1651,12 @@ export class UIManager {
     const indPct = Math.round(eco.taxRates.industrial * 100);
     const avgTax = Math.round((resPct + commPct + indPct) / 3);
 
-    // 1. PESTAÑA EL ESTADO (EL ALCALDE)
+    // 0. PESTAÑA AUDITORÍA EN VIVO Y DIAGNÓSTICO
+    if (tab === 'audit') {
+      return this._renderAuditTabContent(eco, sim);
+    }
+
+    // 1. PESTAÑA EL ESTADO (EL ALCALDE & TRIBUTOS)
     if (tab === 'state') {
       return `
         <div class="eco-kpi-grid">
@@ -1653,7 +1676,7 @@ export class UIManager {
           </div>
           <div class="eco-kpi-card">
             <span class="kpi-label">Presión Fiscal</span>
-            <span class="kpi-val text-tech">${avgTax}%</span>
+            <span id="eco-kpi-tax-avg" class="kpi-val text-tech">${avgTax}%</span>
           </div>
         </div>
 
@@ -1666,57 +1689,31 @@ export class UIManager {
             ⚠️ <em>Dilema del Alcalde:</em> Subir impuestos da más fondos para obras públicas (escuelas, plantas de luz y hospitales), pero si cobras más del 12% a comercios e industrias, tus empresas entrarán en pérdidas y despedirán obreros.
           </p>
 
+          <!-- Barra de Presets Rápidos -->
+          <div class="eco-presets-bar">
+            <span class="presets-label">⚡ Ajustes Rápidos:</span>
+            <div class="presets-buttons">
+              <button type="button" class="eco-preset-pill" data-tax-preset="stimulus" title="Fijar todos los impuestos al 6% (Máximo estímulo al empleo y felicidad)">
+                🌱 Estímulo (6%)
+              </button>
+              <button type="button" class="eco-preset-pill" data-tax-preset="balanced" title="Fijar todos los impuestos al 10% (Equilibrio fiscal neutral)">
+                ⚖️ Neutral (10%)
+              </button>
+              <button type="button" class="eco-preset-pill" data-tax-preset="fiscal" title="Fijar todos los impuestos al 14% (Máxima recaudación estatal con tensión empresarial)">
+                🏛️ Pro-Estado (14%)
+              </button>
+            </div>
+          </div>
+
           <div class="eco-tax-slider-group">
             <!-- Residencial -->
-            <div class="eco-tax-item">
-              <div class="eco-tax-header">
-                <span class="eco-tax-name">🏠 Impuesto Residencial (IRP)</span>
-                <span id="eco-badge-res" class="eco-tax-pct-badge">${resPct}%</span>
-              </div>
-              <div class="eco-slider-wrap">
-                <input type="range" id="eco-slider-res" class="eco-slider" min="1" max="25" step="1" value="${resPct}">
-              </div>
-              <div class="eco-laffer-feedback">
-                <span id="eco-feedback-res" class="${resPct <= 6 ? 'text-positive' : resPct <= 11 ? 'text-warn' : 'text-danger'}">
-                  ${this._getLafferText('res', resPct)}
-                </span>
-                <small style="color: #64748b;">Base: 9%</small>
-              </div>
-            </div>
+            ${this._renderTaxItem('res', 'residential', '🏠 Impuesto Residencial (IRP)', resPct, 9, eco, 6, 11, 'Pagado por los ciudadanos. Tasas bajas disparan el ahorro y la felicidad; más del 11% frena el crecimiento de viviendas.')}
 
             <!-- Comercial -->
-            <div class="eco-tax-item">
-              <div class="eco-tax-header">
-                <span class="eco-tax-name">🏪 Impuesto a Comercios Privados</span>
-                <span id="eco-badge-comm" class="eco-tax-pct-badge">${commPct}%</span>
-              </div>
-              <div class="eco-slider-wrap">
-                <input type="range" id="eco-slider-comm" class="eco-slider" min="1" max="25" step="1" value="${commPct}">
-              </div>
-              <div class="eco-laffer-feedback">
-                <span id="eco-feedback-comm" class="${commPct <= 8 ? 'text-positive' : commPct <= 12 ? 'text-warn' : 'text-danger'}">
-                  ${this._getLafferText('comm', commPct)}
-                </span>
-                <small style="color: #64748b;">Base: 10%</small>
-              </div>
-            </div>
+            ${this._renderTaxItem('comm', 'commercial', '🏪 Impuesto a Comercios Privados', commPct, 10, eco, 8, 12, 'Gravamen sobre ventas minoristas. Tasas moderadas sostienen el comercio sin reducir los salarios.')}
 
             <!-- Industrial -->
-            <div class="eco-tax-item">
-              <div class="eco-tax-header">
-                <span class="eco-tax-name">🏭 Impuesto Industrial y Corporativo</span>
-                <span id="eco-badge-ind" class="eco-tax-pct-badge">${indPct}%</span>
-              </div>
-              <div class="eco-slider-wrap">
-                <input type="range" id="eco-slider-ind" class="eco-slider" min="1" max="25" step="1" value="${indPct}">
-              </div>
-              <div class="eco-laffer-feedback">
-                <span id="eco-feedback-ind" class="${indPct <= 8 ? 'text-positive' : indPct <= 12 ? 'text-warn' : 'text-danger'}">
-                  ${this._getLafferText('ind', indPct)}
-                </span>
-                <small style="color: #64748b;">Base: 10%</small>
-              </div>
-            </div>
+            ${this._renderTaxItem('ind', 'industrial', '🏭 Impuesto Industrial y Corporativo', indPct, 10, eco, 8, 12, 'Gravamen sobre fábricas y agroindustria. Más del 12% provoca congelamiento de vacantes y quiebras fabriles.')}
           </div>
         </div>
 
@@ -2068,15 +2065,311 @@ export class UIManager {
     return '';
   }
 
+  _renderTaxItem(prefix, taxKey, title, currentPct, basePct, eco, greenMax, yellowMax, desc) {
+    const stateInc = (eco.stateBreakdown && eco.stateBreakdown.income) || {};
+    const keyMap = { res: 'residentialTax', comm: 'commercialTax', ind: 'industrialTax' };
+    const currentYield = stateInc[keyMap[prefix]] || 0;
+    const pinPct = Math.round(((currentPct - 1) / 24) * 100);
+
+    const greenFlex = greenMax;
+    const yellowFlex = yellowMax - greenMax;
+    const redFlex = 25 - yellowMax;
+
+    const feedbackClass = (prefix === 'res' ? currentPct <= 6 : currentPct <= 8)
+      ? 'text-positive'
+      : (prefix === 'res' ? currentPct <= 11 : currentPct <= 12)
+      ? 'text-warn'
+      : 'text-danger';
+
+    return `
+      <div class="eco-tax-item">
+        <div class="eco-tax-header">
+          <span class="eco-tax-name">${title}</span>
+          <span id="eco-badge-${prefix}" class="eco-tax-pct-badge">${currentPct}%</span>
+        </div>
+
+        <div class="eco-slider-control-row">
+          <button type="button" id="btn-dec-tax-${prefix}" class="eco-stepper-btn" title="Reducir 1%">−</button>
+          <div class="eco-slider-wrap">
+            <input type="range" id="eco-slider-${prefix}" class="eco-slider" min="1" max="25" step="1" value="${currentPct}">
+          </div>
+          <button type="button" id="btn-inc-tax-${prefix}" class="eco-stepper-btn" title="Aumentar 1%">+</button>
+        </div>
+
+        <div class="eco-laffer-track" title="Pista de Laffer: Verde (Estímulo), Amarillo (Neutral), Rojo (Asfixia)">
+          <div class="eco-laffer-segment zone-green" style="flex: ${greenFlex};">
+            <span>1-${greenMax}%</span>
+          </div>
+          <div class="eco-laffer-segment zone-yellow" style="flex: ${yellowFlex};">
+            <span>${greenMax + 1}-${yellowMax}%</span>
+          </div>
+          <div class="eco-laffer-segment zone-red" style="flex: ${redFlex};">
+            <span>>${yellowMax}%</span>
+          </div>
+          <div id="eco-gauge-pin-${prefix}" class="eco-gauge-pin" style="left: ${pinPct}%;"></div>
+        </div>
+
+        <div class="eco-laffer-feedback">
+          <span id="eco-feedback-${prefix}" class="${feedbackClass}">
+            ${this._getLafferText(prefix, currentPct)}
+          </span>
+          <span class="eco-tax-yield-tag">Recaudación: <strong id="eco-live-tax-yield-${prefix}" class="text-positive">+$${currentYield}/d</strong></span>
+        </div>
+        <small style="font-size: 0.70rem; color: #94a3b8; line-height: 1.35;">${desc}</small>
+      </div>
+    `;
+  }
+
+  _renderAuditTabContent(eco, sim) {
+    const cMgr = sim.citizens;
+    const m = cMgr ? cMgr.metrics : {};
+    const stateBreakdown = eco.stateBreakdown || {};
+    const corpBreakdown = eco.corporateBreakdown || {};
+    const stateNet = stateBreakdown.netCashflow || 0;
+    const corpNet = corpBreakdown.netProfit || 0;
+    const stateInc = stateBreakdown.income || {};
+    const stateExp = stateBreakdown.expenses || {};
+    const corpRev = corpBreakdown.revenue || {};
+    const corpExp = corpBreakdown.expenses || {};
+
+    const stateFunds = eco.stateFunds || 0;
+    const corpFunds = eco.corporateFunds || 0;
+
+    // 1. Runway de caja estatal
+    let runwayText = 'Infinita (Superávit)';
+    let runwaySeverity = 'good';
+    if (stateFunds <= 0) {
+      runwayText = '¡Caja Agotada (Bancarrota)!';
+      runwaySeverity = 'danger';
+    } else if (stateNet < 0) {
+      const daysLeft = Math.floor(stateFunds / Math.abs(stateNet));
+      runwayText = `${daysLeft} días restantes`;
+      runwaySeverity = daysLeft <= 10 ? 'danger' : 'warn';
+    }
+
+    // 2. Cobertura de plantas y pugna salarial
+    const pubWorkers = m.publicWorkersCount || 0;
+    const pubNeeded = m.publicNeededCount || 0;
+    const pubRatio = pubNeeded > 0 ? (pubWorkers / pubNeeded) : 1.0;
+    const pubPct = Math.round(pubRatio * 100);
+    const pubWage = cMgr ? cMgr.publicWageBase : 26;
+    const privWage = cMgr ? cMgr.privateWageBase : 28;
+
+    // 3. Fricción de transporte
+    const avgTransport = m.avgTransportCost || 0;
+
+    // 4. Seguridad alimentaria
+    const pop = sim.population || 0;
+    const foodSupply = sim.foodCapacity || 0;
+    const foodDeficit = Math.max(0, pop - foodSupply);
+    const foodImportsCost = stateExp.importsCost || 0;
+
+    // 5. Estrés residencial
+    const stressedHomes = m.inFinancialStressCount || 0;
+
+    // 6. Tasas de impuestos
+    const resRate = Math.round(eco.taxRates.residential * 100);
+    const commRate = Math.round(eco.taxRates.commercial * 100);
+    const indRate = Math.round(eco.taxRates.industrial * 100);
+    const avgTax = Math.round((resRate + commRate + indRate) / 3);
+
+    // 7. Cálculo de Score Global de Salud Urbana (0 a 100)
+    let score = 100;
+    if (stateFunds <= 0) score -= 30;
+    else if (stateNet < 0) score -= Math.min(20, Math.round(Math.abs(stateNet) / 10));
+
+    if (corpFunds <= 0) score -= 25;
+    else if (corpNet < 0) score -= Math.min(15, Math.round(Math.abs(corpNet) / 15));
+
+    if (pubRatio < 0.75) score -= 20;
+    else if (pubRatio < 0.88) score -= 10;
+
+    if (avgTransport >= 6) score -= 10;
+    if (foodDeficit > 0) score -= 10;
+    if (stressedHomes > 0) score -= Math.min(10, stressedHomes * 2);
+
+    score = Math.max(10, Math.min(100, score));
+
+    let gradeLetter = 'A+';
+    let gradeLabel = 'Metrópolis Ejemplar';
+    let gradeBadgeClass = 'badge-good';
+    if (score < 40) {
+      gradeLetter = 'D';
+      gradeLabel = 'Crisis Sistémica';
+      gradeBadgeClass = 'badge-danger';
+    } else if (score < 65) {
+      gradeLetter = 'C';
+      gradeLabel = 'Desequilibrio Crítico';
+      gradeBadgeClass = 'badge-danger';
+    } else if (score < 85) {
+      gradeLetter = 'B';
+      gradeLabel = 'En Desarrollo Sostenible';
+      gradeBadgeClass = 'badge-warn';
+    }
+
+    return `
+      <div class="audit-overview-grid">
+        <!-- SCORE GLOBAL -->
+        <div class="audit-score-card">
+          <div class="audit-score-left">
+            <span class="audit-score-title">⭐ Índice General de Salud y Gobernanza Urbana</span>
+            <span class="audit-score-desc">
+              Evaluación automatizada en tiempo real que integra estabilidad fiscal, solvencia corporativa, bienestar ciudadano y resiliencia de servicios públicos.
+            </span>
+          </div>
+          <div class="audit-score-badge ${gradeBadgeClass}">
+            ${gradeLetter} <small style="font-size: 0.72rem; display: block; font-weight: 700;">${score}/100 • ${gradeLabel}</small>
+          </div>
+        </div>
+
+        <!-- 1. SOLVENCIA DEL ESTADO -->
+        <div class="audit-card severity-${runwaySeverity}">
+          <div class="audit-card-head">
+            <h4>🏛️ Tesorería y Solvencia del Estado</h4>
+            <span class="audit-badge badge-${runwaySeverity}">
+              ${stateFunds <= 0 ? 'Bancarrota' : stateNet >= 0 ? 'Superávit' : 'Déficit'}
+            </span>
+          </div>
+          <p>
+            ${stateFunds <= 0
+              ? '<strong>¡Alerta Máxima!</strong> La Tesorería del Estado se ha quedado sin fondos ($0). No puedes costear el mantenimiento de calles ni servicios públicos.'
+              : stateNet < 0
+              ? `El Estado gasta más de lo que recauda (Déficit de <strong class="text-danger">-$${Math.abs(stateNet)}/d</strong>). A este ritmo de consumo, los fondos durarán <strong>${runwayText}</strong>.`
+              : `Las arcas de la Alcaldía generan un flujo positivo neto de <strong class="text-positive">+$${stateNet}/d</strong>. Tienes fondos suficientes para acometer nuevas obras públicas e inversiones.`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${stateNet < 0 ? '💡 Consejo: Incrementa el IRP o reduce importaciones de alimentos.' : '✓ Estado fiscal solvente.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="state">Ajustar Tributos →</button>
+          </div>
+        </div>
+
+        <!-- 2. VIABILIDAD DEL HOLDING PRIVADO -->
+        <div class="audit-card severity-${corpFunds <= 0 ? 'danger' : corpNet < 0 ? 'warn' : 'good'}">
+          <div class="audit-card-head">
+            <h4>💼 Viabilidad del Sector Privado (El Magnate)</h4>
+            <span class="audit-badge badge-${corpFunds <= 0 ? 'danger' : corpNet < 0 ? 'warn' : 'good'}">
+              ${corpFunds <= 0 ? 'Quiebra Inminente' : corpNet < 0 ? 'En Pérdidas' : 'Solvente y Rentable'}
+            </span>
+          </div>
+          <p>
+            ${corpFunds <= 0
+              ? '<strong>¡Alerta Corporativa!</strong> El capital del holding está en números rojos. Las empresas no pueden pagar nóminas completas y están congelando vacantes.'
+              : corpNet < 0
+              ? `Las empresas privadas están operando a pérdida diaria (<strong class="text-danger">-$${Math.abs(corpNet)}/d</strong>). Revisa si los impuestos comercial e industrial (>12%) o los apagones están drenando la rentabilidad.`
+              : `El holding corporativo goza de salud financiera con una ganancia diaria de <strong class="text-positive">+$${corpNet}/d</strong> (Margen: ${corpBreakdown.margin || 0}%).`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${corpNet < 0 ? '💡 Consejo: Si los impuestos superan el 12%, redúcelos para dar oxígeno al negocio.' : '✓ Sector privado en expansión.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="corp">Ver Balance Privado →</button>
+          </div>
+        </div>
+
+        <!-- 3. PUGNA SALARIAL Y COBERTURA DE SERVICIOS -->
+        <div class="audit-card severity-${pubRatio < 0.75 ? 'danger' : pubRatio < 0.88 ? 'warn' : 'good'}">
+          <div class="audit-card-head">
+            <h4>⚡ Pugna Salarial & Cobertura de Plantas Públicas</h4>
+            <span class="audit-badge badge-${pubRatio < 0.75 ? 'danger' : pubRatio < 0.88 ? 'warn' : 'good'}">
+              ${pubPct}% Cobertura
+            </span>
+          </div>
+          <p>
+            ${pubRatio < 0.85
+              ? `<strong>¡Riesgo de Apagón o Corte de Agua!</strong> Las plantas públicas tienen vacantes sin cubrir (${pubWorkers}/${pubNeeded} operarios). El sueldo del Estado ($${pubWage}/d) no compite con el privado ($${privWage}/d). Si la cobertura cae bajo 80%, las fábricas privadas perderán hasta un 60% de producción.`
+              : `Las plantas de energía y agua potable están operando al <strong>${pubPct}%</strong> de su capacidad nominal con personal suficiente (${pubWorkers}/${pubNeeded} operarios).`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${pubRatio < 0.85 ? '💡 Consejo: Eleva el salario público en +$2/d para atraer operarios calificados.' : '✓ Suministro de servicios estable.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="citizens">Ajustar Salarios →</button>
+          </div>
+        </div>
+
+        <!-- 4. FRICCIÓN ESPACIAL Y TRANSPORTE -->
+        <div class="audit-card severity-${avgTransport >= 6 ? 'danger' : avgTransport >= 3 ? 'warn' : 'good'}">
+          <div class="audit-card-head">
+            <h4>🚌 Fricción Espacial & Costo de Desplazamiento</h4>
+            <span class="audit-badge badge-${avgTransport >= 6 ? 'danger' : avgTransport >= 3 ? 'warn' : 'good'}">
+              -$${avgTransport}/d Promedio
+            </span>
+          </div>
+          <p>
+            ${avgTransport >= 5
+              ? `<strong>Fricción Espacial Alta:</strong> Los ciudadanos gastan en promedio <strong class="text-warn">-$${avgTransport}/d</strong> en viajar a sus puestos de trabajo. Este gasto resta ahorro a los hogares y frena la mejora de viviendas a Nivel 2 o 3.`
+              : `La cercanía entre residencias y empleos mantiene el gasto de transporte en solo <strong class="text-positive">-$${avgTransport}/d</strong>. Los ciudadanos preservan su remanente diario.`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${avgTransport >= 5 ? '💡 Consejo: Coloca Terminales de Autobús o clústeres comerciales cercanos a las viviendas.' : '✓ Movilidad urbana eficiente.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="citizens">Ver Movilidad →</button>
+          </div>
+        </div>
+
+        <!-- 5. SEGURIDAD ALIMENTARIA E IMPORTACIONES -->
+        <div class="audit-card severity-${foodDeficit > 0 ? 'warn' : 'good'}">
+          <div class="audit-card-head">
+            <h4>🌾 Seguridad Alimentaria & Compras de Grano</h4>
+            <span class="audit-badge badge-${foodDeficit > 0 ? 'warn' : 'good'}">
+              ${foodDeficit > 0 ? 'Déficit Agrícola' : 'Soberanía Total'}
+            </span>
+          </div>
+          <p>
+            ${foodDeficit > 0
+              ? `La demanda poblacional (${pop} hab.) supera la cosecha de las granjas locales (${foodSupply} hab.). El Estado está pagando <strong class="text-danger">-$${foodImportsCost}/d</strong> en compras de emergencia de grano en el mercado internacional.`
+              : `Las granjas locales producen suficiente alimento para abastecer a la población (${foodSupply} hab. disponibles para ${pop} habitantes), generando excedentes exportables.`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${foodDeficit > 0 ? '💡 Consejo: Construye Granjas Tecnificadas o Complejos Agropecuarios.' : '✓ Soberanía alimentaria garantizada.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="balance">Ver Mercado Global →</button>
+          </div>
+        </div>
+
+        <!-- 6. PROGRESIÓN ORGÁNICA RESIDENCIAL -->
+        <div class="audit-card severity-${stressedHomes > 0 ? 'warn' : 'good'}">
+          <div class="audit-card-head">
+            <h4>🌱 Salud de los Hogares y Escalado Orgánico</h4>
+            <span class="audit-badge badge-${stressedHomes > 0 ? 'warn' : 'good'}">
+              ${stressedHomes > 0 ? `${stressedHomes} Viviendas en Estrés` : 'Hogares Prósperos'}
+            </span>
+          </div>
+          <p>
+            ${stressedHomes > 0
+              ? `Hay <strong class="text-danger">${stressedHomes}</strong> edificios residenciales donde los inquilinos tienen remanente diario negativo. Si no ahorran, sus casas no podrán mejorar de nivel o se degradarán a chabolas.`
+              : `Los ciudadanos disfrutan de un remanente diario promedio de <strong class="text-positive">+$${m.avgRemaining || 0}/d</strong>. Las viviendas están acumulando progreso para subir de nivel orgánicamente.`
+            }
+          </p>
+          <div class="audit-card-footer">
+            <span class="audit-advice">
+              ${stressedHomes > 0 ? '💡 Consejo: Reduce el IRP o acerca los empleos para reducir el gasto de transporte.' : '✓ Progresión residencial activa.'}
+            </span>
+            <button type="button" class="btn-audit-jump" data-jump-tab="state">Ver IRP →</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   _getLafferText(type, pct) {
     if (type === 'res') {
-      if (pct <= 6) return '✨ Alivio tributario (+Felicidad ciudadana)';
-      if (pct <= 11) return '⚖️ Zona fiscal neutral equilibrada';
-      return '⚠️ Exceso tributario (-Felicidad y fuga demográfica)';
+      if (pct <= 6) return '✨ Alivio tributario (+Felicidad y ahorro familiar)';
+      if (pct <= 11) return '⚖️ Zona fiscal neutral (Equilibrio de vida)';
+      return '⚠️ Exceso tributario (-Felicidad y estrés financiero)';
     } else {
-      if (pct <= 8) return '💼 Fomento corporativo (+15% contratación)';
+      if (pct <= 8) return '💼 Fomento corporativo (+15% contratación y expansión)';
       if (pct <= 12) return '⚖️ Zona fiscal corporativa equilibrada';
-      return '📉 Presión alta (Empresas congelan vacantes laborales)';
+      return '📉 Asfixia fiscal (Empresas congelan vacantes y entran en pérdidas)';
     }
   }
 
@@ -2088,42 +2381,123 @@ export class UIManager {
     return trend > 0 ? 'eco-trend-up' : trend < 0 ? 'eco-trend-down' : 'eco-trend-stable';
   }
 
-  _bindTaxSlider(prefix, taxKey) {
+  _bindTaxControls(prefix, taxKey, eco) {
     const slider = document.getElementById(`eco-slider-${prefix}`);
     const badge = document.getElementById(`eco-badge-${prefix}`);
     const feedback = document.getElementById(`eco-feedback-${prefix}`);
-    if (!slider || !badge) return;
+    const btnDec = document.getElementById(`btn-dec-tax-${prefix}`);
+    const btnInc = document.getElementById(`btn-inc-tax-${prefix}`);
+    const pin = document.getElementById(`eco-gauge-pin-${prefix}`);
+    const liveYield = document.getElementById(`eco-live-tax-yield-${prefix}`);
 
-    slider.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
-      badge.textContent = `${val}%`;
-      const eco = this.game.simulation.economy;
-      if (eco) {
-        eco.setTaxRate(taxKey, val / 100);
+    const applyValue = (val) => {
+      const clamped = Math.max(1, Math.min(25, val));
+      if (slider) slider.value = clamped;
+      if (badge) badge.textContent = `${clamped}%`;
+      eco.setTaxRate(taxKey, clamped / 100);
+
+      // Posición del pin en el track (1% -> 0%, 25% -> 100%)
+      if (pin) {
+        const pinPct = Math.round(((clamped - 1) / 24) * 100);
+        pin.style.left = `${pinPct}%`;
       }
 
+      // Feedback Laffer
       if (feedback) {
-        feedback.textContent = this._getLafferText(prefix, val);
-        feedback.className = (prefix === 'res' ? val <= 6 : val <= 8)
+        feedback.textContent = this._getLafferText(prefix, clamped);
+        feedback.className = (prefix === 'res' ? clamped <= 6 : clamped <= 8)
           ? 'text-positive'
-          : (prefix === 'res' ? val <= 11 : val <= 12)
+          : (prefix === 'res' ? clamped <= 11 : clamped <= 12)
           ? 'text-warn'
           : 'text-danger';
       }
 
-      if (eco) {
-        const resPct = Math.round(eco.taxRates.residential * 100);
-        const commPct = Math.round(eco.taxRates.commercial * 100);
-        const indPct = Math.round(eco.taxRates.industrial * 100);
-        const avgTax = Math.round((resPct + commPct + indPct) / 3);
-        const elKpiTaxAvg = document.getElementById('eco-kpi-tax-avg');
-        if (elKpiTaxAvg) elKpiTaxAvg.textContent = `${avgTax}%`;
+      // Proyección estimada de recaudación
+      if (liveYield) {
+        const stateInc = (eco.stateBreakdown && eco.stateBreakdown.income) || {};
+        const keyMap = { res: 'residentialTax', comm: 'commercialTax', ind: 'industrialTax' };
+        const currentYield = stateInc[keyMap[prefix]] || 0;
+        const currentRate = eco.taxRates[taxKey] || 0.1;
+        const base = currentRate > 0 ? currentYield / currentRate : 0;
+        const projected = Math.round(base * (clamped / 100));
+        liveYield.textContent = `+$${projected}/d`;
       }
-    });
 
-    slider.addEventListener('change', () => {
-      if (this.game.audio) this.game.audio.playClick();
+      // Actualizar promedio general en KPI si existe
+      const resPct = Math.round(eco.taxRates.residential * 100);
+      const commPct = Math.round(eco.taxRates.commercial * 100);
+      const indPct = Math.round(eco.taxRates.industrial * 100);
+      const avgTax = Math.round((resPct + commPct + indPct) / 3);
+      const elKpiTaxAvg = document.getElementById('eco-kpi-tax-avg');
+      if (elKpiTaxAvg) elKpiTaxAvg.textContent = `${avgTax}%`;
+    };
+
+    if (slider) {
+      slider.addEventListener('input', (e) => {
+        applyValue(parseInt(e.target.value, 10));
+      });
+      slider.addEventListener('change', () => {
+        if (this.game.audio) this.game.audio.playClick();
+      });
+    }
+
+    if (btnDec) {
+      btnDec.addEventListener('click', () => {
+        const current = Math.round((eco.taxRates[taxKey] || 0.1) * 100);
+        applyValue(current - 1);
+        if (this.game.audio) this.game.audio.playClick();
+      });
+    }
+
+    if (btnInc) {
+      btnInc.addEventListener('click', () => {
+        const current = Math.round((eco.taxRates[taxKey] || 0.1) * 100);
+        applyValue(current + 1);
+        if (this.game.audio) this.game.audio.playClick();
+      });
+    }
+  }
+
+  _bindTaxPresets(elContent, eco) {
+    elContent.querySelectorAll('[data-tax-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.taxPreset;
+        let targetRate = 10;
+        let presetName = 'Equilibrio Fiscal Neutral (10%)';
+        if (preset === 'stimulus') {
+          targetRate = 6;
+          presetName = 'Estímulo Económico y Familiar (6%)';
+        } else if (preset === 'fiscal') {
+          targetRate = 14;
+          presetName = 'Recaudación Pro-Estado (14%)';
+        }
+
+        eco.setTaxRate('residential', targetRate / 100);
+        eco.setTaxRate('commercial', targetRate / 100);
+        eco.setTaxRate('industrial', targetRate / 100);
+
+        if (this.game.audio) this.game.audio.playChime();
+        this.showToast(`⚖️ ${presetName} activado`);
+        this.updateEconomyModalContent(true);
+      });
     });
+  }
+
+  _bindAuditJumpButtons(container) {
+    container.querySelectorAll('[data-jump-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.currentEcoTab = btn.dataset.jumpTab;
+        if (this.game.audio) this.game.audio.playClick();
+        this.updateEconomyModalContent(true);
+      });
+    });
+  }
+
+  _bindTaxSlider(prefix, taxKey) {
+    const eco = this.game.simulation.economy;
+    if (eco) {
+      this._bindTaxControls(prefix, taxKey, eco);
+    }
   }
 
   showSaveIndicator() {
