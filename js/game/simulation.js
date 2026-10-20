@@ -281,10 +281,14 @@ export class Simulation {
 
     // Si la Alcaldía no ofrece salarios competitivos, las plantas públicas sufren déficit de personal
     // provocando apagones y cortes de agua (Regla 3 del Documento Maestro)
-    // En fase fundacional (menos de 10 hab), los servicios operan en modo pionero automatizado.
-    const publicLaborFactor = this.population >= 10 
-      ? Math.max(0.2, this.citizens.metrics.publicStaffingRatio) 
-      : 1.0;
+    // En fase fundacional (menos de 30 hab), los servicios operan en modo pionero automatizado.
+    const isPioneerPhase = this.population < 30;
+    const publicStaffRatio = this.citizens.metrics.publicStaffingRatio || 1.0;
+    // La capacidad de producción de las plantas públicas es proporcional a la cantidad de operarios y a su educación
+    const eduQualityBonus = this.education > 50 ? 1.20 : (this.education > 25 ? 1.0 : 0.85);
+    const publicLaborFactor = isPioneerPhase 
+      ? 1.0 
+      : Math.max(0.20, Math.min(1.35, publicStaffRatio * eduQualityBonus));
     totalPowerSupply = Math.round(totalPowerSupply * publicLaborFactor);
     totalWaterSupply = Math.round(totalWaterSupply * publicLaborFactor);
 
@@ -410,17 +414,24 @@ export class Simulation {
 
     this.happiness = Math.max(5, Math.min(100, Math.round(calcHappiness)));
 
-    // Migración
+    // Migración demográfica
+    // Suelo vital mínimo de habitantes garantizado para asegurar servicios básicos (luz, agua, policía, mercado)
+    const minLifeFloor = Math.min(this.housingCapacity, 8);
+
     if (this.population < this.housingCapacity) {
-      if (this.happiness >= 60) {
+      if (this.happiness > 50) { // Margen de felicidad superior al 50% para que lleguen nuevos habitantes
         const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
-      } else if (this.happiness < 35 && this.population > 0) {
-        const departures = Math.max(1, Math.floor(this.population * 0.05));
-        this.population = Math.max(0, this.population - departures);
+      } else if (this.happiness < 20 && this.population > minLifeFloor) { // Margen de pérdida menor al 20%
+        const departures = Math.max(1, Math.floor(this.population * 0.02)); // Los habitantes se van al 2% por cada tick
+        this.population = Math.max(minLifeFloor, this.population - departures);
       }
     } else if (this.population > this.housingCapacity) {
-      this.population = this.housingCapacity;
+      this.population = Math.max(minLifeFloor, this.housingCapacity);
+    }
+
+    if (this.housingCapacity > 0 && this.population < minLifeFloor) {
+      this.population = minLifeFloor;
     }
 
     // 7. SEGURIDAD CIUDADANA Y SALUD

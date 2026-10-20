@@ -288,16 +288,23 @@ export class EconomySystem {
     // =========================================================================
     // PARTE C: LIQUIDACIÓN DEL SECTOR PÚBLICO (EL ESTADO)
     // =========================================================================
-    const publicPayroll = (citizenReport && citizenReport.totalPublicWages > 0)
+    // Nómina de entidades públicas: liquidada ÚNICAMENTE sobre los operarios reales contratados en cada edificio
+    const publicPayroll = (citizenReport && typeof citizenReport.totalPublicWages === 'number')
       ? citizenReport.totalPublicWages
-      : Math.round(baseUpkeep * 0.4);
+      : 0;
+
+    // Mantenimiento de infraestructura pasiva (carreteras, paradas y áreas públicas)
+    const roadUpkeep = Math.round(baseUpkeep * 0.25);
+    // Mantenimiento físico de instalaciones y repuestos (20% del upkeep para evitar duplicar nóminas de personal)
+    const buildingUpkeep = Math.round(baseUpkeep * 0.20);
+    const serviceUpkeep = roadUpkeep + buildingUpkeep;
 
     const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
       ? citizenReport.totalPublicHousingRent
       : 0;
 
     const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends + publicHousingRent;
-    const stateTotalExpenses = Math.round(baseUpkeep + publicPayroll + policyExpenses + totalImportsCost);
+    const stateTotalExpenses = Math.round(serviceUpkeep + publicPayroll + policyExpenses + totalImportsCost);
     const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
 
     this.stateFunds += stateNetCashflow;
@@ -321,9 +328,9 @@ export class EconomySystem {
       },
       expenses: {
         publicPayroll,
-        roadUpkeep: Math.round(baseUpkeep * 0.25),
-        buildingUpkeep: Math.round(baseUpkeep * 0.75),
-        serviceUpkeep: baseUpkeep,
+        roadUpkeep,
+        buildingUpkeep,
+        serviceUpkeep,
         policyCosts: Math.round(policyExpenses),
         importsCost: totalImportsCost,
         total: stateTotalExpenses,

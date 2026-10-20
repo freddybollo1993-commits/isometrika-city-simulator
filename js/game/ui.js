@@ -905,6 +905,42 @@ export class UIManager {
         `;
       }
 
+      // Información de Empleo y Salario Diferenciado por Edificio
+      const isPublicEntity = def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal';
+      const isWorkplace = isPublicEntity || def.category === 'commercial' || def.category === 'industrial' || def.category === 'farm';
+      const cMgr = this.game.simulation ? this.game.simulation.citizens : null;
+
+      if (isWorkplace && cMgr) {
+        const minFloor = isPublicEntity ? cMgr.publicWageBase : cMgr.privateWageBase;
+        if (typeof building.customWage === 'number' && building.customWage < minFloor) {
+          building.customWage = minFloor;
+        }
+        const currentBldgWage = building.customWage || minFloor;
+        const staffCount = building.assignedWorkers || 0;
+        const maxJobs = building.maxWorkers || levelData.jobs || def.jobs || (isPublicEntity ? 10 : 15);
+
+        statsHTML += `
+          <div class="insp-stat-item">
+            <span>Operarios Asignados:</span>
+            <strong>${staffCount} / ${maxJobs}</strong>
+          </div>
+          <div class="insp-stat-item full-width-stat" style="grid-column: 1 / -1; margin-top: 6px; background: rgba(30, 41, 59, 0.7); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid rgba(56, 189, 248, 0.35);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span>💼 Salario de este Edificio:</span>
+              <strong class="text-positive" style="font-size: 0.92rem;">$${currentBldgWage}/d</strong>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <small style="color: #94a3b8; font-size: 0.68rem;">Piso central: $${minFloor}/d</small>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button id="btn-insp-wage-minus" class="wage-step-btn" title="Reducir salario de este edificio" style="padding: 2px 7px; font-weight: bold;">- $2</button>
+                <button id="btn-insp-wage-plus" class="wage-step-btn" title="Aumentar salario de este edificio" style="padding: 2px 7px; font-weight: bold;">+ $2</button>
+              </div>
+            </div>
+            <small style="color: #64748b; font-size: 0.65rem; display: block; margin-top: 4px;">Ofrecer más salario aquí atrae trabajadores prioritarios antes que a otras empresas.</small>
+          </div>
+        `;
+      }
+
       if (building.damage > 0) {
         statsHTML += `<div class="insp-stat-item"><span>Daño Estructural:</span><strong class="danger-color">${Math.round(building.damage)}%</strong></div>`;
       }
@@ -921,6 +957,34 @@ export class UIManager {
       `;
 
       this.elInspStats.innerHTML = statsHTML;
+
+      if (isWorkplace && cMgr) {
+        const btnMinus = this.elInspStats.querySelector('#btn-insp-wage-minus');
+        const btnPlus = this.elInspStats.querySelector('#btn-insp-wage-plus');
+        const minFloor = isPublicEntity ? cMgr.publicWageBase : cMgr.privateWageBase;
+        const currentBldgWage = building.customWage || minFloor;
+
+        if (btnMinus) {
+          btnMinus.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nw = Math.max(minFloor, currentBldgWage - 2);
+            cMgr.setBuildingWage(building, nw);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showInspector(gx, gy, building);
+            this.showToast(`💼 Salario de ${def.name} ajustado a $${nw}/d`);
+          });
+        }
+        if (btnPlus) {
+          btnPlus.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nw = Math.min(85, currentBldgWage + 2);
+            cMgr.setBuildingWage(building, nw);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showInspector(gx, gy, building);
+            this.showToast(`💼 Salario de ${def.name} elevado a $${nw}/d`);
+          });
+        }
+      }
     }
 
     if (this.elInspMaxBonus) {
@@ -1664,12 +1728,15 @@ export class UIManager {
       } else if (this.currentEcoTab === 'citizens') {
         const btnIncWage = elContent.querySelector('#btn-inc-public-wage');
         const btnDecWage = elContent.querySelector('#btn-dec-public-wage');
+        const btnIncPrivWage = elContent.querySelector('#btn-inc-private-wage');
+        const btnDecPrivWage = elContent.querySelector('#btn-dec-private-wage');
         const cMgr = sim.citizens;
+
         if (btnIncWage && cMgr) {
           btnIncWage.addEventListener('click', () => {
             const nw = cMgr.setPublicWage(cMgr.publicWageBase + 2);
             if (this.game.audio) this.game.audio.playClick();
-            this.showToast(`🏛️ Salario público elevado a $${nw}/d`);
+            this.showToast(`🏛️ Salario público central elevado a $${nw}/d`);
             this.updateEconomyModalContent(true);
           });
         }
@@ -1677,7 +1744,23 @@ export class UIManager {
           btnDecWage.addEventListener('click', () => {
             const nw = cMgr.setPublicWage(cMgr.publicWageBase - 2);
             if (this.game.audio) this.game.audio.playClick();
-            this.showToast(`🏛️ Salario público reducido a $${nw}/d`);
+            this.showToast(`🏛️ Salario público central reducido a $${nw}/d`);
+            this.updateEconomyModalContent(true);
+          });
+        }
+        if (btnIncPrivWage && cMgr) {
+          btnIncPrivWage.addEventListener('click', () => {
+            const nw = cMgr.setPrivateWage(cMgr.privateWageBase + 2);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showToast(`💼 Salario privado central elevado a $${nw}/d`);
+            this.updateEconomyModalContent(true);
+          });
+        }
+        if (btnDecPrivWage && cMgr) {
+          btnDecPrivWage.addEventListener('click', () => {
+            const nw = cMgr.setPrivateWage(cMgr.privateWageBase - 2);
+            if (this.game.audio) this.game.audio.playClick();
+            this.showToast(`💼 Salario privado central reducido a $${nw}/d`);
             this.updateEconomyModalContent(true);
           });
         }
@@ -1742,7 +1825,8 @@ export class UIManager {
         setTxt('#eco-kpi-cit-rem', `${avgRemSign}$${m.avgRemaining || 0}/d`);
         setTxt('#eco-kpi-cit-trans', `-$${m.avgTransportCost || 0}/d`);
         setTxt('#eco-kpi-cit-happy', `${m.avgHappiness || 65}%`);
-        setTxt('#val-public-wage', `$${cMgr ? cMgr.publicWageBase : 26}`);
+        setTxt('#val-public-wage', `$${cMgr ? cMgr.publicWageBase : 30}`);
+        setTxt('#val-private-wage', `$${cMgr ? cMgr.privateWageBase : 32}`);
         setTxt('#val-public-staffed', `${m.publicWorkersCount || 0} / ${m.publicNeededCount || 0}`);
         setTxt('#val-private-staffed', `${m.privateWorkersCount || 0} empleados`);
       }
@@ -1829,6 +1913,28 @@ export class UIManager {
           <p style="font-size: 0.72rem; color: #94a3b8; margin: 0;">
             ⚠️ <em>Dilema del Alcalde:</em> Subir impuestos da más fondos para obras públicas (escuelas, plantas de luz y hospitales), pero si cobras más del 12% a comercios e industrias, tus empresas entrarán en pérdidas y despedirán obreros.
           </p>
+
+          <!-- Guía Visual Rápida de Tramos Fiscales (Curva de Laffer) -->
+          <div class="laffer-brackets-card">
+            <div class="laffer-brackets-grid">
+              <div class="laffer-b-item b-stimulus">
+                <strong>🟢 1% - 8% (Estímulo)</strong>
+                <span>Ahorro alto, máxima felicidad y rápida subida de casas. Recaudación pública baja.</span>
+              </div>
+              <div class="laffer-b-item b-optimal">
+                <strong>🟡 9% - 12% (Zona Óptima)</strong>
+                <span>Máxima recaudación sostenible. Las empresas ganan, los vecinos ahorran y el Estado tiene superávit.</span>
+              </div>
+              <div class="laffer-b-item b-tension">
+                <strong>🟠 13% - 17% (Tensión Fiscal)</strong>
+                <span>Más fondos para el Estado a corto plazo, pero las empresas frenan empleo y las casas dejan de crecer.</span>
+              </div>
+              <div class="laffer-b-item b-collapse">
+                <strong>🔴 18%+ (Asfixia & Quiebra)</strong>
+                <span>Quiebra de comercios y fábricas, despidos masivos y colapso de la recaudación final.</span>
+              </div>
+            </div>
+          </div>
 
           <!-- Barra de Presets Rápidos -->
           <div class="eco-presets-bar">
@@ -2081,13 +2187,13 @@ export class UIManager {
             <div class="wage-battle-box wage-box-public">
               <div class="wage-box-header">
                 <span>🏛️ Sector Público (Alcaldía)</span>
-                <span class="wage-tag public-tag">Sueldo Base: $${cMgr ? cMgr.publicWageBase : 26}/d</span>
+                <span class="wage-tag public-tag">Piso Base: $${cMgr ? cMgr.publicWageBase : 30}/d</span>
               </div>
               <div class="wage-controls">
                 <span>Ajustar Salario Público:</span>
                 <div class="wage-btn-group">
                   <button id="btn-dec-public-wage" class="wage-step-btn" title="Reducir salario público">- $2</button>
-                  <strong id="val-public-wage">$${cMgr ? cMgr.publicWageBase : 26}</strong>
+                  <strong id="val-public-wage">$${cMgr ? cMgr.publicWageBase : 30}</strong>
                   <button id="btn-inc-public-wage" class="wage-step-btn" title="Aumentar salario público">+ $2</button>
                 </div>
               </div>
@@ -2106,9 +2212,17 @@ export class UIManager {
             <div class="wage-battle-box wage-box-private">
               <div class="wage-box-header">
                 <span>💼 Sector Privado (El Magnate)</span>
-                <span class="wage-tag private-tag">Sueldo Base: $${cMgr ? cMgr.privateWageBase : 28}/d</span>
+                <span class="wage-tag private-tag">Piso Base: $${cMgr ? cMgr.privateWageBase : 32}/d</span>
               </div>
-              <div class="wage-stat-row" style="margin-top: 8px;">
+              <div class="wage-controls">
+                <span>Ajustar Salario Privado:</span>
+                <div class="wage-btn-group">
+                  <button id="btn-dec-private-wage" class="wage-step-btn" title="Reducir salario privado">- $2</button>
+                  <strong id="val-private-wage">$${cMgr ? cMgr.privateWageBase : 32}</strong>
+                  <button id="btn-inc-private-wage" class="wage-step-btn" title="Aumentar salario privado">+ $2</button>
+                </div>
+              </div>
+              <div class="wage-stat-row">
                 <span>Trabajadores Empleados:</span>
                 <strong id="val-private-staffed">${m.privateWorkersCount || 0} empleados</strong>
               </div>

@@ -295,6 +295,8 @@ export class Renderer {
       ctx.arc(x - 7, topY - 10, 2, 0, Math.PI * 2);
       ctx.fillStyle = '#38bdf8';
       ctx.fill();
+
+      this.renderBuildingStatusBadge(ctx, building, def, x, topY, level);
       return;
     }
 
@@ -358,6 +360,8 @@ export class Renderer {
       ctx.arc(x, y - 24, 6, Math.PI, 0);
       ctx.fillStyle = '#ef4444';
       ctx.fill();
+
+      this.renderBuildingStatusBadge(ctx, building, def, x, y - 26, level);
       return;
     }
 
@@ -372,6 +376,8 @@ export class Renderer {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.stroke();
+
+      this.renderBuildingStatusBadge(ctx, building, def, x, y - 30, level);
       return;
     }
 
@@ -927,6 +933,79 @@ export class Renderer {
       ctx.fillStyle = healthPct > 0.5 ? '#22c55e' : healthPct > 0.25 ? '#eab308' : '#ef4444';
       ctx.fillRect(barX, barY, barW * healthPct, barH);
     }
+
+    // INDICADOR SUPERIOR DE SALUD ECONÓMICA Y EVOLUCIÓN (ROJO: DÉFICIT, AMARILLO: ESTABLE, VERDE: CRECIMIENTO)
+    this.renderBuildingStatusBadge(ctx, building, def, x, topY, level);
+  }
+
+  /**
+   * Dibuja una pastilla flotante compacta en el tejado del edificio:
+   * - Dot: Rojo (déficit / estrés / falta de operarios), Amarillo (estable), Verde (crecimiento / superávit)
+   * - Flecha: ▲ verde (subida de nivel próxima o disponible), ▼ roja (vivienda deteriorándose)
+   */
+  renderBuildingStatusBadge(ctx, building, def, x, topY, level = 1) {
+    if (!building || !def || def.id === 'road' || def.lamp || def.fountain || def.trees) return;
+
+    let arrow = building.upgradeArrow || null;
+    let status = building.statusState || 'stable';
+
+    // Para edificios no residenciales con nivel < 3, comprobar si el jugador puede costear la mejora
+    if (!arrow && def.category !== 'residential' && def.levels && level < 3) {
+      const nextData = def.levels[level + 1];
+      if (nextData && window.gameInstance && window.gameInstance.simulation) {
+        const sim = window.gameInstance.simulation;
+        const funding = sim.getFundingType(def);
+        const funds = funding === 'public'
+          ? (sim.economy ? sim.economy.stateFunds : 0)
+          : (sim.economy ? sim.economy.corporateFunds : 0);
+        if (funds >= nextData.cost) {
+          arrow = 'up'; // Indicador de mejora lista
+        }
+      }
+    }
+
+    const hasArrow = arrow === 'up' || arrow === 'down';
+    const badgeY = topY - (level > 1 ? 16 : 8);
+    const badgeW = hasArrow ? 19 : 10;
+    const badgeH = 10;
+    const badgeX = x - badgeW / 2;
+
+    ctx.save();
+    // Cápsula de fondo semitransparente
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY - badgeH / 2, badgeW, badgeH, 4);
+    ctx.fill();
+    ctx.strokeStyle = status === 'deficit'
+      ? 'rgba(239, 68, 68, 0.6)'
+      : (status === 'growth' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(255, 255, 255, 0.2)');
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Dot cromático de estado económico
+    let dotColor = '#eab308'; // Amarillo: estable
+    if (status === 'deficit') dotColor = '#ef4444'; // Rojo: déficit
+    else if (status === 'growth') dotColor = '#22c55e'; // Verde: crecimiento
+
+    ctx.beginPath();
+    ctx.arc(hasArrow ? badgeX + 4.5 : x, badgeY, 2.7, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.fill();
+
+    // Flecha direccional
+    if (hasArrow) {
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (arrow === 'up') {
+        ctx.fillStyle = '#4ade80';
+        ctx.fillText('▲', badgeX + 13, badgeY);
+      } else {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('▼', badgeX + 13, badgeY);
+      }
+    }
+    ctx.restore();
   }
 
   renderOrientedDoor(ctx, x, y, tw, th, rotation, color) {

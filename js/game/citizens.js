@@ -74,9 +74,9 @@ export class CitizenManager {
     this.residentialBuildings = new Map(); // 'bldg_gx_gy' -> ResidentialBuilding
     this.nextCitizenId = 1;
 
-    // Política de salarios base
-    this.publicWageBase = 26; // Salario diario base ofrecido por la Alcaldía
-    this.privateWageBase = 28; // Salario diario base ofrecido por el holding privado
+    // Política de salarios base inicial
+    this.publicWageBase = 30; // Salario diario base ofrecido por la Alcaldía (elevado a 30)
+    this.privateWageBase = 32; // Salario diario base ofrecido por el holding privado (elevado a 32)
 
     // Métricas del mercado laboral y pugna salarial
     this.metrics = {
@@ -310,9 +310,13 @@ export class CitizenManager {
             jobTitle = 'Sismólogo / Operador Geotécnico';
           }
 
-          // Multiplicador salarial según educación requerida
+          // Multiplicador salarial según educación requerida y salario individual del edificio
           const eduMult = requiredEdu === 2 ? 1.75 : requiredEdu === 1 ? 1.3 : 1.0;
-          const finalSalary = Math.round(effPublicWage * eduMult);
+          if (tile.building.customWage && tile.building.customWage < this.publicWageBase) {
+            tile.building.customWage = this.publicWageBase;
+          }
+          const baseWage = tile.building.customWage || effPublicWage;
+          const finalSalary = Math.round(baseWage * eduMult);
 
           publicVacancies.push({
             employerId: bldgUid,
@@ -324,6 +328,7 @@ export class CitizenManager {
             requiredEdu,
             capacity: jobsCount,
             filled: 0,
+            workersEdu: [],
             salary: finalSalary,
           });
         }
@@ -364,7 +369,11 @@ export class CitizenManager {
           }
 
           const eduMult = requiredEdu === 2 ? 1.9 : requiredEdu === 1 ? 1.35 : 1.0;
-          const finalSalary = Math.round(effPrivateWage * eduMult);
+          if (tile.building.customWage && tile.building.customWage < this.privateWageBase) {
+            tile.building.customWage = this.privateWageBase;
+          }
+          const baseWage = tile.building.customWage || effPrivateWage;
+          const finalSalary = Math.round(baseWage * eduMult);
 
           privateVacancies.push({
             employerId: bldgUid,
@@ -376,16 +385,17 @@ export class CitizenManager {
             requiredEdu,
             capacity: jobsCount,
             filled: 0,
+            workersEdu: [],
             salary: finalSalary,
           });
         }
       }
     }
 
-    // 2. Resolver la Pugna Salarial:
-    // Los ciudadanos buscan el trabajo mejor remunerado que acepte su nivel de estudios.
-    // Si el sector privado paga más, se llenan primero las vacantes privadas,
-    // dejando al sector público sin operarios (Rule 3).
+    // 2. Resolver la Pugna Salarial & Selección Racional de Empleo:
+    // Los ciudadanos buscan el trabajo con mejor remanente neto (salario - transporte)
+    // priorizando proximidad (hasta 7 casillas gratis a pie) y solvencia financiera
+    // para nunca generar un déficit de ingresos.
     const citizensList = Array.from(this.citizens.values());
 
     // Reiniciar asignación previa
@@ -393,23 +403,49 @@ export class CitizenManager {
       c.currentJob = null;
     });
 
-    // Combinar vacantes ordenadas por salario descendente
-    const allVacancies = [...publicVacancies, ...privateVacancies].sort(
-      (a, b) => b.salary - a.salary
-    );
+    const allVacancies = [...publicVacancies, ...privateVacancies];
+    const taxRate = (economy && economy.taxRates) ? economy.taxRates.residential : 0.09;
 
     let totalEmployed = 0;
     let publicEmployed = 0;
     let privateEmployed = 0;
 
     for (const citizen of citizensList) {
-      // Buscar mejor empleo compatible con su educación
-      const bestJob = allVacancies.find(
-        (v) => v.filled < v.capacity && citizen.educationLevel >= v.requiredEdu
-      );
+      const home = this.residentialBuildings.get(citizen.homeBuildingId);
+      const homeX = home ? home.x : 0;
+      const homeY = home ? home.y : 0;
+      const rent = home ? home.getRent() : 6;
+      const food = 5; // Gasto en comida reducido a 5/día
+
+      let bestJob = null;
+      let bestScore = -Infinity;
+
+      for (const vac of allVacancies) {
+        if (vac.filled >= vac.capacity) continue;
+        if (citizen.educationLevel < vac.requiredEdu) continue;
+
+        const distance = Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy);
+        let transCost = 0;
+        if (distance > 7) {
+          const transportFactor = grid.getTransportEfficiencyAt(homeX, homeY);
+          transCost = Math.round((distance - 7) * 1.2 * transportFactor * 10) / 10;
+        }
+
+        const estTax = Math.round(vac.salary * taxRate * 10) / 10;
+        const projectedRemaining = vac.salary - (rent + food + transCost + estTax);
+
+        // Si el remanente es positivo, alta prioridad; bonificación por cercanía física
+        const score = (projectedRemaining >= 0 ? 1000 + projectedRemaining * 25 : projectedRemaining * 60) - (distance * 0.7);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestJob = vac;
+        }
+      }
 
       if (bestJob) {
         bestJob.filled++;
+        bestJob.workersEdu.push(citizen.educationLevel);
         citizen.currentJob = {
           employerId: bestJob.employerId,
           salary: bestJob.salary,
@@ -429,6 +465,25 @@ export class CitizenManager {
         }
       } else {
         citizen.daysUnemployed++;
+      }
+    }
+
+    // 2B. Actualizar indicadores de operarios asignados y salud en cada edificio
+    for (const vac of allVacancies) {
+      const tile = grid.getTile(vac.gx, vac.gy);
+      if (tile && tile.building) {
+        tile.building.assignedWorkers = vac.filled;
+        tile.building.maxWorkers = vac.capacity;
+        tile.building.workerEduAvg = vac.workersEdu.length > 0 
+          ? vac.workersEdu.reduce((a, b) => a + b, 0) / vac.workersEdu.length 
+          : 0;
+        
+        const ratio = vac.capacity > 0 ? (vac.filled / vac.capacity) : 1.0;
+        if (vac.sector === 'public') {
+          tile.building.statusState = ratio < 0.6 ? 'deficit' : ratio >= 0.9 ? 'growth' : 'stable';
+        } else {
+          tile.building.statusState = ratio < 0.5 ? 'deficit' : ratio >= 0.95 ? 'growth' : 'stable';
+        }
       }
     }
 
@@ -506,12 +561,16 @@ export class CitizenManager {
       const home = grid.getBuilding(citizen.homeBuildingId);
 
       if (workplace && home) {
-        // Distancia Manhattan ajustada por infraestructura y red vial
+        // Distancia Manhattan con 7 casillas peatonales gratuitas (caminables)
         const distance = Math.abs(home.x - workplace.x) + Math.abs(home.y - workplace.y);
-        const transportFactor = grid.getTransportEfficiencyAt(home.x, home.y); // 0.5 (bueno) a 2.0 (malo)
-        citizen.transportCost = Math.round(distance * 1.2 * transportFactor * 10) / 10;
+        if (distance <= 7) {
+          citizen.transportCost = 0;
+        } else {
+          const transportFactor = grid.getTransportEfficiencyAt(home.x, home.y); // 0.5 (bueno) a 2.0 (malo)
+          citizen.transportCost = Math.round((distance - 7) * 1.2 * transportFactor * 10) / 10;
+        }
       } else {
-        citizen.transportCost = 1.5;
+        citizen.transportCost = 0;
       }
 
       sumTransport += citizen.transportCost;
@@ -530,7 +589,7 @@ export class CitizenManager {
       const rent = resBuilding 
         ? resBuilding.getRent() 
         : (building && typeof building.getRent === 'function' ? building.getRent() : 6);
-      const food = 10; // Consumo obligatorio en comercios y granjas del Magnate
+      const food = 5; // Gasto diario de alimentación reducido a 5 por día
       const taxes = Math.round(salary * taxRate * 10) / 10;
 
       citizen.lastSalary = salary;
@@ -591,7 +650,7 @@ export class CitizenManager {
         if (remaining >= 2) {
           resBuilding.upgradeProgress += (remaining * 0.10) / occFactor;
         } else if (remaining < 0) {
-          resBuilding.upgradeProgress -= 3.5 / occFactor; // Penalización por estrés financiero
+          resBuilding.upgradeProgress -= 1.2 / occFactor; // Penalización por estrés financiero suavizada a -1.2
           inFinancialStressCount++;
         }
       }
@@ -615,18 +674,32 @@ export class CitizenManager {
           gridBuilding.level = building.level;
           gridBuilding.upgradeProgress = 25;
         }
-      } else if (building.upgradeProgress <= -15 && building.level > 1) {
+      } else if (building.upgradeProgress <= -35 && building.level > 1) {
         building.level--;
-        building.upgradeProgress = 40; // Se degrada al nivel anterior con amortiguación
+        building.upgradeProgress = 30; // Se degrada al nivel anterior con amortiguación amplia
         organicDegradesToday++;
         if (gridBuilding) {
           gridBuilding.level = building.level;
-          gridBuilding.upgradeProgress = 40;
+          gridBuilding.upgradeProgress = 30;
         }
       } else {
-        building.upgradeProgress = Math.max(-25, Math.min(100, building.upgradeProgress));
+        building.upgradeProgress = Math.max(-40, Math.min(100, building.upgradeProgress));
         if (gridBuilding) {
           gridBuilding.upgradeProgress = Math.round(building.upgradeProgress);
+        }
+      }
+
+      // Sincronizar estado visual e indicadores de flechas en viviendas
+      if (gridBuilding) {
+        if (building.upgradeProgress >= 70) {
+          gridBuilding.statusState = 'growth';
+          gridBuilding.upgradeArrow = 'up';
+        } else if (building.upgradeProgress < 0) {
+          gridBuilding.statusState = 'deficit';
+          gridBuilding.upgradeArrow = 'down';
+        } else {
+          gridBuilding.statusState = 'stable';
+          gridBuilding.upgradeArrow = null;
         }
       }
 
@@ -667,8 +740,52 @@ export class CitizenManager {
   }
 
   setPublicWage(newWage) {
-    this.publicWageBase = Math.max(14, Math.min(50, Math.round(newWage)));
+    this.publicWageBase = Math.max(16, Math.min(70, Math.round(newWage)));
+    // Si el piso central sube, elevar automáticamente los edificios públicos cuyo salario individual haya quedado por debajo
+    if (this.grid) {
+      for (let gy = 0; gy < this.grid.size; gy++) {
+        for (let gx = 0; gx < this.grid.size; gx++) {
+          const b = this.grid.tiles[gy][gx]?.building;
+          if (!b || !b.isRoot) continue;
+          const def = CONFIG.BUILDINGS[b.id];
+          if (def && (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal')) {
+            if (typeof b.customWage === 'number' && b.customWage < this.publicWageBase) {
+              b.customWage = this.publicWageBase;
+            }
+          }
+        }
+      }
+    }
     return this.publicWageBase;
+  }
+
+  setPrivateWage(newWage) {
+    this.privateWageBase = Math.max(16, Math.min(70, Math.round(newWage)));
+    // Si el piso central sube, elevar automáticamente los edificios privados cuyo salario individual haya quedado por debajo
+    if (this.grid) {
+      for (let gy = 0; gy < this.grid.size; gy++) {
+        for (let gx = 0; gx < this.grid.size; gx++) {
+          const b = this.grid.tiles[gy][gx]?.building;
+          if (!b || !b.isRoot) continue;
+          const def = CONFIG.BUILDINGS[b.id];
+          if (def && (def.category === 'commercial' || def.category === 'industrial' || def.category === 'farm')) {
+            if (typeof b.customWage === 'number' && b.customWage < this.privateWageBase) {
+              b.customWage = this.privateWageBase;
+            }
+          }
+        }
+      }
+    }
+    return this.privateWageBase;
+  }
+
+  setBuildingWage(building, wage) {
+    if (!building) return;
+    const def = CONFIG.BUILDINGS[building.id];
+    const isPublic = def && (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal');
+    const minFloor = isPublic ? this.publicWageBase : this.privateWageBase;
+    building.customWage = Math.max(minFloor, Math.min(85, Math.round(wage)));
+    return building.customWage;
   }
 
   serialize() {
