@@ -1,27 +1,42 @@
 /**
- * SISTEMA MACROECONÓMICO Y FISCAL DE LA CIUDAD (V2.0 ES6 Module)
- * Implementa la recaudación tributaria dinámica (Curva de Laffer),
- * gasto público en mantenimiento, comercio exterior de recursos (exportaciones e importaciones)
- * con precios de mercado global fluctuantes, y balances presupuestarios en tiempo real.
+ * SISTEMA MACROECONÓMICO DUAL (V3.0 ES6 Module)
+ * Implementa el dilema sistémico del "Alcalde vs. El Magnate":
+ * 1. El Estado (Sector Público / Alcaldía): Tesorería municipal, Curva de Laffer,
+ *    mantenimiento de infraestructuras y servicios esenciales.
+ * 2. El Sector Privado (Empresario / Holding Corporativo): Capital privado, rentabilidad sobre ventas,
+ *    pago de nómina salarial, insumos operativos y pago de impuestos al Estado.
+ * 
+ * Regla de Oro del Equilibrio:
+ * - Impuestos altos asfixian a las empresas privadas, causando pérdidas, quiebras y desempleo masivo.
+ * - Impuestos excesivamente bajos quiebran al Estado, colapsando los servicios públicos (luz y agua),
+ *   lo que a su vez paraliza la producción de las propias empresas.
  */
 
 import { CONFIG } from './config.js';
 
 export class EconomySystem {
-  constructor(initialFunds = null) {
+  constructor(initialStateFunds = null, initialCorpFunds = null) {
     const ecoConfig = CONFIG.ECONOMY || {};
     const defaultTaxes = ecoConfig.DEFAULT_TAX_RATES || { residential: 0.09, commercial: 0.10, industrial: 0.10 };
 
-    this.funds = initialFunds !== null ? initialFunds : (ecoConfig.INITIAL_TREASURY || 3800);
+    // 1. Tesorería Municipal del Estado (El Alcalde)
+    this.stateFunds = initialStateFunds !== null 
+      ? initialStateFunds 
+      : (ecoConfig.INITIAL_STATE_TREASURY || ecoConfig.INITIAL_TREASURY || 4000);
 
-    // Tasas impositivas (porcentajes de 0.01 a 0.25)
+    // 2. Capital Privado del Holding Corporativo (El Empresario)
+    this.corporateFunds = initialCorpFunds !== null 
+      ? initialCorpFunds 
+      : (ecoConfig.INITIAL_CORPORATE_FUNDS || 3500);
+
+    // Tasas impositivas decretadas por el Estado (0.01 a 0.25)
     this.taxRates = {
       residential: defaultTaxes.residential || 0.09,
       commercial: defaultTaxes.commercial || 0.10,
       industrial: defaultTaxes.industrial || 0.10,
     };
 
-    // Precios fluctuantes del mercado global de commodities
+    // Precios fluctuantes del mercado internacional de commodities
     const basePrices = ecoConfig.GLOBAL_MARKET_PRICES || {
       food: 1.6,
       massGoods: 3.4,
@@ -39,7 +54,7 @@ export class EconomySystem {
       water: 0,
     };
 
-    // Balanza comercial internacional
+    // Balanza comercial exterior
     this.trade = {
       exports: {
         food: { volume: 0, revenue: 0 },
@@ -53,22 +68,20 @@ export class EconomySystem {
         foodEmergency: { volume: 0, cost: 0 },
         totalCost: 0,
       },
-      tradeBalance: 0, // exports - imports
+      tradeBalance: 0,
     };
 
-    // Desglose detallado del último tick presupuestario
-    this.breakdown = {
+    // Desglose del Sector Público (El Estado)
+    this.stateBreakdown = {
       income: {
         residentialTax: 0,
         commercialTax: 0,
         industrialTax: 0,
-        exportsRevenue: 0,
         utilityDividends: 0,
         total: 0,
       },
       expenses: {
         roadUpkeep: 0,
-        buildingUpkeep: 0,
         serviceUpkeep: 0,
         policyCosts: 0,
         importsCost: 0,
@@ -77,14 +90,52 @@ export class EconomySystem {
       netCashflow: 0,
     };
 
-    // Registro histórico para gráficos y promedios (máximo 30 días)
+    // Desglose del Sector Privado (La Empresa)
+    this.corporateBreakdown = {
+      revenue: {
+        commercialSales: 0,
+        massIndustrySales: 0,
+        techIndustrySales: 0,
+        farmSales: 0,
+        total: 0,
+      },
+      expenses: {
+        payroll: 0,
+        operatingCosts: 0,
+        taxesPaid: 0, // Impuestos comerciales e industriales transferidos al Estado
+        total: 0,
+      },
+      netProfit: 0,
+      margin: 0,
+      solvency: 'solvente', // 'solvente', 'ajustado', 'crisis'
+    };
+
+    // Compatibilidad hacia atrás para vistas existentes
+    this.breakdown = this.stateBreakdown;
+
+    // Métricas de salud sistémica y equilibrio dual
+    this.harmonyIndex = 85; // 0% a 100% de armonía Estado-Empresa
+    this.isCorporateCrisis = false;
+    this.isStateBankruptcy = false;
+    this.consecutivePrivateLossDays = 0;
+    this.consecutivePublicDeficitDays = 0;
+
+    // Historial para gráficas y métricas
     this.history = [];
     this.historyLimit = 30;
   }
 
+  // Compatibilidad hacia atrás: this.funds apunta a la Tesorería del Estado
+  get funds() {
+    return this.stateFunds;
+  }
+
+  set funds(val) {
+    this.stateFunds = val;
+  }
+
   /**
-   * Actualiza los precios del mercado global mediante un modelo oscilatorio
-   * con ruido browniano y eventos económicos cíclicos.
+   * Actualiza los precios del mercado exterior con oscilador estacional y ruido browniano
    */
   updateGlobalMarket(day) {
     const volatility = (CONFIG.ECONOMY && CONFIG.ECONOMY.PRICE_VOLATILITY) || 0.06;
@@ -97,12 +148,11 @@ export class EconomySystem {
     };
 
     for (const key of Object.keys(this.marketPrices)) {
-      // Ciclo armónico estacional + fluctuación aleatoria acotada
-      const seasonal = Math.sin(day * 0.15 + (key.charCodeAt(0) % 5)) * 0.12;
+      const seasonal = Math.sin(day * 0.12 + (key.charCodeAt(0) % 5)) * 0.10;
       const noise = (Math.random() - 0.5) * volatility;
       const factor = 1 + seasonal + noise;
 
-      const newPrice = Math.max(basePrices[key] * 0.5, Math.min(basePrices[key] * 2.2, basePrices[key] * factor));
+      const newPrice = Math.max(basePrices[key] * 0.55, Math.min(basePrices[key] * 2.0, basePrices[key] * factor));
       const trend = newPrice - this.marketPrices[key];
 
       this.priceTrends[key] = trend > 0.01 ? 1 : trend < -0.01 ? -1 : 0;
@@ -111,8 +161,10 @@ export class EconomySystem {
   }
 
   /**
-   * Ejecuta el cálculo macroeconómico diario / tick:
-   * Recaudación fiscal, gasto en servicios públicos y comercio internacional.
+   * Ejecuta el cálculo económico diario:
+   * 1. Balance fiscal del Estado (recaudación y servicios públicos).
+   * 2. Cuenta de resultados del Sector Privado (ventas, costos, nóminas e impuestos pagados).
+   * 3. Interacciones sistémicas: colapso de servicios por déficit vs quiebra corporativa por asfixia fiscal.
    */
   calculateTick(cityContext) {
     const {
@@ -141,58 +193,36 @@ export class EconomySystem {
     this.updateGlobalMarket(day);
 
     // 2. Moduladores de impuestos por Curva de Laffer
-    // Tasas base normalizadas: 9% residencial, 10% comercial/industrial
     const resRateRatio = this.taxRates.residential / 0.09;
     const commRateRatio = this.taxRates.commercial / 0.10;
     const indRateRatio = this.taxRates.industrial / 0.10;
 
-    // Salud y suministro sobre la recaudación
+    // Eficiencia de suministros básicos sobre la economía
     const utilityEfficiency = Math.min(powerRatio, waterRatio);
 
-    // RECAUDACIÓN RESIDENCIAL
-    const actualPopRatio = population / Math.max(1, housingCapacity);
+    // Sanción si el Estado está en bancarrota (los servicios fallan por falta de fondos de mantenimiento)
+    const statePenaltyFactor = this.stateFunds <= 0 ? 0.65 : 1.0;
+
+    // =========================================================================
+    // PARTE A: INGRESOS FISCALES DEL ESTADO (ALCALDÍA)
+    // =========================================================================
+
+    // 1. Recaudación Residencial (pagada por los ciudadanos)
     const residentialTax = Math.round(
-      population * baseResTaxRate * resRateRatio * Math.max(0.2, utilityEfficiency)
+      population * baseResTaxRate * resRateRatio * Math.max(0.2, utilityEfficiency) * statePenaltyFactor
     );
 
-    // RECAUDACIÓN COMERCIAL
+    // 2. Recaudación Comercial (cobrada sobre los comercios privados)
     const effectiveCommMultiplier = commercialMultiplier * Math.max(0.35, powerRatio);
     const commercialTax = Math.round(
-      commercialJobs * baseCommRevPerJob * commRateRatio * effectiveCommMultiplier
+      commercialJobs * baseCommRevPerJob * commRateRatio * effectiveCommMultiplier * statePenaltyFactor
     );
 
-    // RECAUDACIÓN INDUSTRIAL (Rama masiva y calificada)
-    const rawIndustrialRev = (corpMassRevenue + corpTechRevenue) * Math.max(0.4, powerRatio);
-    const industrialTax = Math.round(rawIndustrialRev * indRateRatio);
+    // 3. Recaudación Industrial (cobrada sobre fábricas y complejos tecnológicos privados)
+    const rawIndustrialBase = (corpMassRevenue + corpTechRevenue) * Math.max(0.4, powerRatio);
+    const industrialTax = Math.round(rawIndustrialBase * indRateRatio * statePenaltyFactor);
 
-    // 3. COMERCIO INTERNACIONAL (Exportaciones & Importaciones)
-    let exportFoodVol = 0;
-    let exportFoodRev = 0;
-    let importFoodCost = 0;
-
-    // Alimentos: si la producción de granjas supera la población, exporta el 70% del excedente
-    if (foodSupply > population && population > 0) {
-      exportFoodVol = Math.floor((foodSupply - population) * 0.7);
-      exportFoodRev = Math.round(exportFoodVol * this.marketPrices.food);
-    } else if (population > foodSupply && foodSupply > 0) {
-      // Si hay déficit severo de alimento, la ciudad importa grano de emergencia (coste penalizado +15%)
-      const foodDeficit = population - foodSupply;
-      const importVol = Math.min(foodDeficit, Math.ceil(population * 0.25));
-      importFoodCost = Math.round(importVol * (this.marketPrices.food * 1.15));
-      this.trade.imports.foodEmergency = { volume: importVol, cost: importFoodCost };
-    } else {
-      this.trade.imports.foodEmergency = { volume: 0, cost: 0 };
-    }
-
-    // Exportación de bienes industriales en masa
-    const exportMassVol = Math.floor(corpMassRevenue * 0.22);
-    const exportMassRev = Math.round(exportMassVol * (this.marketPrices.massGoods * 0.25));
-
-    // Exportación de patentes y alta tecnología
-    const exportTechVol = Math.floor(corpTechRevenue * 0.28);
-    const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
-
-    // Venta de excedentes de energía y agua a ciudades vecinas
+    // 4. Venta de Excedentes de Red Eléctrica y Agua (Comercio Regional Público)
     let exportEnergyRev = 0;
     let exportEnergyVol = 0;
     if (powerSupply > powerDemand && powerDemand > 0) {
@@ -207,7 +237,34 @@ export class EconomySystem {
       exportWaterRev = Math.round(exportWaterVol * this.marketPrices.water);
     }
 
-    // Consolidar balanza comercial
+    const publicUtilityDividends = hydroRevenue + exportEnergyRev + exportWaterRev;
+
+    // =========================================================================
+    // PARTE B: COMERCIO EXTERIOR PRIVADO (GRANJAS E INDUSTRIAS)
+    // =========================================================================
+    let exportFoodVol = 0;
+    let exportFoodRev = 0;
+    let importFoodCost = 0;
+
+    if (foodSupply > population && population > 0) {
+      exportFoodVol = Math.floor((foodSupply - population) * 0.7);
+      exportFoodRev = Math.round(exportFoodVol * this.marketPrices.food);
+    } else if (population > foodSupply && foodSupply > 0) {
+      // Importación urgente de grano cubierta por el Estado
+      const foodDeficit = population - foodSupply;
+      const importVol = Math.min(foodDeficit, Math.ceil(population * 0.25));
+      importFoodCost = Math.round(importVol * (this.marketPrices.food * 1.15));
+      this.trade.imports.foodEmergency = { volume: importVol, cost: importFoodCost };
+    } else {
+      this.trade.imports.foodEmergency = { volume: 0, cost: 0 };
+    }
+
+    const exportMassVol = Math.floor(corpMassRevenue * 0.22);
+    const exportMassRev = Math.round(exportMassVol * (this.marketPrices.massGoods * 0.25));
+
+    const exportTechVol = Math.floor(corpTechRevenue * 0.28);
+    const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
+
     const totalExportsRevenue = exportFoodRev + exportMassRev + exportTechRev + exportEnergyRev + exportWaterRev;
     const totalImportsCost = importFoodCost;
 
@@ -219,28 +276,33 @@ export class EconomySystem {
       water: { volume: exportWaterVol, revenue: exportWaterRev },
       totalRevenue: totalExportsRevenue,
     };
-
     this.trade.imports.totalCost = totalImportsCost;
     this.trade.tradeBalance = totalExportsRevenue - totalImportsCost;
 
-    // 4. CONSOLIDACIÓN DE INGRESOS Y GASTOS
-    const utilityDividends = hydroRevenue + exportEnergyRev + exportWaterRev;
-    const totalGrossIncome = residentialTax + commercialTax + industrialTax + exportFoodRev + exportMassRev + exportTechRev + utilityDividends;
+    // =========================================================================
+    // PARTE C: LIQUIDACIÓN DEL SECTOR PÚBLICO (EL ESTADO)
+    // =========================================================================
+    const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends;
+    const stateTotalExpenses = Math.round(baseUpkeep + policyExpenses + totalImportsCost);
+    const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
 
-    const totalGrossExpenses = Math.round(baseUpkeep + policyExpenses + totalImportsCost);
-    const netCashflow = totalGrossIncome - totalGrossExpenses;
+    this.stateFunds += stateNetCashflow;
+    this.isStateBankruptcy = this.stateFunds <= 0;
 
-    this.funds += netCashflow;
+    if (stateNetCashflow < 0) {
+      this.consecutivePublicDeficitDays++;
+    } else {
+      this.consecutivePublicDeficitDays = 0;
+    }
 
-    // Guardar desglose oficial
-    this.breakdown = {
+    this.stateBreakdown = {
       income: {
         residentialTax,
         commercialTax,
         industrialTax,
-        exportsRevenue: totalExportsRevenue,
-        utilityDividends,
-        total: totalGrossIncome,
+        exportsRevenue: exportEnergyRev + exportWaterRev,
+        utilityDividends: publicUtilityDividends,
+        total: stateTotalIncome,
       },
       expenses: {
         roadUpkeep: Math.round(baseUpkeep * 0.25),
@@ -248,19 +310,110 @@ export class EconomySystem {
         serviceUpkeep: baseUpkeep,
         policyCosts: Math.round(policyExpenses),
         importsCost: totalImportsCost,
-        total: totalGrossExpenses,
+        total: stateTotalExpenses,
       },
-      netCashflow,
+      netCashflow: stateNetCashflow,
+    };
+    this.breakdown = this.stateBreakdown;
+
+    // =========================================================================
+    // PARTE D: CUENTA DE RESULTADOS DEL SECTOR PRIVADO (EL EMPRESARIO)
+    // =========================================================================
+
+    // Si la empresa está en bancarrota previa o sufre apagón, la productividad cae
+    const corpSolvencyFactor = this.corporateFunds <= 0 ? 0.55 : 1.0;
+    const corpProductionEfficiency = utilityEfficiency * corpSolvencyFactor;
+
+    // 1. Ingresos por Ventas Privadas
+    const commercialSales = Math.round(commercialJobs * 6.5 * effectiveCommMultiplier * corpProductionEfficiency);
+    const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
+    const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
+    const farmSales = Math.round((foodSupply * 0.95 + exportFoodRev) * Math.max(0.3, waterRatio));
+
+    const totalPrivateRevenue = commercialSales + massIndustrySales + techIndustrySales + farmSales;
+
+    // 2. Gastos Operativos y Salarios Privados
+    const totalPrivateJobs = commercialJobs + Math.round((corpMassRevenue + corpTechRevenue) / 4);
+    const payrollCost = Math.round(totalPrivateJobs * 1.65); // Pago de sueldos a obreros y empleados
+    const operatingCosts = Math.round(totalPrivateRevenue * 0.22); // Materias primas y maquinaria
+    const taxesPaidToState = commercialTax + industrialTax; // Impuestos corporativos transferidos al Estado
+
+    const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState;
+    const corporateNetProfit = totalPrivateRevenue - totalPrivateExpenses;
+
+    this.corporateFunds += corporateNetProfit;
+
+    if (corporateNetProfit < 0) {
+      this.consecutivePrivateLossDays++;
+    } else {
+      this.consecutivePrivateLossDays = 0;
+    }
+
+    // Diagnóstico de solvencia empresarial
+    let solvency = 'solvente';
+    if (this.corporateFunds <= 0 || (this.taxRates.commercial > 0.14 && this.taxRates.industrial > 0.14)) {
+      solvency = 'crisis';
+      this.isCorporateCrisis = true;
+    } else if (corporateNetProfit < 0 || this.corporateFunds < 800) {
+      solvency = 'ajustado';
+      this.isCorporateCrisis = false;
+    } else {
+      solvency = 'solvente';
+      this.isCorporateCrisis = false;
+    }
+
+    const marginPct = totalPrivateRevenue > 0 
+      ? Math.round((corporateNetProfit / totalPrivateRevenue) * 100) 
+      : 0;
+
+    this.corporateBreakdown = {
+      revenue: {
+        commercialSales,
+        massIndustrySales,
+        techIndustrySales,
+        farmSales,
+        total: totalPrivateRevenue,
+      },
+      expenses: {
+        payroll: payrollCost,
+        operatingCosts,
+        taxesPaid: taxesPaidToState,
+        total: totalPrivateExpenses,
+      },
+      netProfit: corporateNetProfit,
+      margin: marginPct,
+      solvency,
     };
 
-    // Añadir al historial financiero
+    // =========================================================================
+    // PARTE E: ÍNDICE DE ARMONÍA ESTADO-EMPRESA (0 a 100)
+    // =========================================================================
+    let harmony = 70;
+
+    // Si el Estado tiene superávit y la empresa beneficio: Armonía alta
+    if (stateNetCashflow >= 0 && corporateNetProfit >= 0) {
+      harmony += 18;
+    } else if (stateNetCashflow < 0 && corporateNetProfit < 0) {
+      harmony -= 35; // Crisis generalizada
+    } else if (corporateNetProfit < 0 && stateNetCashflow > 0) {
+      harmony -= 20; // Asfixia tributaria: El Estado se enriquece a costa de quebrar a sus empresas
+    } else if (stateNetCashflow < 0 && corporateNetProfit > 0) {
+      harmony -= 18; // Desidia fiscal: Empresa rica, servicios públicos en quiebra
+    }
+
+    if (this.isCorporateCrisis) harmony -= 25;
+    if (this.isStateBankruptcy) harmony -= 30;
+
+    this.harmonyIndex = Math.max(5, Math.min(100, harmony));
+
+    // Registro histórico
     this.history.push({
       day,
-      funds: this.funds,
-      income: totalGrossIncome,
-      expenses: totalGrossExpenses,
-      netCashflow,
-      tradeBalance: this.trade.tradeBalance,
+      stateFunds: this.stateFunds,
+      corporateFunds: this.corporateFunds,
+      stateCashflow: stateNetCashflow,
+      corporateProfit: corporateNetProfit,
+      harmony: this.harmonyIndex,
     });
 
     if (this.history.length > this.historyLimit) {
@@ -268,18 +421,54 @@ export class EconomySystem {
     }
 
     return {
-      funds: this.funds,
-      netCashflow,
-      totalIncome: totalGrossIncome,
-      totalExpenses: totalGrossExpenses,
-      breakdown: this.breakdown,
+      stateFunds: this.stateFunds,
+      corporateFunds: this.corporateFunds,
+      funds: this.stateFunds, // backward compat
+      netCashflow: stateNetCashflow, // backward compat
+      stateCashflow: stateNetCashflow,
+      corporateNetProfit,
+      totalIncome: stateTotalIncome,
+      totalExpenses: stateTotalExpenses,
+      stateBreakdown: this.stateBreakdown,
+      corporateBreakdown: this.corporateBreakdown,
+      breakdown: this.stateBreakdown,
+      harmonyIndex: this.harmonyIndex,
+      isCorporateCrisis: this.isCorporateCrisis,
+      isStateBankruptcy: this.isStateBankruptcy,
       trade: this.trade,
     };
   }
 
   /**
+   * Transferencia / Rescate de Emergencia entre el Estado y el Holding Privado
+   * - 'bailout': El Estado rescata con fondos públicos a la empresa privada.
+   * - 'donation': El Magnate inyecta capital privado a las arcas públicas del municipio.
+   */
+  transferFunds(type, amount) {
+    const qty = Math.max(100, Math.min(5000, Math.round(amount)));
+
+    if (type === 'bailout') {
+      if (this.stateFunds < qty) {
+        return { success: false, reason: `Tesoro Público insuficiente ($${this.stateFunds}) para emitir rescate.` };
+      }
+      this.stateFunds -= qty;
+      this.corporateFunds += qty;
+      return { success: true, type, amount: qty, message: `🏛️ Rescate público de $${qty} concedido al holding empresarial.` };
+    } 
+    else if (type === 'donation') {
+      if (this.corporateFunds < qty) {
+        return { success: false, reason: `Capital Privado insuficiente ($${this.corporateFunds}) para inyección patriótica.` };
+      }
+      this.corporateFunds -= qty;
+      this.stateFunds += qty;
+      return { success: true, type, amount: qty, message: `💼 Donación corporativa de $${qty} inyectada a la Tesorería Municipal.` };
+    }
+
+    return { success: false, reason: 'Tipo de transferencia inválido' };
+  }
+
+  /**
    * Ajusta la tasa de un impuesto (residencial, comercial, industrial)
-   * Limitado estrictamente entre 1% y 25%.
    */
   setTaxRate(type, newRate) {
     if (!this.taxRates.hasOwnProperty(type)) return false;
@@ -289,30 +478,30 @@ export class EconomySystem {
   }
 
   /**
-   * Calcula el impacto en la Felicidad Ciudadana derivado de la presión fiscal
-   * (Modelo de Curva de Laffer):
-   * - Tasas bajas (< 7%): +Felicidad (+2% a +8%).
-   * - Tasas neutras (7% - 11%): Sin penalización.
-   * - Tasas excesivas (> 12%): Fuerte descontento (-5% a -30%).
+   * Impacto de la presión fiscal residencial en la Felicidad Ciudadana (Curva de Laffer)
    */
   getLafferHappinessModifier() {
     const rate = this.taxRates.residential;
     if (rate <= 0.06) {
       return Math.round((0.06 - rate) * 100); // Bonificación hasta +5%
     } else if (rate <= 0.11) {
-      return 0; // Zona neutra de equilibrio
+      return 0; // Zona neutra
     } else {
-      // Penalización exponencial
       const excess = rate - 0.11;
       return -Math.round(excess * 160); // e.g. 20% -> -14% felicidad
     }
   }
 
   /**
-   * Modificador para contratación empresarial según la tasa corporativa.
-   * Si las empresas pagan más del 13%, contratan menos obreros y congelan vacantes.
+   * Factor de contratación empresarial según la tasa corporativa y la solvencia de la empresa.
+   * Si el Estado asfixia a la empresa o si la empresa está en quiebra, despide trabajadores.
    */
   getCorporateEmploymentFactor() {
+    // Si la empresa privada está en quiebra/números rojos severos, congela vacantes (-45% empleo)
+    if (this.isCorporateCrisis) {
+      return 0.55;
+    }
+
     const avgRate = (this.taxRates.commercial + this.taxRates.industrial) / 2;
     if (avgRate <= 0.08) {
       return 1.15; // +15% puestos laborales por alivio tributario
@@ -325,28 +514,44 @@ export class EconomySystem {
   }
 
   /**
-   * Serialización segura con tipado primitivo para LocalStorage
+   * Serialización v3 con retrocompatibilidad
    */
   serialize() {
     return {
-      version: 2,
-      funds: this.funds,
+      version: 3,
+      stateFunds: this.stateFunds,
+      corporateFunds: this.corporateFunds,
+      funds: this.stateFunds, // backward compat
       taxRates: { ...this.taxRates },
       marketPrices: { ...this.marketPrices },
       trade: JSON.parse(JSON.stringify(this.trade)),
-      breakdown: JSON.parse(JSON.stringify(this.breakdown)),
+      stateBreakdown: JSON.parse(JSON.stringify(this.stateBreakdown)),
+      corporateBreakdown: JSON.parse(JSON.stringify(this.corporateBreakdown)),
+      breakdown: JSON.parse(JSON.stringify(this.stateBreakdown)),
+      harmonyIndex: this.harmonyIndex,
+      isCorporateCrisis: this.isCorporateCrisis,
+      isStateBankruptcy: this.isStateBankruptcy,
       history: this.history.slice(-15),
     };
   }
 
   /**
-   * Deserialización con compatibilidad hacia atrás total
+   * Deserialización con compatibilidad hacia atrás completa (v1, v2 y v3)
    */
   deserialize(data) {
     if (!data) return false;
 
-    if (typeof data.funds === 'number') {
-      this.funds = data.funds;
+    if (typeof data.stateFunds === 'number') {
+      this.stateFunds = data.stateFunds;
+    } else if (typeof data.funds === 'number') {
+      this.stateFunds = data.funds;
+    }
+
+    if (typeof data.corporateFunds === 'number') {
+      this.corporateFunds = data.corporateFunds;
+    } else {
+      // Migración desde versiones previas
+      this.corporateFunds = Math.max(2500, Math.round(this.stateFunds * 0.85));
     }
 
     if (data.taxRates) {
@@ -363,8 +568,28 @@ export class EconomySystem {
       this.trade = { ...this.trade, ...data.trade };
     }
 
-    if (data.breakdown) {
-      this.breakdown = { ...this.breakdown, ...data.breakdown };
+    if (data.stateBreakdown) {
+      this.stateBreakdown = { ...this.stateBreakdown, ...data.stateBreakdown };
+      this.breakdown = this.stateBreakdown;
+    } else if (data.breakdown) {
+      this.stateBreakdown = { ...this.stateBreakdown, ...data.breakdown };
+      this.breakdown = this.stateBreakdown;
+    }
+
+    if (data.corporateBreakdown) {
+      this.corporateBreakdown = { ...this.corporateBreakdown, ...data.corporateBreakdown };
+    }
+
+    if (typeof data.harmonyIndex === 'number') {
+      this.harmonyIndex = data.harmonyIndex;
+    }
+
+    if (typeof data.isCorporateCrisis === 'boolean') {
+      this.isCorporateCrisis = data.isCorporateCrisis;
+    }
+
+    if (typeof data.isStateBankruptcy === 'boolean') {
+      this.isStateBankruptcy = data.isStateBankruptcy;
     }
 
     if (Array.isArray(data.history)) {

@@ -16,9 +16,10 @@ export const CONFIG = {
   },
 
   SIMULATION: {
-    TICK_INTERVAL_MS: 1000,
+    TICK_INTERVAL_MS: 2500, // Pacing pausado y estratégico (2.5 segundos por día a 1x)
     AUTOSAVE_INTERVAL_MS: 30000,
-    INITIAL_FUNDS: 3800,
+    INITIAL_FUNDS: 4000, // Tesoro Público del Estado (El Alcalde)
+    INITIAL_CORPORATE_FUNDS: 3500, // Capital Privado del Holding (El Empresario)
     INITIAL_POPULATION: 0,
     INITIAL_RESEARCH: 60,
     INITIAL_HAPPINESS: 75,
@@ -645,9 +646,11 @@ export const CONFIG = {
     },
   },
 
-  // SISTEMA MACROECONÓMICO, FISCAL Y COMERCIAL (city-builder-economy)
+  // SISTEMA MACROECONÓMICO DUAL (El Estado vs. La Empresa Privada)
   ECONOMY: {
-    INITIAL_TREASURY: 3800,
+    INITIAL_TREASURY: 4000, // Tesorería Municipal del Estado
+    INITIAL_STATE_TREASURY: 4000,
+    INITIAL_CORPORATE_FUNDS: 3500, // Capital Privado de la Empresa
     DEFAULT_TAX_RATES: {
       residential: 0.09, // 9% base
       commercial: 0.10,  // 10% base

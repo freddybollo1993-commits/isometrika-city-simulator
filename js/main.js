@@ -86,16 +86,35 @@ export class Game {
     this.ui.updateHUD(this.simulation, this.research);
     this.ui.showTitleScreen();
 
-    // Iniciar bucle de simulación por intervalos
+    // Iniciar bucle de simulación por intervalos con velocidad inicial
     this.lastTickTime = performance.now();
-    this.simTimer = setInterval(() => {
-      this.simulation.tick(this.camera);
-      this.ui.updateHUD(this.simulation, this.research);
-    }, CONFIG.SIMULATION.TICK_INTERVAL_MS);
+    this.setSpeed(1);
 
     // Iniciar bucle de renderizado a 60 FPS
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
+  }
+
+  setSpeed(speed) {
+    this.simulation.speed = speed;
+    this.simulation.isPaused = (speed === 0);
+
+    if (this.simTimer) {
+      clearInterval(this.simTimer);
+      this.simTimer = null;
+    }
+
+    if (speed > 0) {
+      // 1x = TICK_INTERVAL_MS (2500ms), 2x = TICK_INTERVAL_MS / 2 (1250ms)
+      const interval = speed === 1 
+        ? CONFIG.SIMULATION.TICK_INTERVAL_MS 
+        : Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / 2.0);
+
+      this.simTimer = setInterval(() => {
+        this.simulation.tick(this.camera);
+        this.ui.updateHUD(this.simulation, this.research);
+      }, interval);
+    }
   }
 
   /**
@@ -414,8 +433,10 @@ export class Game {
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
     if (!def) return;
 
-    if (this.simulation.funds < def.cost) {
-      this.ui.showToast(`💸 Fondos insuficientes. Requiere $${def.cost}`);
+    // Validación según el tipo de financiamiento (Público vs. Privado)
+    const afford = this.simulation.canAffordBuilding(def);
+    if (!afford.allowed) {
+      this.ui.showToast(`💸 ${afford.reason}`);
       return;
     }
 
@@ -438,13 +459,14 @@ export class Game {
     );
 
     if (built) {
-      this.simulation.funds -= def.cost;
+      this.simulation.spendForBuilding(def, afford.cost);
       this.audio.playBuild();
-      this.ui.showToast(`🏗️ ${def.name} construida con éxito`);
+      const fundLabel = afford.funding === 'public' ? '🏛️ Obra Pública' : '💼 Inversión Privada';
+      this.ui.showToast(`${fundLabel}: ${def.name} construida (-$${afford.cost})`);
       this.ui.updateHUD(this.simulation, this.research);
 
       // Si ya no dispone de fondos para colocar otra, cerramos el manipulador
-      if (this.simulation.funds < def.cost) {
+      if (!this.simulation.canAffordBuilding(def).allowed) {
         this.cancelGhostPlacement();
       }
     }
@@ -492,16 +514,18 @@ export class Game {
     const levelData = def.levels[nextLvl];
     if (!levelData) return;
 
-    if (this.simulation.funds < levelData.cost) {
-      this.ui.showToast(`💸 Fondos insuficientes para mejorar ($${levelData.cost})`);
+    const afford = this.simulation.canAffordBuilding(def, nextLvl);
+    if (!afford.allowed) {
+      this.ui.showToast(`💸 ${afford.reason}`);
       return;
     }
 
     const res = this.grid.upgradeBuilding(rootGx, rootGy);
     if (res.success) {
-      this.simulation.funds -= res.cost;
+      this.simulation.spendForBuilding(def, res.cost);
       this.audio.playChime();
-      this.ui.showToast(`⚡ ¡${def.name} mejorado a Nivel ${res.newLevel}!`);
+      const fundLabel = afford.funding === 'public' ? '🏛️ Obra Pública' : '💼 Inversión Privada';
+      this.ui.showToast(`⚡ ¡${def.name} mejorado a Nivel ${res.newLevel}! (${fundLabel})`);
       if (res.maxBonus) {
         this.ui.showToast(`🌟 ${res.maxBonus}`);
       }

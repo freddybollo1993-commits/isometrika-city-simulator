@@ -34,7 +34,9 @@
         <button id="btn-stats-dropdown" class="stats-dropdown-btn" title="Ver todas las estadísticas de la ciudad">
           <span class="dropdown-tag">📊 Métricas</span>
           <div class="dropdown-summary-bar">
-            <span class="sum-item">💰 <strong id="quick-funds">$3,800</strong> <small id="quick-cashflow" class="delta-positive">+$0/d</small></span>
+            <span class="sum-item sum-item-state" title="Tesorería Pública (El Alcalde)">🏛️ <strong id="quick-state-funds">$4,000</strong> <small id="quick-state-cf" class="delta-positive">+$0/d</small></span>
+            <span class="sum-sep">|</span>
+            <span class="sum-item sum-item-corp" title="Capital Privado (El Empresario)">💼 <strong id="quick-corp-funds">$3,500</strong> <small id="quick-corp-cf" class="delta-positive">+$0/d</small></span>
             <span class="sum-sep">|</span>
             <span class="sum-item">👥 <strong id="quick-population">0</strong></span>
             <span class="sum-sep">|</span>
@@ -59,20 +61,49 @@
           </div>
 
           <div class="stats-grid-dashboard">
-            <!-- 1. Finanzas y Tesorería -->
-            <div class="stat-card-box" data-open-modal="economy" style="cursor: pointer;" title="Toca para abrir Finanzas e Impuestos">
+            <!-- 1. El Estado (El Alcalde) -->
+            <div class="stat-card-box stat-card-state" data-open-modal="economy" style="cursor: pointer;" title="Toca para gestionar presupuesto estatal e impuestos">
               <div class="stat-card-head">
-                <span class="sc-icon">💰</span>
-                <h4>Tesorería Municipal ↗</h4>
+                <span class="sc-icon">🏛️</span>
+                <h4>Tesoro del Estado ↗</h4>
               </div>
-              <div class="stat-big-val" id="stat-funds">$3,800</div>
+              <div class="stat-big-val" id="stat-funds">$4,000</div>
               <div class="stat-sub-row">
-                <span>Flujo de Caja Neto:</span>
+                <span>Flujo Fiscal:</span>
                 <strong id="stat-cashflow" class="delta-positive">+$0/d</strong>
               </div>
             </div>
 
-            <!-- 2. Demografía y Habitabilidad -->
+            <!-- 2. El Sector Privado (El Empresario) -->
+            <div class="stat-card-box stat-card-corp" data-open-modal="economy" style="cursor: pointer;" title="Toca para ver balance corporativo y ventas">
+              <div class="stat-card-head">
+                <span class="sc-icon">💼</span>
+                <h4>Capital Privado ↗</h4>
+              </div>
+              <div class="stat-big-val" id="stat-corp-funds">$3,500</div>
+              <div class="stat-sub-row">
+                <span>Beneficio Neto:</span>
+                <strong id="stat-corp-profit" class="delta-positive">+$0/d</strong>
+              </div>
+            </div>
+
+            <!-- 3. Equilibrio Estado-Empresa (Armonía) -->
+            <div class="stat-card-box" data-open-modal="economy" style="cursor: pointer;" title="Equilibrio entre bienestar público y rentabilidad privada">
+              <div class="stat-card-head">
+                <span class="sc-icon">⚖️</span>
+                <h4>Armonía Estado-Empresa</h4>
+              </div>
+              <div class="stat-big-val" id="stat-harmony">85%</div>
+              <div class="stat-bar-track">
+                <div id="bar-harmony" class="stat-bar-fill good" style="width: 85%;"></div>
+              </div>
+              <div class="stat-sub-row" style="margin-top: 4px;">
+                <span>Diagnóstico:</span>
+                <strong id="stat-harmony-desc" class="text-positive">Equilibrio Óptimo</strong>
+              </div>
+            </div>
+
+            <!-- 4. Demografía y Habitabilidad -->
             <div class="stat-card-box">
               <div class="stat-card-head">
                 <span class="sc-icon">👥</span>
@@ -470,7 +501,10 @@
           </svg>
         </div>
         <h1 class="title-app-name">ISOMETRICA</h1>
-        <p class="title-app-tagline">Simulador Urbano Minimalista 2.5D</p>
+        <p class="title-app-tagline">Simulador Urbano 2.5D • El Estado vs. La Empresa Privada</p>
+        <small style="font-size: 0.72rem; color: #94a3b8; text-align: center; max-width: 340px; margin-top: 2px;">
+          Eres el Alcalde buscando el bien público y el Magnate que lidera la economía privada. Encuentra el equilibrio para que ninguno quiebre.
+        </small>
       </div>
 
       <!-- Menú Principal de Acciones -->

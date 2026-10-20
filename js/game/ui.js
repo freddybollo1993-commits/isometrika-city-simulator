@@ -55,9 +55,13 @@ export class UIManager {
     this.elStatsChevron = document.getElementById('stats-chevron');
     this.elBtnCloseStats = document.getElementById('btn-close-stats');
 
-    // Resumen at-a-glance en el botón desplegable
+    // Resumen at-a-glance en el botón desplegable (Dual: Estado y Empresa)
     this.elQuickFunds = document.getElementById('quick-funds');
     this.elQuickCashflow = document.getElementById('quick-cashflow');
+    this.elQuickStateFunds = document.getElementById('quick-state-funds');
+    this.elQuickStateCf = document.getElementById('quick-state-cf');
+    this.elQuickCorpFunds = document.getElementById('quick-corp-funds');
+    this.elQuickCorpCf = document.getElementById('quick-corp-cf');
     this.elQuickPopulation = document.getElementById('quick-population');
     this.elQuickHappiness = document.getElementById('quick-happiness');
     this.elQuickUtilityStatus = document.getElementById('quick-utility-status');
@@ -65,6 +69,12 @@ export class UIManager {
     // Métricas del Panel Desplegable Centralizado
     this.elFunds = document.getElementById('stat-funds');
     this.elCashflow = document.getElementById('stat-cashflow');
+    this.elStatCorpFunds = document.getElementById('stat-corp-funds');
+    this.elStatCorpProfit = document.getElementById('stat-corp-profit');
+    this.elStatCorpStatus = document.getElementById('stat-corp-status');
+    this.elStatHarmony = document.getElementById('stat-harmony');
+    this.elBarHarmony = document.getElementById('bar-harmony');
+    this.elStatHarmonyDesc = document.getElementById('stat-harmony-desc');
     this.elPopulation = document.getElementById('stat-population');
     this.elCapacity = document.getElementById('stat-capacity');
     this.elHappiness = document.getElementById('stat-happiness');
@@ -190,12 +200,11 @@ export class UIManager {
     document.querySelectorAll('[data-speed]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const spd = parseInt(btn.dataset.speed, 10);
-        this.game.simulation.speed = spd;
-        this.game.simulation.isPaused = spd === 0;
+        this.game.setSpeed(spd);
 
         document.querySelectorAll('[data-speed]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal' : '⏩ Velocidad rápida');
+        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal (2.5s/d)' : '⏩ Velocidad rápida (1.2s/d)');
       });
     });
 
@@ -563,6 +572,10 @@ export class UIManager {
 
       const icon = BUILDING_ICONS[b.id] || '🏗️';
       const sizeBadge = `${b.size || 1}x${b.size || 1}`;
+      const funding = this.game.simulation.getFundingType(b);
+      const isPublic = funding === 'public';
+      const fundTag = isPublic ? '🏛️ Estado' : '💼 Privado';
+      const fundBadgeClass = isPublic ? 'badge-fund-state' : 'badge-fund-corp';
 
       card.innerHTML = `
         <div class="card-top">
@@ -572,10 +585,11 @@ export class UIManager {
         <div class="card-name">${b.name}</div>
         <div class="card-bottom">
           <span class="card-cost">$${b.cost}</span>
+          <span class="card-fund-tag ${fundBadgeClass}">${fundTag}</span>
         </div>
       `;
 
-      card.title = `${b.name} (${sizeBadge}) - Costo: $${b.cost} | Mant: $${b.upkeep}/d\n${b.description}`;
+      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d\n${b.description}`;
 
       card.addEventListener('click', () => {
         this.hideCarousel();
@@ -714,6 +728,17 @@ export class UIManager {
         statsHTML += `<div class="insp-stat-item"><span>Daño Estructural:</span><strong class="danger-color">${Math.round(building.damage)}%</strong></div>`;
       }
 
+      const funding = this.game.simulation.getFundingType(def);
+      const isPublic = funding === 'public';
+      const fundTitle = isPublic ? '🏛️ Sector Público (El Estado)' : '💼 Sector Privado (El Empresario)';
+      const fundClass = isPublic ? 'tech-color' : 'positive';
+      statsHTML += `
+        <div class="insp-stat-item">
+          <span>Financiamiento:</span>
+          <strong class="${fundClass}">${fundTitle}</strong>
+        </div>
+      `;
+
       this.elInspStats.innerHTML = statsHTML;
     }
 
@@ -728,7 +753,9 @@ export class UIManager {
         this.elBtnUpgrade.disabled = false;
         this.elBtnUpgrade.style.opacity = '1';
         if (this.elInspNextLvl) this.elInspNextLvl.textContent = nextLvl;
-        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = `$${nextData.cost}`;
+        const funding = this.game.simulation.getFundingType(def);
+        const fundLabel = funding === 'public' ? '🏛️ Estado' : '💼 Privado';
+        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = `$${nextData.cost} (${fundLabel})`;
       } else {
         this.elBtnUpgrade.disabled = true;
         this.elBtnUpgrade.style.opacity = '0.5';
@@ -752,25 +779,84 @@ export class UIManager {
   // =========================================================================
 
   updateHUD(sim, research) {
-    const formattedFunds = `$${sim.funds.toLocaleString()}`;
-    const cfSign = sim.netCashflow >= 0 ? '+' : '';
-    const formattedCashflow = `${cfSign}$${sim.netCashflow}/d`;
-    const cfClass = sim.netCashflow >= 0 ? 'delta-positive' : 'delta-negative';
+    const eco = sim.economy;
+    const stateFunds = eco ? eco.stateFunds : sim.funds;
+    const corpFunds = eco ? eco.corporateFunds : 0;
+    const stateNet = eco ? eco.stateBreakdown.netCashflow : sim.netCashflow;
+    const corpProfit = eco ? eco.corporateBreakdown.netProfit : 0;
+    const harmony = eco ? eco.harmonyIndex : 80;
 
-    // 1. Actualizar resumen at-a-glance en el botón desplegable
-    if (this.elQuickFunds) this.elQuickFunds.textContent = formattedFunds;
+    const formattedStateFunds = `$${stateFunds.toLocaleString()}`;
+    const stateSign = stateNet >= 0 ? '+' : '';
+    const formattedStateCf = `${stateSign}$${stateNet}/d`;
+    const stateCfClass = stateNet >= 0 ? 'delta-positive' : 'delta-negative';
+
+    const formattedCorpFunds = `$${corpFunds.toLocaleString()}`;
+    const corpSign = corpProfit >= 0 ? '+' : '';
+    const formattedCorpCf = `${corpSign}$${corpProfit}/d`;
+    const corpCfClass = corpProfit >= 0 ? 'delta-positive' : 'delta-negative';
+
+    // 1. Actualizar barra at-a-glance (Dual: Estado y Empresa)
+    if (this.elQuickStateFunds) this.elQuickStateFunds.textContent = formattedStateFunds;
+    if (this.elQuickStateCf) {
+      this.elQuickStateCf.textContent = formattedStateCf;
+      this.elQuickStateCf.className = stateCfClass;
+    }
+
+    if (this.elQuickCorpFunds) this.elQuickCorpFunds.textContent = formattedCorpFunds;
+    if (this.elQuickCorpCf) {
+      this.elQuickCorpCf.textContent = formattedCorpCf;
+      this.elQuickCorpCf.className = corpCfClass;
+    }
+
+    if (this.elQuickFunds) this.elQuickFunds.textContent = formattedStateFunds;
     if (this.elQuickCashflow) {
-      this.elQuickCashflow.textContent = formattedCashflow;
-      this.elQuickCashflow.className = cfClass;
+      this.elQuickCashflow.textContent = formattedStateCf;
+      this.elQuickCashflow.className = stateCfClass;
     }
     if (this.elQuickPopulation) this.elQuickPopulation.textContent = sim.population.toLocaleString();
     if (this.elQuickHappiness) this.elQuickHappiness.textContent = `${sim.happiness}%`;
 
     // 2. Actualizar panel desplegable completo
-    if (this.elFunds) this.elFunds.textContent = formattedFunds;
+    // Card 1: Estado (Alcaldía)
+    if (this.elFunds) this.elFunds.textContent = formattedStateFunds;
     if (this.elCashflow) {
-      this.elCashflow.textContent = formattedCashflow;
-      this.elCashflow.className = cfClass;
+      this.elCashflow.textContent = formattedStateCf;
+      this.elCashflow.className = stateCfClass;
+    }
+
+    // Card 2: Sector Privado (Empresario)
+    if (this.elStatCorpFunds) this.elStatCorpFunds.textContent = formattedCorpFunds;
+    if (this.elStatCorpProfit) {
+      this.elStatCorpProfit.textContent = formattedCorpCf;
+      this.elStatCorpProfit.className = corpCfClass;
+    }
+    if (this.elStatCorpStatus && eco) {
+      this.elStatCorpStatus.textContent = eco.corporateBreakdown.solvency === 'solvente' 
+        ? 'Solvente (Expansión)' 
+        : eco.corporateBreakdown.solvency === 'ajustado' 
+        ? 'Ajustado (Margen bajo)' 
+        : '¡Alerta de Quiebra!';
+      this.elStatCorpStatus.className = eco.corporateBreakdown.solvency === 'solvente' 
+        ? 'text-positive' 
+        : eco.corporateBreakdown.solvency === 'ajustado' 
+        ? 'text-warn' 
+        : 'text-danger';
+    }
+
+    // Card 3: Armonía Estado-Empresa
+    if (this.elStatHarmony) this.elStatHarmony.textContent = `${harmony}%`;
+    if (this.elBarHarmony) {
+      this.elBarHarmony.style.width = `${harmony}%`;
+      this.elBarHarmony.className = `stat-bar-fill ${harmony >= 75 ? 'good' : harmony >= 50 ? 'warn' : 'danger'}`;
+    }
+    if (this.elStatHarmonyDesc) {
+      this.elStatHarmonyDesc.textContent = harmony >= 75 
+        ? 'Equilibrio Óptimo' 
+        : harmony >= 50 
+        ? 'Tensión Moderada' 
+        : (eco && eco.isCorporateCrisis ? 'Asfixia Corporativa' : 'Bancarrota Estatal');
+      this.elStatHarmonyDesc.className = harmony >= 75 ? 'text-positive' : harmony >= 50 ? 'text-warn' : 'text-danger';
     }
 
     if (this.elPopulation) this.elPopulation.textContent = sim.population.toLocaleString();
@@ -965,7 +1051,9 @@ export class UIManager {
       this.elBtnMenuContinue.classList.remove('disabled');
       const timeAgo = summary.timestamp ? this._formatTimeAgo(summary.timestamp) : '';
       const timeStr = timeAgo ? ` • ${timeAgo}` : '';
-      this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • $${summary.funds.toLocaleString()}${timeStr}`;
+      const sFunds = summary.stateFunds !== undefined ? summary.stateFunds : summary.funds;
+      const cFunds = summary.corporateFunds !== undefined ? summary.corporateFunds : 0;
+      this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • 🏛️ $${sFunds.toLocaleString()} • 💼 $${cFunds.toLocaleString()}${timeStr}`;
     } else {
       this.elBtnMenuContinue.classList.add('disabled');
       this.elTitleContinueDetails.textContent = 'Sin partida guardada previa';
@@ -1258,7 +1346,7 @@ export class UIManager {
   }
 
   // =========================================================================
-  // PANEL FINANCIERO Y COMERCIAL (city-builder-economy)
+  // PANEL FINANCIERO DUAL: EL ESTADO VS. LA EMPRESA (city-builder-economy)
   // =========================================================================
 
   updateEconomyModalContent(isInitial = false) {
@@ -1269,61 +1357,221 @@ export class UIManager {
     const elContent = document.getElementById('modal-economy-body');
     if (!elContent) return;
 
-    const breakdown = eco.breakdown || {};
-    const inc = breakdown.income || {};
-    const exp = breakdown.expenses || {};
+    this.currentEcoTab = this.currentEcoTab || 'state';
+
+    const stateBreakdown = eco.stateBreakdown || {};
+    const corpBreakdown = eco.corporateBreakdown || {};
+    const stateInc = stateBreakdown.income || {};
+    const stateExp = stateBreakdown.expenses || {};
+    const corpRev = corpBreakdown.revenue || {};
+    const corpExp = corpBreakdown.expenses || {};
+
     const trade = eco.trade || { exports: {}, imports: {}, tradeBalance: 0 };
     const prices = eco.marketPrices || {};
     const trends = eco.priceTrends || {};
 
-    const cf = breakdown.netCashflow || 0;
-    const sign = cf >= 0 ? '+' : '';
-    const cashflowColor = cf >= 0 ? 'text-positive' : 'text-danger';
-    const tb = trade.tradeBalance || 0;
-    const tradeSign = tb >= 0 ? '+' : '';
-    const tradeColor = tb >= 0 ? 'text-positive' : 'text-danger';
+    const stateNet = stateBreakdown.netCashflow || 0;
+    const stateSign = stateNet >= 0 ? '+' : '';
+    const stateCfColor = stateNet >= 0 ? 'text-positive' : 'text-danger';
+
+    const corpNet = corpBreakdown.netProfit || 0;
+    const corpSign = corpNet >= 0 ? '+' : '';
+    const corpCfColor = corpNet >= 0 ? 'text-positive' : 'text-danger';
 
     const resPct = Math.round(eco.taxRates.residential * 100);
     const commPct = Math.round(eco.taxRates.commercial * 100);
     const indPct = Math.round(eco.taxRates.industrial * 100);
     const avgTax = Math.round((resPct + commPct + indPct) / 3);
 
-    const isRendered = elContent.querySelector('#eco-slider-res');
+    const isRendered = elContent.querySelector('.eco-tabs-nav');
 
     if (!isRendered || isInitial) {
       elContent.innerHTML = `
-        <!-- 1. KPIs Superiores -->
+        <!-- Selector de Perspectiva Dual -->
+        <div class="eco-tabs-nav">
+          <button class="eco-tab-btn ${this.currentEcoTab === 'state' ? 'active' : ''}" data-eco-tab="state">
+            <span>🏛️ El Estado (Alcalde)</span>
+          </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'corp' ? 'active' : ''}" data-eco-tab="corp">
+            <span>💼 Sector Privado (Empresario)</span>
+          </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'balance' ? 'active' : ''}" data-eco-tab="balance">
+            <span>⚖️ Equilibrio & Rescate</span>
+          </button>
+        </div>
+
+        <!-- CONTENIDO DINÁMICO SEGÚN PESTAÑA ACTIVA -->
+        <div id="eco-tab-content-area">
+          ${this._renderEcoTabContent(this.currentEcoTab, eco, sim)}
+        </div>
+      `;
+
+      // Vincular cambio de pestañas
+      elContent.querySelectorAll('.eco-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.currentEcoTab = btn.dataset.ecoTab;
+          if (this.game.audio) this.game.audio.playClick();
+          this.updateEconomyModalContent(true);
+        });
+      });
+
+      // Vincular eventos según pestaña
+      if (this.currentEcoTab === 'state') {
+        this._bindTaxSlider('res', 'residential');
+        this._bindTaxSlider('comm', 'commercial');
+        this._bindTaxSlider('ind', 'industrial');
+      } else if (this.currentEcoTab === 'balance') {
+        const btnBailout = elContent.querySelector('#btn-action-bailout');
+        if (btnBailout) {
+          btnBailout.addEventListener('click', () => {
+            const res = eco.transferFunds('bailout', 500);
+            if (res.success) {
+              if (this.game.audio) this.game.audio.playBuild();
+              this.showToast(res.message);
+              this.updateEconomyModalContent(true);
+            } else {
+              this.showToast(`⚠️ ${res.reason}`);
+            }
+          });
+        }
+
+        const btnDonate = elContent.querySelector('#btn-action-donate');
+        if (btnDonate) {
+          btnDonate.addEventListener('click', () => {
+            const res = eco.transferFunds('donation', 500);
+            if (res.success) {
+              if (this.game.audio) this.game.audio.playChime();
+              this.showToast(res.message);
+              this.updateEconomyModalContent(true);
+            } else {
+              this.showToast(`⚠️ ${res.reason}`);
+            }
+          });
+        }
+      }
+
+    } else {
+      // Actualización en caliente durante ticks
+      const setTxt = (id, val) => {
+        const el = elContent.querySelector(id);
+        if (el) el.textContent = val;
+      };
+
+      // Si está en pestaña Estado
+      if (this.currentEcoTab === 'state') {
+        setTxt('#eco-kpi-state-funds', `$${eco.stateFunds.toLocaleString()}`);
+        const elStateCf = elContent.querySelector('#eco-kpi-state-cf');
+        if (elStateCf) {
+          elStateCf.textContent = `${stateSign}$${stateNet}/d`;
+          elStateCf.className = `kpi-val ${stateCfColor}`;
+        }
+        setTxt('#eco-state-inc-res', `+$${stateInc.residentialTax || 0}/d`);
+        setTxt('#eco-state-inc-comm', `+$${stateInc.commercialTax || 0}/d`);
+        setTxt('#eco-state-inc-ind', `+$${stateInc.industrialTax || 0}/d`);
+        setTxt('#eco-state-inc-util', `+$${stateInc.utilityDividends || 0}/d`);
+        setTxt('#eco-state-inc-total', `+$${stateInc.total || 0}/d`);
+
+        setTxt('#eco-state-exp-road', `-$${stateExp.roadUpkeep || 0}/d`);
+        setTxt('#eco-state-exp-serv', `-$${stateExp.serviceUpkeep || 0}/d`);
+        setTxt('#eco-state-exp-policy', `-$${stateExp.policyCosts || 0}/d`);
+        setTxt('#eco-state-exp-imp', `-$${stateExp.importsCost || 0}/d`);
+        setTxt('#eco-state-exp-total', `-$${stateExp.total || 0}/d`);
+      }
+      // Si está en pestaña Empresa Privada
+      else if (this.currentEcoTab === 'corp') {
+        setTxt('#eco-kpi-corp-funds', `$${eco.corporateFunds.toLocaleString()}`);
+        const elCorpNet = elContent.querySelector('#eco-kpi-corp-profit');
+        if (elCorpNet) {
+          elCorpNet.textContent = `${corpSign}$${corpNet}/d`;
+          elCorpNet.className = `kpi-val ${corpCfColor}`;
+        }
+        setTxt('#eco-corp-rev-comm', `+$${corpRev.commercialSales || 0}/d`);
+        setTxt('#eco-corp-rev-mass', `+$${corpRev.massIndustrySales || 0}/d`);
+        setTxt('#eco-corp-rev-tech', `+$${corpRev.techIndustrySales || 0}/d`);
+        setTxt('#eco-corp-rev-farm', `+$${corpRev.farmSales || 0}/d`);
+        setTxt('#eco-corp-rev-total', `+$${corpRev.total || 0}/d`);
+
+        setTxt('#eco-corp-exp-payroll', `-$${corpExp.payroll || 0}/d`);
+        setTxt('#eco-corp-exp-ops', `-$${corpExp.operatingCosts || 0}/d`);
+        setTxt('#eco-corp-exp-tax', `-$${corpExp.taxesPaid || 0}/d`);
+        setTxt('#eco-corp-exp-total', `-$${corpExp.total || 0}/d`);
+      }
+      // Si está en pestaña Equilibrio & Rescate
+      else if (this.currentEcoTab === 'balance') {
+        setTxt('#eco-val-harmony', `${eco.harmonyIndex}%`);
+        const elBar = elContent.querySelector('#eco-bar-harmony-fill');
+        if (elBar) {
+          elBar.style.width = `${eco.harmonyIndex}%`;
+          elBar.className = `stat-bar-fill ${eco.harmonyIndex >= 75 ? 'good' : eco.harmonyIndex >= 50 ? 'warn' : 'danger'}`;
+        }
+        setTxt('#eco-price-food', `$${prices.food || 1.6} /u`);
+        setTxt('#eco-price-mass', `$${prices.massGoods || 3.4} /u`);
+        setTxt('#eco-price-tech', `$${prices.techGoods || 7.8} /u`);
+        setTxt('#eco-price-energy', `$${prices.energy || 0.85} /MW`);
+        setTxt('#eco-price-water', `$${prices.water || 0.65} /kL`);
+      }
+    }
+  }
+
+  _renderEcoTabContent(tab, eco, sim) {
+    const stateBreakdown = eco.stateBreakdown || {};
+    const corpBreakdown = eco.corporateBreakdown || {};
+    const stateInc = stateBreakdown.income || {};
+    const stateExp = stateBreakdown.expenses || {};
+    const corpRev = corpBreakdown.revenue || {};
+    const corpExp = corpBreakdown.expenses || {};
+
+    const stateNet = stateBreakdown.netCashflow || 0;
+    const stateSign = stateNet >= 0 ? '+' : '';
+    const stateCfColor = stateNet >= 0 ? 'text-positive' : 'text-danger';
+
+    const corpNet = corpBreakdown.netProfit || 0;
+    const corpSign = corpNet >= 0 ? '+' : '';
+    const corpCfColor = corpNet >= 0 ? 'text-positive' : 'text-danger';
+
+    const resPct = Math.round(eco.taxRates.residential * 100);
+    const commPct = Math.round(eco.taxRates.commercial * 100);
+    const indPct = Math.round(eco.taxRates.industrial * 100);
+    const avgTax = Math.round((resPct + commPct + indPct) / 3);
+
+    // 1. PESTAÑA EL ESTADO (EL ALCALDE)
+    if (tab === 'state') {
+      return `
         <div class="eco-kpi-grid">
           <div class="eco-kpi-card">
-            <span class="kpi-label">Tesorería</span>
-            <span id="eco-kpi-funds" class="kpi-val">$${eco.funds.toLocaleString()}</span>
+            <span class="kpi-label">Tesoro del Estado</span>
+            <span id="eco-kpi-state-funds" class="kpi-val">$${eco.stateFunds.toLocaleString()}</span>
           </div>
           <div class="eco-kpi-card">
-            <span class="kpi-label">Flujo Diario</span>
-            <span id="eco-kpi-cashflow" class="kpi-val ${cashflowColor}">${sign}$${cf}/d</span>
+            <span class="kpi-label">Flujo Fiscal Neto</span>
+            <span id="eco-kpi-state-cf" class="kpi-val ${stateCfColor}">${stateSign}$${stateNet}/d</span>
           </div>
           <div class="eco-kpi-card">
-            <span class="kpi-label">Balanza Exterior</span>
-            <span id="eco-kpi-trade" class="kpi-val ${tradeColor}">${tradeSign}$${tb}/d</span>
+            <span class="kpi-label">Situación Fiscal</span>
+            <span class="kpi-val ${eco.isStateBankruptcy ? 'text-danger' : stateNet >= 0 ? 'text-positive' : 'text-warn'}">
+              ${eco.isStateBankruptcy ? '¡Bancarrota!' : stateNet >= 0 ? 'Superávit' : 'Déficit'}
+            </span>
           </div>
           <div class="eco-kpi-card">
             <span class="kpi-label">Presión Fiscal</span>
-            <span id="eco-kpi-tax-avg" class="kpi-val text-tech">${avgTax}%</span>
+            <span class="kpi-val text-tech">${avgTax}%</span>
           </div>
         </div>
 
-        <!-- 2. Política Fiscal (Curva de Laffer) -->
         <div class="eco-section">
           <div class="eco-section-title">
-            <span>🏛️ Tasas Impositivas Municipales</span>
-            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Curva de Laffer: 1% a 25%</small>
+            <span>🏛️ Tasas Impositivas del Estado</span>
+            <small style="color: #94a3b8;">Curva de Laffer: 1% a 25%</small>
           </div>
+          <p style="font-size: 0.72rem; color: #94a3b8; margin: 0;">
+            ⚠️ <em>Dilema del Alcalde:</em> Subir impuestos da más fondos para obras públicas (escuelas, plantas de luz y hospitales), pero si cobras más del 12% a comercios e industrias, tus empresas entrarán en pérdidas y despedirán obreros.
+          </p>
 
           <div class="eco-tax-slider-group">
-            <!-- Impuesto Residencial -->
+            <!-- Residencial -->
             <div class="eco-tax-item">
               <div class="eco-tax-header">
-                <span class="eco-tax-name">🏠 Impuesto Residencial</span>
+                <span class="eco-tax-name">🏠 Impuesto Residencial (IRP)</span>
                 <span id="eco-badge-res" class="eco-tax-pct-badge">${resPct}%</span>
               </div>
               <div class="eco-slider-wrap">
@@ -1337,10 +1585,10 @@ export class UIManager {
               </div>
             </div>
 
-            <!-- Impuesto Comercial -->
+            <!-- Comercial -->
             <div class="eco-tax-item">
               <div class="eco-tax-header">
-                <span class="eco-tax-name">🏪 Impuesto Comercial</span>
+                <span class="eco-tax-name">🏪 Impuesto a Comercios Privados</span>
                 <span id="eco-badge-comm" class="eco-tax-pct-badge">${commPct}%</span>
               </div>
               <div class="eco-slider-wrap">
@@ -1354,7 +1602,7 @@ export class UIManager {
               </div>
             </div>
 
-            <!-- Impuesto Industrial / Corporativo -->
+            <!-- Industrial -->
             <div class="eco-tax-item">
               <div class="eco-tax-header">
                 <span class="eco-tax-name">🏭 Impuesto Industrial y Corporativo</span>
@@ -1373,201 +1621,185 @@ export class UIManager {
           </div>
         </div>
 
-        <!-- 3. Desglose Presupuestario: Ingresos vs. Gastos -->
         <div class="eco-section">
           <div class="eco-section-title">
-            <span>📊 Balance Presupuestario Diario</span>
-            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Tick Diario</small>
+            <span>📊 Presupuesto del Estado (Alcaldía)</span>
           </div>
-
           <div class="eco-ledger-grid">
-            <!-- Columna Ingresos -->
             <div class="eco-ledger-col income">
-              <div class="eco-col-header">
-                <span>🟢 Ingresos Municipales</span>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🏠 Impuesto Residencial:</span>
-                <strong id="eco-inc-res" class="text-positive">+$${inc.residentialTax || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🏪 Impuesto Comercial:</span>
-                <strong id="eco-inc-comm" class="text-positive">+$${inc.commercialTax || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🏭 Impuesto Industrial:</span>
-                <strong id="eco-inc-ind" class="text-positive">+$${inc.industrialTax || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🚢 Exportaciones Globales:</span>
-                <strong id="eco-inc-exp" class="text-positive">+$${inc.exportsRevenue || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>⚡ Red & Excedentes Hídricos:</span>
-                <strong id="eco-inc-util" class="text-positive">+$${inc.utilityDividends || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-total">
-                <span>Total Ingresos:</span>
-                <strong id="eco-inc-total" class="text-positive">+$${inc.total || 0}/d</strong>
-              </div>
+              <div class="eco-col-header"><span>🟢 Recaudación Fiscal</span></div>
+              <div class="eco-ledger-row"><span>🏠 Impuesto Residencial:</span><strong id="eco-state-inc-res" class="text-positive">+$${stateInc.residentialTax || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏪 Impuesto Comercial:</span><strong id="eco-state-inc-comm" class="text-positive">+$${stateInc.commercialTax || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏭 Impuesto Industrial:</span><strong id="eco-state-inc-ind" class="text-positive">+$${stateInc.industrialTax || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>⚡ Dividendos Red Pública:</span><strong id="eco-state-inc-util" class="text-positive">+$${stateInc.utilityDividends || 0}/d</strong></div>
+              <div class="eco-ledger-total"><span>Total Ingresos Estado:</span><strong id="eco-state-inc-total" class="text-positive">+$${stateInc.total || 0}/d</strong></div>
             </div>
-
-            <!-- Columna Gastos -->
             <div class="eco-ledger-col expenses">
-              <div class="eco-col-header">
-                <span>🔴 Gastos Públicos</span>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🛣️ Mantenimiento Vial:</span>
-                <strong id="eco-exp-road" class="text-danger">-$${exp.roadUpkeep || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🏢 Mantenimiento Estructuras:</span>
-                <strong id="eco-exp-build" class="text-danger">-$${exp.buildingUpkeep || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🏛️ Decretos y Políticas:</span>
-                <strong id="eco-exp-policy" class="text-danger">-$${exp.policyCosts || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>🚢 Importaciones Emergencia:</span>
-                <strong id="eco-exp-imp" class="text-danger">-$${exp.importsCost || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-row">
-                <span>⚙️ Servicios y Redes:</span>
-                <strong id="eco-exp-serv" class="text-danger">-$${exp.serviceUpkeep || 0}/d</strong>
-              </div>
-              <div class="eco-ledger-total">
-                <span>Total Gastos:</span>
-                <strong id="eco-exp-total" class="text-danger">-$${exp.total || 0}/d</strong>
-              </div>
+              <div class="eco-col-header"><span>🔴 Gasto en Servicios Públicos</span></div>
+              <div class="eco-ledger-row"><span>🛣️ Mantenimiento Vial:</span><strong id="eco-state-exp-road" class="text-danger">-$${stateExp.roadUpkeep || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>⚙️ Edificios y Redes Públicas:</span><strong id="eco-state-exp-serv" class="text-danger">-$${stateExp.serviceUpkeep || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏛️ Políticas y Decretos:</span><strong id="eco-state-exp-policy" class="text-danger">-$${stateExp.policyCosts || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🚢 Importaciones Emergencia:</span><strong id="eco-state-exp-imp" class="text-danger">-$${stateExp.importsCost || 0}/d</strong></div>
+              <div class="eco-ledger-total"><span>Total Gasto Estado:</span><strong id="eco-state-exp-total" class="text-danger">-$${stateExp.total || 0}/d</strong></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. PESTAÑA EL SECTOR PRIVADO (EL EMPRESARIO)
+    if (tab === 'corp') {
+      const solvencyClass = corpBreakdown.solvency === 'solvente' ? 'text-positive' : corpBreakdown.solvency === 'ajustado' ? 'text-warn' : 'text-danger';
+      const solvencyLabel = corpBreakdown.solvency === 'solvente' ? 'Solvente (Expansión)' : corpBreakdown.solvency === 'ajustado' ? 'Ajustado (Margen bajo)' : '¡Quiebra Inminente!';
+
+      return `
+        <div class="eco-kpi-grid">
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Capital del Holding</span>
+            <span id="eco-kpi-corp-funds" class="kpi-val">$${eco.corporateFunds.toLocaleString()}</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Beneficio Neto Diario</span>
+            <span id="eco-kpi-corp-profit" class="kpi-val ${corpCfColor}">${corpSign}$${corpNet}/d</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Margen sobre Ventas</span>
+            <span class="kpi-val ${corpBreakdown.margin >= 15 ? 'text-positive' : corpBreakdown.margin >= 0 ? 'text-warn' : 'text-danger'}">${corpBreakdown.margin || 0}%</span>
+          </div>
+          <div class="eco-kpi-card">
+            <span class="kpi-label">Salud Financiera</span>
+            <span class="kpi-val ${solvencyClass}">${solvencyLabel}</span>
+          </div>
+        </div>
+
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>💼 Diagnóstico Empresarial Privado</span>
+          </div>
+          <p style="font-size: 0.72rem; color: #94a3b8; margin: 0;">
+            ⚠️ <em>Dilema del Empresario:</em> Tus tiendas, granjas y fábricas pagan sueldos a los ciudadanos e impuestos obligatorios a la Alcaldía. Si tus gastos superan las ventas, tendrás que congelar vacantes o despedir obreros. Además, si el Estado sufre apagones o sequías, ¡tu producción caerá un 60%!
+          </p>
+        </div>
+
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>📈 Estado de Resultados del Holding Privado</span>
+          </div>
+          <div class="eco-ledger-grid">
+            <div class="eco-ledger-col income">
+              <div class="eco-col-header"><span>🟢 Ventas Privadas</span></div>
+              <div class="eco-ledger-row"><span>🏪 Ventas en Comercios:</span><strong id="eco-corp-rev-comm" class="text-positive">+$${corpRev.commercialSales || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>📦 Manufactura Pesada:</span><strong id="eco-corp-rev-mass" class="text-positive">+$${corpRev.massIndustrySales || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🔬 Alta Tecnología & Patentes:</span><strong id="eco-corp-rev-tech" class="text-positive">+$${corpRev.techIndustrySales || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🌾 Cosechas y Alimentos:</span><strong id="eco-corp-rev-farm" class="text-positive">+$${corpRev.farmSales || 0}/d</strong></div>
+              <div class="eco-ledger-total"><span>Total Ventas Holding:</span><strong id="eco-corp-rev-total" class="text-positive">+$${corpRev.total || 0}/d</strong></div>
+            </div>
+            <div class="eco-ledger-col expenses">
+              <div class="eco-col-header"><span>🔴 Costos Operativos e Impuestos</span></div>
+              <div class="eco-ledger-row"><span>👥 Nómina Salarial de Obreros:</span><strong id="eco-corp-exp-payroll" class="text-danger">-$${corpExp.payroll || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>⚙️ Costos de Operación e Insumos:</span><strong id="eco-corp-exp-ops" class="text-danger">-$${corpExp.operatingCosts || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏛️ Impuestos Pagados al Estado:</span><strong id="eco-corp-exp-tax" class="text-danger">-$${corpExp.taxesPaid || 0}/d</strong></div>
+              <div class="eco-ledger-total"><span>Total Gastos Privados:</span><strong id="eco-corp-exp-total" class="text-danger">-$${corpExp.total || 0}/d</strong></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 3. PESTAÑA EQUILIBRIO & RESCATE (PACTO PÚBLICO-PRIVADO)
+    if (tab === 'balance') {
+      const harmClass = eco.harmonyIndex >= 75 ? 'text-positive' : eco.harmonyIndex >= 50 ? 'text-warn' : 'text-danger';
+      const harmText = eco.harmonyIndex >= 75 
+        ? 'Armonía Ejemplar (Crecimiento Sostenible)' 
+        : eco.harmonyIndex >= 50 
+        ? 'Tensión Sistémica (Vigilar márgenes)' 
+        : (eco.isCorporateCrisis ? '¡Crisis por Asfixia Empresarial!' : '¡Bancarrota de Servicios Públicos!');
+
+      return `
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>⚖️ Barómetro de Armonía Estado-Empresa</span>
+            <strong id="eco-val-harmony" class="${harmClass}" style="font-size: 1.1rem;">${eco.harmonyIndex}%</strong>
+          </div>
+          <div class="stat-bar-track" style="height: 10px; margin: 6px 0;">
+            <div id="eco-bar-harmony-fill" class="stat-bar-fill ${eco.harmonyIndex >= 75 ? 'good' : eco.harmonyIndex >= 50 ? 'warn' : 'danger'}" style="width: ${eco.harmonyIndex}%;"></div>
+          </div>
+          <p style="font-size: 0.74rem; color: #cbd5e1; margin: 4px 0;">
+            <strong>Diagnóstico:</strong> <span class="${harmClass}">${harmText}</span>
+          </p>
+          <p style="font-size: 0.70rem; color: #94a3b8; margin: 0;">
+            El objetivo maestro es sostener al Estado y al Sector Privado sin que ninguno destruya al otro.
+          </p>
+        </div>
+
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>🤝 Pacto de Rescate y Transferencia de Emergencia</span>
+          </div>
+          <div class="eco-bailout-grid">
+            <div class="eco-bailout-card">
+              <h4>💼 Donación Privada a la Alcaldía</h4>
+              <p>El Magnate inyecta liquidez privada al Estado para evitar el colapso de las redes eléctricas y de agua.</p>
+              <button id="btn-action-donate" class="btn-primary" style="font-size: 0.78rem; padding: 6px 10px;">
+                <span>Inyectar $500 de la Empresa al Estado</span>
+              </button>
+            </div>
+            <div class="eco-bailout-card">
+              <h4>🏛️ Subsidio Público de Rescate</h4>
+              <p>El Estado rescata al holding corporativo para evitar quiebras masivas de fábricas y despidos de obreros.</p>
+              <button id="btn-action-bailout" class="btn-secondary" style="font-size: 0.78rem; padding: 6px 10px; border-color: rgba(56, 189, 248, 0.4);">
+                <span>Emitir Subsidio Estatal de $500 a la Empresa</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- 4. Cotizaciones del Mercado Internacional -->
         <div class="eco-section">
           <div class="eco-section-title">
-            <span>🌐 Mercado Internacional de Commodities</span>
-            <small style="font-size: 0.68rem; color: #94a3b8; text-transform: none;">Precios en Tiempo Real</small>
+            <span>🌐 Cotizaciones del Mercado Internacional</span>
           </div>
-
           <div class="eco-market-grid">
-            <!-- Trigo y Granos -->
             <div class="eco-market-card">
               <div class="eco-market-head">
                 <span>🌾 Alimentos</span>
                 <span id="eco-trend-food" class="${this._getTrendClass(trends.food)}">${this._getTrendIcon(trends.food)}</span>
               </div>
               <div id="eco-price-food" class="eco-market-price">$${prices.food || 1.6} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
-              <div id="eco-vol-food" class="eco-market-sub">Exp: ${trade.exports.food ? trade.exports.food.volume : 0} u (+$${trade.exports.food ? trade.exports.food.revenue : 0}/d)</div>
             </div>
-
-            <!-- Bienes Masivos -->
             <div class="eco-market-card">
               <div class="eco-market-head">
                 <span>📦 Manufactura</span>
                 <span id="eco-trend-mass" class="${this._getTrendClass(trends.massGoods)}">${this._getTrendIcon(trends.massGoods)}</span>
               </div>
               <div id="eco-price-mass" class="eco-market-price">$${prices.massGoods || 3.4} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
-              <div id="eco-vol-mass" class="eco-market-sub">Exp: ${trade.exports.massGoods ? trade.exports.massGoods.volume : 0} u (+$${trade.exports.massGoods ? trade.exports.massGoods.revenue : 0}/d)</div>
             </div>
-
-            <!-- Alta Tecnología -->
             <div class="eco-market-card">
               <div class="eco-market-head">
                 <span>🔬 Alta Tecnología</span>
                 <span id="eco-trend-tech" class="${this._getTrendClass(trends.techGoods)}">${this._getTrendIcon(trends.techGoods)}</span>
               </div>
               <div id="eco-price-tech" class="eco-market-price">$${prices.techGoods || 7.8} <small style="font-size: 0.65rem; color: #94a3b8;">/u</small></div>
-              <div id="eco-vol-tech" class="eco-market-sub">Exp: ${trade.exports.techGoods ? trade.exports.techGoods.volume : 0} u (+$${trade.exports.techGoods ? trade.exports.techGoods.revenue : 0}/d)</div>
             </div>
-
-            <!-- Energía MW -->
             <div class="eco-market-card">
               <div class="eco-market-head">
                 <span>⚡ Red Eléctrica</span>
                 <span id="eco-trend-energy" class="${this._getTrendClass(trends.energy)}">${this._getTrendIcon(trends.energy)}</span>
               </div>
               <div id="eco-price-energy" class="eco-market-price">$${prices.energy || 0.85} <small style="font-size: 0.65rem; color: #94a3b8;">/MW</small></div>
-              <div id="eco-vol-energy" class="eco-market-sub">Exp: ${trade.exports.energy ? trade.exports.energy.volume : 0} MW (+$${trade.exports.energy ? trade.exports.energy.revenue : 0}/d)</div>
             </div>
-
-            <!-- Agua Potable kL -->
             <div class="eco-market-card">
               <div class="eco-market-head">
                 <span>💧 Agua Potable</span>
                 <span id="eco-trend-water" class="${this._getTrendClass(trends.water)}">${this._getTrendIcon(trends.water)}</span>
               </div>
               <div id="eco-price-water" class="eco-market-price">$${prices.water || 0.65} <small style="font-size: 0.65rem; color: #94a3b8;">/kL</small></div>
-              <div id="eco-vol-water" class="eco-market-sub">Exp: ${trade.exports.water ? trade.exports.water.volume : 0} kL (+$${trade.exports.water ? trade.exports.water.revenue : 0}/d)</div>
             </div>
           </div>
         </div>
       `;
-
-      // Vincular interactividad de los sliders
-      this._bindTaxSlider('res', 'residential');
-      this._bindTaxSlider('comm', 'commercial');
-      this._bindTaxSlider('ind', 'industrial');
-
-    } else {
-      // Actualización en caliente durante ticks para no interrumpir el arrastre de los sliders
-      const elKpiFunds = elContent.querySelector('#eco-kpi-funds');
-      if (elKpiFunds) elKpiFunds.textContent = `$${eco.funds.toLocaleString()}`;
-
-      const elKpiCashflow = elContent.querySelector('#eco-kpi-cashflow');
-      if (elKpiCashflow) {
-        elKpiCashflow.textContent = `${sign}$${cf}/d`;
-        elKpiCashflow.className = `kpi-val ${cashflowColor}`;
-      }
-
-      const elKpiTrade = elContent.querySelector('#eco-kpi-trade');
-      if (elKpiTrade) {
-        elKpiTrade.textContent = `${tradeSign}$${tb}/d`;
-        elKpiTrade.className = `kpi-val ${tradeColor}`;
-      }
-
-      const elKpiTaxAvg = elContent.querySelector('#eco-kpi-tax-avg');
-      if (elKpiTaxAvg) elKpiTaxAvg.textContent = `${avgTax}%`;
-
-      const setTxt = (id, val) => {
-        const el = elContent.querySelector(id);
-        if (el) el.textContent = val;
-      };
-
-      // Ingresos
-      setTxt('#eco-inc-res', `+$${inc.residentialTax || 0}/d`);
-      setTxt('#eco-inc-comm', `+$${inc.commercialTax || 0}/d`);
-      setTxt('#eco-inc-ind', `+$${inc.industrialTax || 0}/d`);
-      setTxt('#eco-inc-exp', `+$${inc.exportsRevenue || 0}/d`);
-      setTxt('#eco-inc-util', `+$${inc.utilityDividends || 0}/d`);
-      setTxt('#eco-inc-total', `+$${inc.total || 0}/d`);
-
-      // Gastos
-      setTxt('#eco-exp-road', `-$${exp.roadUpkeep || 0}/d`);
-      setTxt('#eco-exp-build', `-$${exp.buildingUpkeep || 0}/d`);
-      setTxt('#eco-exp-policy', `-$${exp.policyCosts || 0}/d`);
-      setTxt('#eco-exp-imp', `-$${exp.importsCost || 0}/d`);
-      setTxt('#eco-exp-serv', `-$${exp.serviceUpkeep || 0}/d`);
-      setTxt('#eco-exp-total', `-$${exp.total || 0}/d`);
-
-      // Mercado
-      setTxt('#eco-price-food', `$${prices.food || 1.6} /u`);
-      setTxt('#eco-vol-food', `Exp: ${trade.exports.food ? trade.exports.food.volume : 0} u (+$${trade.exports.food ? trade.exports.food.revenue : 0}/d)`);
-
-      setTxt('#eco-price-mass', `$${prices.massGoods || 3.4} /u`);
-      setTxt('#eco-vol-mass', `Exp: ${trade.exports.massGoods ? trade.exports.massGoods.volume : 0} u (+$${trade.exports.massGoods ? trade.exports.massGoods.revenue : 0}/d)`);
-
-      setTxt('#eco-price-tech', `$${prices.techGoods || 7.8} /u`);
-      setTxt('#eco-vol-tech', `Exp: ${trade.exports.techGoods ? trade.exports.techGoods.volume : 0} u (+$${trade.exports.techGoods ? trade.exports.techGoods.revenue : 0}/d)`);
-
-      setTxt('#eco-price-energy', `$${prices.energy || 0.85} /MW`);
-      setTxt('#eco-vol-energy', `Exp: ${trade.exports.energy ? trade.exports.energy.volume : 0} MW (+$${trade.exports.energy ? trade.exports.energy.revenue : 0}/d)`);
-
-      setTxt('#eco-price-water', `$${prices.water || 0.65} /kL`);
-      setTxt('#eco-vol-water', `Exp: ${trade.exports.water ? trade.exports.water.volume : 0} kL (+$${trade.exports.water ? trade.exports.water.revenue : 0}/d)`);
     }
+
+    return '';
   }
 
   _getLafferText(type, pct) {

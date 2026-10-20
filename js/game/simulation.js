@@ -64,6 +64,75 @@ export class Simulation {
     }
   }
 
+  get stateFunds() {
+    return this.economy ? this.economy.stateFunds : this.funds;
+  }
+
+  set stateFunds(val) {
+    if (this.economy) {
+      this.economy.stateFunds = val;
+    }
+  }
+
+  get corporateFunds() {
+    return this.economy ? this.economy.corporateFunds : 0;
+  }
+
+  set corporateFunds(val) {
+    if (this.economy) {
+      this.economy.corporateFunds = val;
+    }
+  }
+
+  getFundingType(def) {
+    if (!def) return 'public';
+    // Obras públicas estatales (Alcaldía)
+    if (['infra', 'utility', 'service', 'nature'].includes(def.category)) {
+      return 'public';
+    }
+    // Inversiones del holding privado (Empresario: vivienda, comercio, granjas, fábricas)
+    return 'private';
+  }
+
+  canAffordBuilding(def, level = 1) {
+    if (!def) return { allowed: false, reason: 'Edificio desconocido' };
+    const cost = (def.levels && def.levels[level] && def.levels[level].cost) 
+      ? def.levels[level].cost 
+      : (def.cost || 0);
+    const funding = this.getFundingType(def);
+
+    if (funding === 'public') {
+      if (this.stateFunds < cost) {
+        return {
+          allowed: false,
+          cost,
+          funding,
+          reason: `Tesoro Público insuficiente. Requiere $${cost} del Estado (disponible: $${this.stateFunds.toLocaleString()})`
+        };
+      }
+    } else {
+      if (this.corporateFunds < cost) {
+        return {
+          allowed: false,
+          cost,
+          funding,
+          reason: `Capital Privado insuficiente. Requiere $${cost} de la Empresa (disponible: $${this.corporateFunds.toLocaleString()})`
+        };
+      }
+    }
+
+    return { allowed: true, cost, funding };
+  }
+
+  spendForBuilding(def, cost) {
+    const funding = this.getFundingType(def);
+    if (funding === 'public') {
+      this.stateFunds = Math.max(0, this.stateFunds - cost);
+    } else {
+      this.corporateFunds = Math.max(0, this.corporateFunds - cost);
+    }
+  }
+
   tick(camera) {
     if (this.isPaused || this.speed === 0) return;
 
@@ -281,6 +350,16 @@ export class Simulation {
     // Curva de Laffer: Modulador fiscal sobre la satisfacción de los habitantes
     if (this.economy) {
       calcHappiness += this.economy.getLafferHappinessModifier();
+
+      // Crisis Empresarial: Quiebras y despidos privados destruyen la moral ciudadana
+      if (this.economy.isCorporateCrisis) {
+        calcHappiness -= 14;
+      }
+
+      // Bancarrota del Estado: Servicios públicos colapsados por falta de fondos municipales
+      if (this.economy.isStateBankruptcy) {
+        calcHappiness -= 16;
+      }
     }
 
     if (damagedCount > 0) {
@@ -435,6 +514,8 @@ export class Simulation {
     return {
       day: this.day,
       funds: this.funds,
+      stateFunds: this.stateFunds,
+      corporateFunds: this.corporateFunds,
       population: this.population,
       happiness: this.happiness,
       security: this.security,
@@ -449,7 +530,14 @@ export class Simulation {
   deserialize(data) {
     if (!data) return;
     if (typeof data.day === 'number') this.day = data.day;
-    if (typeof data.funds === 'number') this.funds = data.funds;
+    if (typeof data.stateFunds === 'number') {
+      this.stateFunds = data.stateFunds;
+    } else if (typeof data.funds === 'number') {
+      this.stateFunds = data.funds;
+    }
+    if (typeof data.corporateFunds === 'number') {
+      this.corporateFunds = data.corporateFunds;
+    }
     if (typeof data.population === 'number') this.population = data.population;
     if (typeof data.happiness === 'number') this.happiness = data.happiness;
     if (typeof data.security === 'number') this.security = data.security;

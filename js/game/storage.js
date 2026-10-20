@@ -87,13 +87,17 @@ export class StorageManager {
         if (data.economy) {
           ecoInstance.deserialize(data.economy);
         } else if (data.simulation && typeof data.simulation.funds === 'number') {
-          // Retrocompatibilidad con partidas v1
+          // Retrocompatibilidad con partidas v1 y v2
           ecoInstance.funds = data.simulation.funds;
+          ecoInstance.stateFunds = data.simulation.funds;
+          ecoInstance.corporateFunds = Math.max(2500, Math.round(data.simulation.funds * 0.85));
         }
 
         // Sincronizar simulation.funds si existe
         if (this.simulation) {
-          this.simulation.funds = ecoInstance.funds;
+          this.simulation.funds = ecoInstance.stateFunds;
+          this.simulation.stateFunds = ecoInstance.stateFunds;
+          this.simulation.corporateFunds = ecoInstance.corporateFunds;
         }
       }
 
@@ -126,16 +130,23 @@ export class StorageManager {
 
       const day = data.simulation.day || 1;
       const population = data.simulation.population || 0;
-      const funds = (data.economy && typeof data.economy.funds === 'number')
-        ? data.economy.funds
-        : (data.simulation.funds || CONFIG.SIMULATION.INITIAL_FUNDS);
+      const stateFunds = (data.economy && typeof data.economy.stateFunds === 'number')
+        ? data.economy.stateFunds
+        : ((data.economy && typeof data.economy.funds === 'number')
+          ? data.economy.funds
+          : (data.simulation.funds || CONFIG.SIMULATION.INITIAL_FUNDS));
+      const corporateFunds = (data.economy && typeof data.economy.corporateFunds === 'number')
+        ? data.economy.corporateFunds
+        : (CONFIG.SIMULATION.INITIAL_CORPORATE_FUNDS || 3500);
       const happiness = data.simulation.happiness || 75;
       const timestamp = data.timestamp ? new Date(data.timestamp) : null;
 
       return {
         day,
         population,
-        funds,
+        funds: stateFunds,
+        stateFunds,
+        corporateFunds,
         happiness,
         timestamp,
       };
