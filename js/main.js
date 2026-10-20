@@ -98,20 +98,24 @@ export class Game {
   }
 
   /**
-   * Crea un asentamiento inicial equilibrado con calles, casas y comercio
+   * Crea un asentamiento inicial equilibrado con calles, casas, comercio y servicios básicos
    */
   setupInitialTown() {
     const center = Math.floor(CONFIG.CANVAS.GRID_SIZE / 2);
 
-    // Carretera inicial
-    for (let gx = center - 2; gx <= center + 2; gx++) {
-      this.grid.placeBuilding(gx, center - 2, 'road');
+    // Carretera principal de la fundación
+    for (let gx = center - 3; gx <= center + 3; gx++) {
+      this.grid.placeBuilding(gx, center, 'road');
     }
 
-    // Casas y tienda de barrio
-    this.grid.placeBuilding(center - 1, center - 3, 'residential_low', 0);
-    this.grid.placeBuilding(center + 1, center - 3, 'residential_low', 0);
-    this.grid.placeBuilding(center, center - 1, 'commercial_store', 0);
+    // Viviendas y comercio iniciales
+    this.grid.placeBuilding(center - 1, center - 1, 'residential_low', 0);
+    this.grid.placeBuilding(center + 1, center - 1, 'residential_low', 0);
+    this.grid.placeBuilding(center, center + 1, 'commercial_store', 0);
+
+    // Servicios Básicos iniciales: 1 Parque Solar (80 MW) y 1 Torre de Agua (80 kL)
+    this.grid.placeBuilding(center - 3, center - 1, 'utility_power_solar', 0);
+    this.grid.placeBuilding(center + 3, center - 1, 'utility_water_tower', 0);
   }
 
   handleResize() {

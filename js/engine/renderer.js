@@ -355,6 +355,156 @@ export class Renderer {
       return;
     }
 
+    // 9. PARQUE SOLAR FOTOVOLTAICO (1x1)
+    if (def.solarPanels) {
+      IsoMath.drawIsoBlock(ctx, x, y, tw, th, 14, '#334155', '#1e293b', '#0f172a');
+      const topY = y - 14;
+
+      // 4 paneles solares fotovoltaicos rectangulares en la cara superior
+      const pAlpha = 0.85 + Math.sin(this.animationTick * 2) * 0.15;
+      ctx.fillStyle = '#1d4ed8';
+      ctx.fillRect(x - 14, topY + 2, 12, 6);
+      ctx.fillRect(x + 2, topY + 2, 12, 6);
+      ctx.fillRect(x - 14, topY + 10, 12, 6);
+      ctx.fillRect(x + 2, topY + 10, 12, 6);
+
+      // Marco y retícula fotovoltaica
+      ctx.strokeStyle = `rgba(147, 197, 253, ${pAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 14, topY + 2, 12, 6);
+      ctx.strokeRect(x + 2, topY + 2, 12, 6);
+      ctx.strokeRect(x - 14, topY + 10, 12, 6);
+      ctx.strokeRect(x + 2, topY + 10, 12, 6);
+
+      // Indicador LED verde de energía activa
+      ctx.beginPath();
+      ctx.arc(x, topY + 9, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#22c55e';
+      ctx.fill();
+      return;
+    }
+
+    // 10. TORRE DE AGUA ELEVADA (1x1)
+    if (def.waterTower) {
+      // Pilotes de soporte de acero
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 14, y + 4);
+      ctx.lineTo(x - 7, y - 22);
+      ctx.moveTo(x + 14, y + 4);
+      ctx.lineTo(x + 7, y - 22);
+      ctx.moveTo(x, y + 8);
+      ctx.lineTo(x, y - 22);
+      ctx.stroke();
+
+      // Depósito esférico superior
+      const tankY = y - 26;
+      ctx.beginPath();
+      ctx.ellipse(x, tankY, 13, 10, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fill();
+      ctx.strokeStyle = '#e0f2fe';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Cúpula del tanque
+      ctx.beginPath();
+      ctx.arc(x, tankY - 3, 9, Math.PI, 0);
+      ctx.fillStyle = '#bae6fd';
+      ctx.fill();
+
+      // Logotipo de gota en el centro
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💧', x, tankY + 3);
+      return;
+    }
+
+    // 11. PLANTA POTABILIZADORA CENTRAL (2x2)
+    if (def.waterPlant) {
+      const h = def.height || 24;
+      IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, def.colorTop, def.colorLeft, def.colorRight);
+      const topY = y - h;
+
+      const poolR = 13;
+      const p1X = x - 18;
+      const p1Y = topY + th / 2 - 4;
+      const p2X = x + 18;
+      const p2Y = topY + th / 2 - 4;
+
+      // Piscina de decantación 1 con agua animada
+      ctx.beginPath();
+      ctx.arc(p1X, p1Y, poolR, 0, Math.PI * 2);
+      ctx.fillStyle = '#0284c7';
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const wave1 = 2 + Math.abs(Math.sin(this.animationTick * 3)) * 4;
+      ctx.beginPath();
+      ctx.arc(p1X, p1Y, wave1, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Piscina de decantación 2
+      ctx.beginPath();
+      ctx.arc(p2X, p2Y, poolR, 0, Math.PI * 2);
+      ctx.fillStyle = '#0284c7';
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const wave2 = 2 + Math.abs(Math.cos(this.animationTick * 3)) * 4;
+      ctx.beginPath();
+      ctx.arc(p2X, p2Y, wave2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Tubería de interconexión amarilla
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p1X + poolR, p1Y);
+      ctx.lineTo(p2X - poolR, p2Y);
+      ctx.stroke();
+      return;
+    }
+
+    // 12. CENTRAL ELÉCTRICA Y SUBESTACIÓN (2x2)
+    if (def.powerPlant) {
+      const h = def.height || 48;
+      IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, def.colorTop, def.colorLeft, def.colorRight);
+      const topY = y - h;
+
+      // Transformadores con bobinas de cobre
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(x - 22, topY + 4, 14, 12);
+      ctx.fillRect(x + 8, topY + 4, 14, 12);
+
+      // Aislador con micro-pulso eléctrico
+      const pulse = Math.sin(this.animationTick * 8) > 0.3;
+      ctx.beginPath();
+      ctx.moveTo(x, topY);
+      ctx.lineTo(x, topY - 18);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(x, topY - 18, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = pulse ? '#67e8f9' : '#0284c7';
+      ctx.fill();
+
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#1e293b');
+      return;
+    }
+
     // === EDIFICIOS ESTÁNDAR Y PRISMAS ===
     const h = (def.height || 30) + (level - 1) * 6;
     IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, def.colorTop, def.colorLeft, def.colorRight);
@@ -519,6 +669,23 @@ export class Renderer {
       ctx.textAlign = 'center';
       const stars = level === 3 ? '★★★' : '★★';
       ctx.fillText(stars, x, topY - 6);
+    }
+
+    // AVISOS FLOTANTES DE APAGÓN O FALTA DE AGUA
+    if (def.category !== 'utility' && def.id !== 'road') {
+      const sim = window.gameInstance ? window.gameInstance.simulation : null;
+      if (sim && (sim.hasPowerOutage || sim.hasWaterShortage)) {
+        const floatY = topY - (level > 1 ? 16 : 8) + Math.sin(this.animationTick * 3 + gx) * 2;
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        if (sim.hasPowerOutage && sim.hasWaterShortage) {
+          ctx.fillText('⚡💧', x, floatY);
+        } else if (sim.hasPowerOutage) {
+          ctx.fillText('⚡', x, floatY);
+        } else if (sim.hasWaterShortage) {
+          ctx.fillText('💧', x, floatY);
+        }
+      }
     }
 
     // GRIETAS Y DAÑO ESTRUCTURAL

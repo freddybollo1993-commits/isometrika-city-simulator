@@ -9,6 +9,10 @@ import { CONFIG } from './config.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
+  utility_power_solar: '☀️',
+  utility_power_plant: '⚡',
+  utility_water_tower: '🗼',
+  utility_water_plant: '💧',
   residential_low: '🏡',
   residential_high: '🏢',
   commercial_store: '🏬',
@@ -56,6 +60,7 @@ export class UIManager {
     this.elQuickCashflow = document.getElementById('quick-cashflow');
     this.elQuickPopulation = document.getElementById('quick-population');
     this.elQuickHappiness = document.getElementById('quick-happiness');
+    this.elQuickUtilityStatus = document.getElementById('quick-utility-status');
 
     // Métricas del Panel Desplegable Centralizado
     this.elFunds = document.getElementById('stat-funds');
@@ -75,6 +80,16 @@ export class UIManager {
     this.elEduStatus = document.getElementById('stat-edu-status');
     this.elFood = document.getElementById('stat-food');
     this.elDay = document.getElementById('stat-day');
+
+    // Redes de Servicios Básicos (Electricidad y Agua)
+    this.elStatPowerSupply = document.getElementById('stat-power-supply');
+    this.elStatPowerDemand = document.getElementById('stat-power-demand');
+    this.elBarPower = document.getElementById('bar-power');
+    this.elStatPowerStatus = document.getElementById('stat-power-status');
+    this.elStatWaterSupply = document.getElementById('stat-water-supply');
+    this.elStatWaterDemand = document.getElementById('stat-water-demand');
+    this.elBarWater = document.getElementById('bar-water');
+    this.elStatWaterStatus = document.getElementById('stat-water-status');
 
     // Botones de pantalla completa
     this.elBtnFullscreen = document.getElementById('btn-toggle-fullscreen');
@@ -581,6 +596,27 @@ export class UIManager {
         const rp = levelData.researchPoints || levelData.research;
         statsHTML += `<div class="insp-stat-item"><span>Ciencia:</span><strong class="tech-color">+${rp} RP/d</strong></div>`;
       }
+
+      // Información de Servicios Básicos (Electricidad y Agua)
+      const sim = this.game.simulation;
+      if (def.category === 'utility') {
+        if (levelData.powerSupply) {
+          statsHTML += `<div class="insp-stat-item"><span>Generación Eléctrica:</span><strong class="positive">+${levelData.powerSupply} MW</strong></div>`;
+        }
+        if (levelData.waterSupply) {
+          statsHTML += `<div class="insp-stat-item"><span>Suministro de Agua:</span><strong class="positive">+${levelData.waterSupply} kL</strong></div>`;
+        }
+      } else {
+        if (levelData.power) {
+          const pStatus = sim.hasPowerOutage ? '<span class="text-danger">⚠️ Sin Energía</span>' : '<span class="text-positive">⚡ Conectado</span>';
+          statsHTML += `<div class="insp-stat-item"><span>Consumo de Luz:</span><strong>${levelData.power} MW (${pStatus})</strong></div>`;
+        }
+        if (levelData.water) {
+          const wStatus = sim.hasWaterShortage ? '<span class="text-danger">⚠️ Sin Agua</span>' : '<span class="text-positive">💧 Conectado</span>';
+          statsHTML += `<div class="insp-stat-item"><span>Consumo de Agua:</span><strong>${levelData.water} kL (${wStatus})</strong></div>`;
+        }
+      }
+
       if (building.damage > 0) {
         statsHTML += `<div class="insp-stat-item"><span>Daño Estructural:</span><strong class="danger-color">${Math.round(building.damage)}%</strong></div>`;
       }
@@ -684,14 +720,77 @@ export class UIManager {
 
     if (this.elDay) this.elDay.textContent = `Día ${sim.day}`;
 
-    // Banner de advertencia de desastre
-    this.updateDisasterBanner(sim.disasters);
+    // 3. Actualizar Redes de Servicios Básicos (Electricidad y Agua)
+    if (this.elQuickUtilityStatus) {
+      if (sim.hasPowerOutage && sim.hasWaterShortage) {
+        this.elQuickUtilityStatus.textContent = 'Crisis ⚠️';
+        this.elQuickUtilityStatus.className = 'text-danger';
+      } else if (sim.hasPowerOutage) {
+        this.elQuickUtilityStatus.textContent = 'Apagón ⚡';
+        this.elQuickUtilityStatus.className = 'text-danger';
+      } else if (sim.hasWaterShortage) {
+        this.elQuickUtilityStatus.textContent = 'Sin Agua 💧';
+        this.elQuickUtilityStatus.className = 'text-danger';
+      } else {
+        this.elQuickUtilityStatus.textContent = '100% OK';
+        this.elQuickUtilityStatus.className = 'text-positive';
+      }
+    }
+
+    // Red Eléctrica
+    if (this.elStatPowerSupply) this.elStatPowerSupply.textContent = sim.powerSupply.toLocaleString();
+    if (this.elStatPowerDemand) this.elStatPowerDemand.textContent = sim.powerDemand.toLocaleString();
+    if (this.elBarPower) {
+      const pPct = sim.powerDemand > 0 ? Math.min(100, Math.round((sim.powerSupply / sim.powerDemand) * 100)) : 100;
+      this.elBarPower.style.width = `${pPct}%`;
+      this.elBarPower.className = `stat-bar-fill ${sim.powerRatio >= 1.0 ? 'good' : sim.powerRatio >= 0.8 ? 'warn' : 'danger'}`;
+    }
+    if (this.elStatPowerStatus) {
+      if (sim.powerDemand === 0) {
+        this.elStatPowerStatus.textContent = 'Sin demanda';
+        this.elStatPowerStatus.className = 'text-positive';
+      } else if (sim.powerSupply >= sim.powerDemand) {
+        const surplus = sim.powerSupply - sim.powerDemand;
+        this.elStatPowerStatus.textContent = `Superávit (+${surplus} MW)`;
+        this.elStatPowerStatus.className = 'text-positive';
+      } else {
+        const deficit = sim.powerDemand - sim.powerSupply;
+        this.elStatPowerStatus.textContent = `Déficit (-${deficit} MW)`;
+        this.elStatPowerStatus.className = 'text-danger';
+      }
+    }
+
+    // Red de Agua Potable
+    if (this.elStatWaterSupply) this.elStatWaterSupply.textContent = sim.waterSupply.toLocaleString();
+    if (this.elStatWaterDemand) this.elStatWaterDemand.textContent = sim.waterDemand.toLocaleString();
+    if (this.elBarWater) {
+      const wPct = sim.waterDemand > 0 ? Math.min(100, Math.round((sim.waterSupply / sim.waterDemand) * 100)) : 100;
+      this.elBarWater.style.width = `${wPct}%`;
+      this.elBarWater.className = `stat-bar-fill ${sim.waterRatio >= 1.0 ? 'good' : sim.waterRatio >= 0.8 ? 'warn' : 'danger'}`;
+    }
+    if (this.elStatWaterStatus) {
+      if (sim.waterDemand === 0) {
+        this.elStatWaterStatus.textContent = 'Sin demanda';
+        this.elStatWaterStatus.className = 'text-positive';
+      } else if (sim.waterSupply >= sim.waterDemand) {
+        const surplus = sim.waterSupply - sim.waterDemand;
+        this.elStatWaterStatus.textContent = `Abastecido (+${surplus} kL)`;
+        this.elStatWaterStatus.className = 'text-positive';
+      } else {
+        const deficit = sim.waterDemand - sim.waterSupply;
+        this.elStatWaterStatus.textContent = `Escasez (-${deficit} kL)`;
+        this.elStatWaterStatus.className = 'text-danger';
+      }
+    }
+
+    // Banner de advertencia de desastre o servicios
+    this.updateDisasterBanner(sim.disasters, sim);
   }
 
-  updateDisasterBanner(disasters) {
-    if (!disasters || !this.elAlertBanner) return;
+  updateDisasterBanner(disasters, sim) {
+    if (!this.elAlertBanner) return;
 
-    if (disasters.warning) {
+    if (disasters && disasters.warning) {
       this.elAlertBanner.className = 'alert-banner warning active';
       this.elAlertBanner.innerHTML = `
         <span class="alert-icon">⚠️</span>
@@ -700,13 +799,40 @@ export class UIManager {
           <span>${disasters.warning.disaster.name} inminente en <strong>${disasters.warning.countdown}s</strong></span>
         </div>
       `;
-    } else if (disasters.activeDisaster) {
+    } else if (disasters && disasters.activeDisaster) {
       this.elAlertBanner.className = 'alert-banner danger active';
       this.elAlertBanner.innerHTML = `
         <span class="alert-icon">🚨</span>
         <div class="alert-content">
           <strong>¡CATÁSTROFE EN CURSO!</strong>
           <span>${disasters.activeDisaster.name} (${disasters.activeDisaster.remainingTicks}s restantes)</span>
+        </div>
+      `;
+    } else if (sim && sim.hasPowerOutage && sim.hasWaterShortage) {
+      this.elAlertBanner.className = 'alert-banner danger active';
+      this.elAlertBanner.innerHTML = `
+        <span class="alert-icon">⚡💧</span>
+        <div class="alert-content">
+          <strong>¡COLAPSO DE SERVICIOS BÁSICOS!</strong>
+          <span>Apagón eléctrico y escasez de agua simultáneos. Construye parques solares y torres de agua.</span>
+        </div>
+      `;
+    } else if (sim && sim.hasPowerOutage) {
+      this.elAlertBanner.className = 'alert-banner warning active';
+      this.elAlertBanner.innerHTML = `
+        <span class="alert-icon">⚡</span>
+        <div class="alert-content">
+          <strong>¡APAGÓN EN LA RED ELÉCTRICA!</strong>
+          <span>La demanda (${sim.powerDemand} MW) supera la generación (${sim.powerSupply} MW). Comercios y fábricas pierden eficiencia.</span>
+        </div>
+      `;
+    } else if (sim && sim.hasWaterShortage) {
+      this.elAlertBanner.className = 'alert-banner warning active';
+      this.elAlertBanner.innerHTML = `
+        <span class="alert-icon">💧</span>
+        <div class="alert-content">
+          <strong>¡CRISIS HÍDRICA MUNICIPAL!</strong>
+          <span>Suministro insuficiente (${sim.waterSupply}/${sim.waterDemand} kL). Las granjas y la salud pública se resienten.</span>
         </div>
       `;
     } else {

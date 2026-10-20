@@ -1,6 +1,7 @@
 /**
  * MOTOR DE SIMULACIÓN URBANA (V2.0)
  * Procesa la demografía, alimentación (granjas), economía laboral (3 niveles),
+ * dependencias de servicios básicos (Electricidad y Agua Potable),
  * seguridad, salud, educación y las dos ramas corporativas.
  */
 
@@ -31,6 +32,17 @@ export class Simulation {
     this.commercialJobs = 0;
     this.foodCapacity = 0;
     this.tileCount = 0;
+
+    // Redes de Servicios Básicos: Electricidad y Agua
+    this.powerSupply = 0;
+    this.powerDemand = 0;
+    this.powerRatio = 1.0;
+    this.hasPowerOutage = false;
+
+    this.waterSupply = 0;
+    this.waterDemand = 0;
+    this.waterRatio = 1.0;
+    this.hasWaterShortage = false;
 
     this.lastIncome = 0;
     this.lastExpenses = 0;
@@ -63,6 +75,12 @@ export class Simulation {
     let commercialMultiplier = 1.0;
     let policyDiscount = 0;
 
+    // Contadores de Redes de Servicios Básicos
+    let totalPowerSupply = 0;
+    let totalPowerDemand = 0;
+    let totalWaterSupply = 0;
+    let totalWaterDemand = 0;
+
     const policeStations = [];
 
     // 1. Recorrido de estructuras (solo celdas raíz)
@@ -83,6 +101,19 @@ export class Simulation {
         if (tile.damage > 20) damagedCount++;
 
         baseUpkeep += (levelData.upkeep || def.upkeep || 0);
+
+        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO
+        totalPowerDemand += (levelData.power || def.power || 0);
+        totalWaterDemand += (levelData.water || def.water || 0);
+
+        // PLANTAS Y GENERADORES DE SERVICIOS BÁSICOS
+        if (def.category === 'utility') {
+          if (def.utilityType === 'power') {
+            totalPowerSupply += (levelData.powerSupply || 0) * healthFactor;
+          } else if (def.utilityType === 'water') {
+            totalWaterSupply += (levelData.waterSupply || 0) * healthFactor;
+          }
+        }
 
         // VIVIENDAS
         if (def.category === 'residential') {
@@ -123,7 +154,10 @@ export class Simulation {
           parkHappinessBonus += (levelData.happiness || 10);
           if (levelData.policyDiscount) policyDiscount += levelData.policyDiscount;
         } else if (def.id === 'service_barrier') {
-          if (levelData.hydroPower) hydroRevenue += levelData.hydroPower;
+          if (levelData.hydroPower) {
+            hydroRevenue += levelData.hydroPower;
+            totalPowerSupply += levelData.hydroPower; // Compuertas hidroeléctricas
+          }
         }
         // NATURALEZA Y PLAZAS
         else if (def.category === 'nature') {
@@ -131,6 +165,29 @@ export class Simulation {
           if (levelData.research) researchGen += levelData.research;
         }
       }
+    }
+
+    // 2. EQUILIBRIO DE SERVICIOS BÁSICOS (RATIOS DE SUMINISTRO VS DEMANDA)
+    this.powerSupply = Math.round(totalPowerSupply);
+    this.powerDemand = Math.round(totalPowerDemand);
+    this.waterSupply = Math.round(totalWaterSupply);
+    this.waterDemand = Math.round(totalWaterDemand);
+
+    this.powerRatio = this.powerDemand > 0 ? Math.min(1.0, this.powerSupply / this.powerDemand) : 1.0;
+    this.waterRatio = this.waterDemand > 0 ? Math.min(1.0, this.waterSupply / this.waterDemand) : 1.0;
+
+    this.hasPowerOutage = this.powerDemand > 0 && this.powerRatio < 0.95;
+    this.hasWaterShortage = this.waterDemand > 0 && this.waterRatio < 0.95;
+
+    // Modulación por falta de agua en las cosechas
+    if (this.hasWaterShortage) {
+      farmFoodSupply = Math.round(farmFoodSupply * Math.max(0.15, this.waterRatio));
+    }
+
+    // Modulación por falta de electricidad en los comercios
+    if (this.hasPowerOutage) {
+      commercialMultiplier *= Math.max(0.35, this.powerRatio);
+      researchGen = Math.round(researchGen * Math.max(0.25, this.powerRatio));
     }
 
     this.housingCapacity = totalHousing;
@@ -141,7 +198,7 @@ export class Simulation {
     // Actualizar nivel educativo
     this.education = Math.min(100, Math.max(10, Math.round(15 + educationBoost + (researchGen * 0.2))));
 
-    // 2. ACTUALIZACIÓN DE EMPRESAS (RAMAS MASIVA VS CALIFICADA)
+    // 3. ACTUALIZACIÓN DE EMPRESAS (RAMAS MASIVA VS CALIFICADA)
     const corpResult = this.corporations.update(
       this.grid,
       {
@@ -155,22 +212,27 @@ export class Simulation {
       this.research
     );
 
+    // Si hay apagón, la producción industrial se reduce
+    if (this.hasPowerOutage) {
+      corpResult.totalIndustrialRevenue = Math.round(corpResult.totalIndustrialRevenue * Math.max(0.4, this.powerRatio));
+    }
+
     researchGen += corpResult.bonusResearch;
     this.research.addPoints(researchGen);
 
-    // 3. EQUILIBRIO LABORAL
+    // 4. EQUILIBRIO LABORAL
     this.workforce = Math.floor(this.population * CONFIG.SIMULATION.WORKFORCE_RATIO);
     const totalJobs = commercialJobs + corpResult.totalIndustrialJobs;
     this.employed = Math.min(this.workforce, totalJobs);
     this.unemployed = Math.max(0, this.workforce - this.employed);
     this.unemploymentRate = this.workforce > 0 ? Math.round((this.unemployed / this.workforce) * 100) : 0;
 
-    // 4. POLUCIÓN Y AMBIENTE
+    // 5. POLUCIÓN Y AMBIENTE
     const rawPollution = corpResult.netIndustrialPollution + Math.floor(this.population / 40);
     const parkMitigation = Math.min(rawPollution * 0.5, parkHappinessBonus * 0.65);
     this.pollution = Math.max(2, Math.round(rawPollution - parkMitigation));
 
-    // 5. DEMOGRAFÍA Y FELICIDAD
+    // 6. DEMOGRAFÍA Y FELICIDAD CON IMPACTO DE ELECTRICIDAD Y AGUA
     let calcHappiness = 55;
 
     // Empleo
@@ -180,12 +242,22 @@ export class Simulation {
       calcHappiness += (25 - this.unemploymentRate) * 0.5;
     }
 
-    // Alimento y granjas (si hay déficit de comida, penaliza)
+    // Alimento y granjas
     if (this.population > 50 && this.foodCapacity < this.population) {
       const deficit = (this.population - this.foodCapacity) / this.population;
       calcHappiness -= deficit * 20;
     } else if (this.foodCapacity >= this.population && this.population > 20) {
       calcHappiness += 8; // Soberanía alimentaria
+    }
+
+    // PENALIZACIÓN POR APAGÓN ELÉCTRICO Y ESCASEZ DE AGUA
+    if (this.hasPowerOutage) {
+      const powerPenalty = (1.0 - this.powerRatio) * 28;
+      calcHappiness -= powerPenalty;
+    }
+    if (this.hasWaterShortage) {
+      const waterPenalty = (1.0 - this.waterRatio) * 25;
+      calcHappiness -= waterPenalty;
     }
 
     // Polución y parques
@@ -212,16 +284,21 @@ export class Simulation {
       this.population = this.housingCapacity;
     }
 
-    // 6. SEGURIDAD CIUDADANA
+    // 7. SEGURIDAD CIUDADANA Y SALUD
     let calcSecurity = 50;
     calcSecurity += Math.min(45, policeCoverageCount);
     calcSecurity -= this.unemploymentRate * 0.5;
     calcSecurity += Math.min(15, this.education * 0.18);
     calcSecurity += Math.min(15, hospitalCoverage * 0.35);
 
+    // Sin agua potable los hidrantes pierden presión y la seguridad decae
+    if (this.hasWaterShortage) {
+      calcSecurity -= Math.round((1.0 - this.waterRatio) * 22);
+    }
+
     this.security = Math.max(5, Math.min(100, Math.round(calcSecurity)));
 
-    // 7. FINANZAS Y CAJA
+    // 8. FINANZAS Y CAJA
     const actualResTax = (this.population / Math.max(1, this.housingCapacity)) * baseResTax;
     const finalCommTax = baseCommTax * commercialMultiplier;
     const grossIncome = Math.round(actualResTax + finalCommTax + corpResult.totalIndustrialRevenue + hydroRevenue);
@@ -252,7 +329,7 @@ export class Simulation {
       }
     }
 
-    // 8. DESASTRES
+    // 9. DESASTRES
     this.disasters.update(
       this.grid,
       {
@@ -278,64 +355,34 @@ export class Simulation {
       for (let gx = 0; gx < this.grid.size; gx++) {
         const t = this.grid.tiles[gy][gx];
         if (t && t.building && t.building.isRoot && t.damage > 0) {
+          damagedTiles.push({ gx, gy, damage: t.damage });
           repairCost += Math.round(t.damage * 1.5);
-          damagedTiles.push({ gx, gy });
         }
       }
     }
 
     if (damagedTiles.length === 0) {
-      return { success: false, reason: 'No hay estructuras dañadas en la ciudad.' };
+      return { success: false, reason: 'No hay estructuras dañadas en el municipio' };
     }
 
     if (this.funds < repairCost) {
-      return {
-        success: false,
-        reason: `Fondos insuficientes. Se requieren $${repairCost} (disponible: $${this.funds})`,
-      };
+      return { success: false, reason: `Fondos insuficientes. Se requieren $${repairCost}` };
     }
 
     this.funds -= repairCost;
-    damagedTiles.forEach(({ gx, gy }) => {
-      this.grid.repairTile(gx, gy, 100);
+    damagedTiles.forEach((d) => {
+      this.grid.repairTile(d.gx, d.gy, 100);
     });
 
-    if (this.audio) this.audio.playBuild();
+    this.audio.playBuild();
     return { success: true, count: damagedTiles.length, cost: repairCost };
   }
 
   togglePolicy(policyId) {
     if (this.policies[policyId]) {
       this.policies[policyId].active = !this.policies[policyId].active;
-      return true;
+      return this.policies[policyId].active;
     }
     return false;
-  }
-
-  serialize() {
-    return {
-      day: this.day,
-      funds: this.funds,
-      population: this.population,
-      happiness: this.happiness,
-      security: this.security,
-      pollution: this.pollution,
-      education: this.education,
-      policies: this.policies,
-    };
-  }
-
-  deserialize(data) {
-    if (!data) return;
-    this.day = data.day || 1;
-    this.funds = data.funds !== undefined ? data.funds : CONFIG.SIMULATION.INITIAL_FUNDS;
-    this.population = data.population || 0;
-    this.happiness = data.happiness !== undefined ? data.happiness : 75;
-    this.security = data.security !== undefined ? data.security : 80;
-    this.pollution = data.pollution !== undefined ? data.pollution : 5;
-    this.education = data.education !== undefined ? data.education : 20;
-    if (data.policies) {
-      this.policies = { ...this.policies, ...data.policies };
-    }
   }
 }
