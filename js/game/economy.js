@@ -22,12 +22,12 @@ export class EconomySystem {
     // 1. Tesorería Municipal del Estado (El Alcalde)
     this.stateFunds = initialStateFunds !== null 
       ? initialStateFunds 
-      : (ecoConfig.INITIAL_STATE_TREASURY || ecoConfig.INITIAL_TREASURY || 4000);
+      : (ecoConfig.INITIAL_STATE_TREASURY || ecoConfig.INITIAL_TREASURY || (CONFIG.SIMULATION && CONFIG.SIMULATION.INITIAL_FUNDS) || 15000);
 
     // 2. Capital Privado del Holding Corporativo (El Empresario)
     this.corporateFunds = initialCorpFunds !== null 
       ? initialCorpFunds 
-      : (ecoConfig.INITIAL_CORPORATE_FUNDS || 3500);
+      : (ecoConfig.INITIAL_CORPORATE_FUNDS || (CONFIG.SIMULATION && CONFIG.SIMULATION.INITIAL_CORPORATE_FUNDS) || 12000);
 
     // Tasas impositivas decretadas por el Estado (0.01 a 0.25)
     this.taxRates = {

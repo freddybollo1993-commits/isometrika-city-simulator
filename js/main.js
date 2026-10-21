@@ -54,6 +54,7 @@ export class Game {
       this.disasters,
       this.audio
     );
+    this.grid.simulation = this.simulation;
 
     this.storage = new StorageManager(this.simulation, this.grid, this.research, this.simulation.economy);
     this.ui = new UIManager(this);
@@ -105,7 +106,7 @@ export class Game {
     }
 
     if (speed > 0) {
-      // 1x = 5000ms (5s por día), 2x = 2500ms (2.5s por día)
+      // 1x = 10000ms (10s por día), 2x = 5000ms (5s por día)
       const interval = Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / Math.max(1, speed));
 
       this.simTimer = setInterval(() => {
@@ -583,6 +584,7 @@ export class Game {
       this.disasters,
       this.audio
     );
+    this.grid.simulation = this.simulation;
 
     this.storage.simulation = this.simulation;
     this.storage.grid = this.grid;

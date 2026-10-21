@@ -16,10 +16,10 @@ export const CONFIG = {
   },
 
   SIMULATION: {
-    TICK_INTERVAL_MS: 5000, // 5 segundos por día a 1x (pacing pausado, estratégico y contemplativo)
+    TICK_INTERVAL_MS: 10000, // 10 segundos por día a 1x (ritmo contemplativo y estratégico)
     AUTOSAVE_INTERVAL_MS: 30000,
-    INITIAL_FUNDS: 4000, // Tesoro Público del Estado (El Alcalde)
-    INITIAL_CORPORATE_FUNDS: 3500, // Capital Privado del Holding (El Empresario)
+    INITIAL_FUNDS: 15000, // Tesoro Público del Estado (El Alcalde - adaptado a escala realista de costos)
+    INITIAL_CORPORATE_FUNDS: 12000, // Capital Privado del Holding (El Empresario - adaptado a escala realista)
     INITIAL_POPULATION: 0,
     INITIAL_RESEARCH: 60,
     INITIAL_HAPPINESS: 75,
@@ -27,6 +27,61 @@ export const CONFIG = {
     INITIAL_POLLUTION: 5,
     WORKFORCE_RATIO: 0.65,
     BASE_DISASTER_INTERVAL_TICKS: 75,
+  },
+
+  // Umbrales de densidad poblacional requerida para construir cada unidad de edificio
+  // Exige un desarrollo sistemático y premeditado aprovechando la capacidad existente antes de expandir
+  POPULATION_THRESHOLDS: {
+    // Residencial vertical (justificado por densidad previa en casas bajas)
+    residential_high: { minPop: 40, popPerUnit: 60 },
+    residential_social: { minPop: 25, popPerUnit: 45 },
+
+    // Comercio
+    commercial_store: { minPop: 0, popPerUnit: 15 }, // 1ª libre en la fundación, luego 1 cada 15 hab
+    commercial_gastronomy: { minPop: 20, popPerUnit: 25 },
+    commercial_market: { minPop: 25, popPerUnit: 35 },
+    commercial_super: { minPop: 50, popPerUnit: 60 },
+    commercial_tower: { minPop: 80, popPerUnit: 90 },
+
+    // Agricultura e Industria
+    farm_organic: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación, luego 1 cada 25 hab
+    industrial_mass: { minPop: 20, popPerUnit: 40 },
+    industrial_agro: { minPop: 25, popPerUnit: 45 },
+    industrial_tech: { minPop: 45, popPerUnit: 65 },
+
+    // Servicios Básicos
+    utility_power_solar: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación, luego 1 cada 25 hab
+    utility_power_plant: { minPop: 50, popPerUnit: 80 },
+    utility_water_tower: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación, luego 1 cada 25 hab
+    utility_water_plant: { minPop: 50, popPerUnit: 80 },
+
+    // Tránsito y Servicios Públicos
+    transit_bus_terminal: { minPop: 20, popPerUnit: 35 },
+    service_police: { minPop: 15, popPerUnit: 40 },
+    service_fire: { minPop: 15, popPerUnit: 40 },
+    service_hospital: { minPop: 35, popPerUnit: 70 },
+    service_school: { minPop: 15, popPerUnit: 40 },
+    service_university: { minPop: 60, popPerUnit: 100 },
+    service_seismic_radar: { minPop: 25, popPerUnit: 60 },
+    service_research: { minPop: 40, popPerUnit: 80 },
+    service_cityhall: { minPop: 20, maxTotal: 1 }, // Solo 1 sede de alcaldía en la ciudad
+  },
+
+  // Zonas de exclusión espacial: Distancia Manhattan mínima entre edificios públicos del mismo tipo
+  // Impide amontonamientos y garantiza una distribución equilibrada y uniforme por el mapa
+  MIN_PUBLIC_SPACING: {
+    utility_power_solar: 5,
+    utility_power_plant: 8,
+    utility_water_tower: 5,
+    utility_water_plant: 8,
+    transit_bus_terminal: 6,
+    service_police: 6,
+    service_fire: 6,
+    service_hospital: 9,
+    service_school: 6,
+    service_university: 10,
+    service_seismic_radar: 8,
+    service_cityhall: 99, // Solo 1 en todo el mapa
   },
 
   PALETTE: {
@@ -58,7 +113,7 @@ export const CONFIG = {
       name: 'Carretera Asfaltada',
       category: 'infra',
       size: 1, // 1x1
-      cost: 20,
+      cost: 40,
       upkeep: 1,
       description: 'Conecta zonas y permite la movilidad urbana.',
       height: 4,
@@ -69,15 +124,15 @@ export const CONFIG = {
       category: 'infra',
       size: 1, // 1x1
       height: 24,
-      cost: 280,
-      upkeep: 12,
+      cost: 1500,
+      upkeep: 35,
       busTerminal: true,
       radius: 7,
       jobs: 8,
       levels: {
-        1: { cost: 280, upkeep: 12, radius: 7, jobs: 8, power: 4, water: 2 },
-        2: { cost: 480, upkeep: 20, radius: 10, jobs: 14, power: 7, water: 4 },
-        3: { cost: 750, upkeep: 32, radius: 14, jobs: 22, power: 10, water: 6 },
+        1: { cost: 1500, upkeep: 35, radius: 7, jobs: 8, power: 4, water: 2 },
+        2: { cost: 2600, upkeep: 55, radius: 10, jobs: 14, power: 7, water: 4 },
+        3: { cost: 4200, upkeep: 85, radius: 14, jobs: 22, power: 10, water: 6 },
       },
       maxBonus: 'Red Metropolitana Exprés: Reduce la fricción de transporte al mínimo (factor 0.35) en todo su radio.',
       description: 'Línea de transporte público que reduce a la mitad el gasto diario de desplazamiento de los ciudadanos en su radio.',
@@ -94,12 +149,12 @@ export const CONFIG = {
       utilityType: 'power',
       size: 1, // 1x1
       height: 14,
-      cost: 250,
-      upkeep: 8,
+      cost: 1600,
+      upkeep: 25,
       levels: {
-        1: { cost: 250, upkeep: 8, powerSupply: 80, pollution: 0 },
-        2: { cost: 420, upkeep: 14, powerSupply: 160, pollution: 0 },
-        3: { cost: 700, upkeep: 22, powerSupply: 280, pollution: -1 },
+        1: { cost: 1600, upkeep: 25, powerSupply: 80, pollution: 0 },
+        2: { cost: 2800, upkeep: 45, powerSupply: 160, pollution: 0 },
+        3: { cost: 4500, upkeep: 70, powerSupply: 280, pollution: -1 },
       },
       maxBonus: 'Baterías de Grafeno: Generación limpia 24/7 y superávit de energía que genera dividendos.',
       description: 'Paneles solares de silicio con acumuladores para energía eléctrica limpia inagotable.',
@@ -115,12 +170,12 @@ export const CONFIG = {
       utilityType: 'power',
       size: 2, // 2x2
       height: 48,
-      cost: 650,
-      upkeep: 28,
+      cost: 4800,
+      upkeep: 80,
       levels: {
-        1: { cost: 650, upkeep: 28, powerSupply: 250, pollution: 8 },
-        2: { cost: 1100, upkeep: 48, powerSupply: 500, pollution: 12 },
-        3: { cost: 1800, upkeep: 75, powerSupply: 900, pollution: 6 },
+        1: { cost: 4800, upkeep: 80, powerSupply: 280, pollution: 8 },
+        2: { cost: 8200, upkeep: 140, powerSupply: 560, pollution: 12 },
+        3: { cost: 13500, upkeep: 220, powerSupply: 1000, pollution: 6 },
       },
       maxBonus: 'Cogeneración Geotérmica: Triplica la potencia eléctrica y reduce emisiones en 50%.',
       description: 'Central de alta potencia con turbinas y transformadores para grandes distritos.',
@@ -136,12 +191,12 @@ export const CONFIG = {
       utilityType: 'water',
       size: 1, // 1x1
       height: 38,
-      cost: 220,
-      upkeep: 6,
+      cost: 1200,
+      upkeep: 20,
       levels: {
-        1: { cost: 220, upkeep: 6, waterSupply: 80, pressureBoost: 10 },
-        2: { cost: 380, upkeep: 12, waterSupply: 160, pressureBoost: 20 },
-        3: { cost: 620, upkeep: 18, waterSupply: 280, pressureBoost: 35 },
+        1: { cost: 1200, upkeep: 20, waterSupply: 80, pressureBoost: 10 },
+        2: { cost: 2100, upkeep: 35, waterSupply: 160, pressureBoost: 20 },
+        3: { cost: 3400, upkeep: 55, waterSupply: 280, pressureBoost: 35 },
       },
       maxBonus: 'Red Hidráulica Presurizada: Inmunidad total a sequías y garantiza caudal constante.',
       description: 'Depósito elevado de gravedad que bombea y abastece agua potable al vecindario.',
@@ -157,12 +212,12 @@ export const CONFIG = {
       utilityType: 'water',
       size: 2, // 2x2
       height: 24,
-      cost: 600,
-      upkeep: 24,
+      cost: 3800,
+      upkeep: 65,
       levels: {
-        1: { cost: 600, upkeep: 24, waterSupply: 250, healthBonus: 5 },
-        2: { cost: 1050, upkeep: 42, waterSupply: 500, healthBonus: 12 },
-        3: { cost: 1750, upkeep: 68, waterSupply: 900, healthBonus: 22 },
+        1: { cost: 3800, upkeep: 65, waterSupply: 280, healthBonus: 5 },
+        2: { cost: 6500, upkeep: 110, waterSupply: 560, healthBonus: 12 },
+        3: { cost: 10800, upkeep: 175, waterSupply: 1000, healthBonus: 22 },
       },
       maxBonus: 'Filtración por Nanomembranas: Agua ultra-pura que eleva la salud pública +25% y felicidad +10%.',
       description: 'Gran estación de tratamiento con piscinas de decantación y filtrado bacteriológico.',
@@ -179,12 +234,12 @@ export const CONFIG = {
       category: 'residential',
       size: 1, // 1x1
       height: 28,
-      cost: 80,
-      upkeep: 2,
+      cost: 450,
+      upkeep: 4,
       levels: {
-        1: { cost: 80, upkeep: 2, capacity: 4, tax: 1.6, pollution: 0, power: 1, water: 2, description: 'Cabaña rural y casa de campo familiar.' },
-        2: { cost: 160, upkeep: 4, capacity: 12, tax: 2.0, pollution: 1, power: 4, water: 5, description: 'Vivienda suburbana y dúplex con jardín.' },
-        3: { cost: 300, upkeep: 7, capacity: 28, tax: 2.5, pollution: 0, power: 2, water: 8, description: 'Villa urbana / triplex con paneles solares.' },
+        1: { cost: 450, upkeep: 4, capacity: 4, tax: 1.6, pollution: 0, power: 1, water: 2, description: 'Cabaña rural y casa de campo familiar.' },
+        2: { cost: 850, upkeep: 8, capacity: 12, tax: 2.0, pollution: 1, power: 4, water: 5, description: 'Vivienda suburbana y dúplex con jardín.' },
+        3: { cost: 1600, upkeep: 15, capacity: 28, tax: 2.5, pollution: 0, power: 2, water: 8, description: 'Villa urbana / triplex con paneles solares.' },
       },
       maxBonus: 'Autonomía Solar: Genera energía limpia, eleva felicidad +15% y reduce polución -1 ppm.',
       description: 'Evoluciona desde una cabaña rural unifamiliar (4 hab.) hasta villas urbanas de baja densidad (28 hab.).',
@@ -199,12 +254,12 @@ export const CONFIG = {
       category: 'residential',
       size: 2, // 2x2
       height: 72,
-      cost: 520,
-      upkeep: 16,
+      cost: 3600,
+      upkeep: 55,
       levels: {
-        1: { cost: 520, upkeep: 16, capacity: 80, tax: 2.2, pollution: 3, power: 18, water: 16, description: 'Bloque residencial moderno (20 departamentos).' },
-        2: { cost: 900, upkeep: 28, capacity: 180, tax: 2.6, pollution: 4, power: 32, water: 28, description: 'Condominio metropolitano (45 departamentos).' },
-        3: { cost: 1500, upkeep: 48, capacity: 320, tax: 3.0, pollution: 2, power: 48, water: 42, description: 'Macro-rascacielos con terrazas verdes (80 departamentos).' },
+        1: { cost: 3600, upkeep: 55, capacity: 80, tax: 2.2, pollution: 3, power: 18, water: 16, description: 'Bloque residencial moderno (20 departamentos).' },
+        2: { cost: 6200, upkeep: 95, capacity: 180, tax: 2.6, pollution: 4, power: 32, water: 28, description: 'Condominio metropolitano (45 departamentos).' },
+        3: { cost: 10500, upkeep: 160, capacity: 320, tax: 3.0, pollution: 2, power: 48, water: 42, description: 'Macro-rascacielos con terrazas verdes (80 departamentos).' },
       },
       maxBonus: 'Jardines Colgantes: Sin penalización por hacinamiento y recaudación fiscal +25%.',
       description: 'Complejo residencial moderno de alta densidad para metrópolis consolidadas (80 a 320 hab.).',
@@ -221,12 +276,12 @@ export const CONFIG = {
       socialHousing: true,
       size: 2, // 2x2
       height: 50,
-      cost: 450,
-      upkeep: 14,
+      cost: 2800,
+      upkeep: 45,
       levels: {
-        1: { cost: 450, upkeep: 14, capacity: 90, tax: 0.9, subsidizedRent: 4, pollution: 2, power: 12, water: 12, description: 'Módulos habitacionales públicos básicos.' },
-        2: { cost: 800, upkeep: 24, capacity: 200, tax: 1.1, subsidizedRent: 6, pollution: 2, power: 22, water: 22, description: 'Complejo urbano de interés social.' },
-        3: { cost: 1350, upkeep: 38, capacity: 360, tax: 1.3, subsidizedRent: 9, pollution: 1, power: 34, water: 34, description: 'Supermanzana de vivienda comunitaria macro.' },
+        1: { cost: 2800, upkeep: 45, capacity: 90, tax: 0.9, subsidizedRent: 4, pollution: 2, power: 12, water: 12, description: 'Módulos habitacionales públicos básicos.' },
+        2: { cost: 4800, upkeep: 80, capacity: 200, tax: 1.1, subsidizedRent: 6, pollution: 2, power: 22, water: 22, description: 'Complejo urbano de interés social.' },
+        3: { cost: 8200, upkeep: 135, capacity: 360, tax: 1.3, subsidizedRent: 9, pollution: 1, power: 34, water: 34, description: 'Supermanzana de vivienda comunitaria macro.' },
       },
       maxBonus: 'Barrio Protegido: Alquileres sociales fijados por ley que impiden desahucios y blindan los ahorros familiares ante recesiones.',
       description: 'Bloques habitacionales públicos gestionados por el municipio para asegurar vivienda digna y asequible (90 a 360 hab.).',
@@ -243,12 +298,12 @@ export const CONFIG = {
       category: 'commercial',
       size: 1, // 1x1
       height: 34,
-      cost: 220,
-      upkeep: 8,
+      cost: 950,
+      upkeep: 22,
       levels: {
-        1: { cost: 220, upkeep: 8, jobs: 15, revenue: 3.5, pollution: 2, power: 6, water: 4 },
-        2: { cost: 360, upkeep: 14, jobs: 28, revenue: 4.2, pollution: 2, power: 10, water: 6 },
-        3: { cost: 580, upkeep: 22, jobs: 45, revenue: 5.0, pollution: 1, power: 15, water: 8 },
+        1: { cost: 950, upkeep: 22, jobs: 15, revenue: 3.5, pollution: 2, power: 6, water: 4 },
+        2: { cost: 1650, upkeep: 38, jobs: 28, revenue: 4.2, pollution: 2, power: 10, water: 6 },
+        3: { cost: 2700, upkeep: 60, jobs: 45, revenue: 5.0, pollution: 1, power: 15, water: 8 },
       },
       maxBonus: 'Comercio de Proximidad: Felicidad +15% en casas cercanas y propinas turísticas extra.',
       description: 'Boutique minorista con toldo y vitrina comercial.',
@@ -262,14 +317,14 @@ export const CONFIG = {
       category: 'commercial',
       size: 1, // 1x1
       height: 30,
-      cost: 240,
-      upkeep: 9,
+      cost: 1100,
+      upkeep: 25,
       gastronomy: true,
       radius: 5,
       levels: {
-        1: { cost: 240, upkeep: 9, jobs: 22, revenue: 3.6, pollution: 2, power: 6, water: 8, happinessBonus: 8 },
-        2: { cost: 400, upkeep: 16, jobs: 40, revenue: 4.4, pollution: 2, power: 10, water: 12, happinessBonus: 15 },
-        3: { cost: 680, upkeep: 26, jobs: 65, revenue: 5.4, pollution: 1, power: 16, water: 18, happinessBonus: 22 },
+        1: { cost: 1100, upkeep: 25, jobs: 22, revenue: 3.6, pollution: 2, power: 6, water: 8, happinessBonus: 8 },
+        2: { cost: 1900, upkeep: 44, jobs: 40, revenue: 4.4, pollution: 2, power: 10, water: 12, happinessBonus: 15 },
+        3: { cost: 3100, upkeep: 70, jobs: 65, revenue: 5.4, pollution: 1, power: 16, water: 18, happinessBonus: 22 },
       },
       maxBonus: 'Distrito Michelin: Atrae turismo gastronómico global y eleva la felicidad barrial +25%.',
       description: 'Restaurantes con terrazas exteriores y cafés que absorben el ocio ciudadano y dinamizan el comercio.',
@@ -283,12 +338,12 @@ export const CONFIG = {
       category: 'commercial',
       size: 1, // 1x1
       height: 28,
-      cost: 280,
-      upkeep: 10,
+      cost: 1250,
+      upkeep: 28,
       levels: {
-        1: { cost: 280, upkeep: 10, jobs: 30, revenue: 3.2, pollution: 3, power: 8, water: 12 },
-        2: { cost: 450, upkeep: 18, jobs: 55, revenue: 3.8, pollution: 4, power: 14, water: 18 },
-        3: { cost: 750, upkeep: 28, jobs: 85, revenue: 4.6, pollution: 2, power: 20, water: 25 },
+        1: { cost: 1250, upkeep: 28, jobs: 30, revenue: 3.2, pollution: 3, power: 8, water: 12 },
+        2: { cost: 2200, upkeep: 48, jobs: 55, revenue: 3.8, pollution: 4, power: 14, water: 18 },
+        3: { cost: 3600, upkeep: 80, jobs: 85, revenue: 4.6, pollution: 2, power: 20, water: 25 },
       },
       maxBonus: 'Feria Gastronómica: Inmigración +30% y absorbe desempleo no calificado de inmediato.',
       description: 'Puestos techados con alimentos frescos, frutas y artesanías locales.',
@@ -302,12 +357,12 @@ export const CONFIG = {
       category: 'commercial',
       size: 2, // 2x2
       height: 40,
-      cost: 650,
-      upkeep: 24,
+      cost: 3200,
+      upkeep: 60,
       levels: {
-        1: { cost: 650, upkeep: 24, jobs: 60, revenue: 4.0, pollution: 4, power: 25, water: 15 },
-        2: { cost: 1100, upkeep: 42, jobs: 110, revenue: 4.8, pollution: 5, power: 40, water: 25 },
-        3: { cost: 1800, upkeep: 65, jobs: 170, revenue: 5.6, pollution: 3, power: 60, water: 35 },
+        1: { cost: 3200, upkeep: 60, jobs: 60, revenue: 4.0, pollution: 4, power: 25, water: 15 },
+        2: { cost: 5500, upkeep: 105, jobs: 110, revenue: 4.8, pollution: 5, power: 40, water: 25 },
+        3: { cost: 9000, upkeep: 165, jobs: 170, revenue: 5.6, pollution: 3, power: 60, water: 35 },
       },
       maxBonus: 'Logística Resiliente: Suministro ininterrumpido que protege la felicidad ante desastres.',
       description: 'Hipermercado con muelles de carga y estacionamiento exterior.',
@@ -321,12 +376,12 @@ export const CONFIG = {
       category: 'commercial',
       size: 2, // 2x2
       height: 80,
-      cost: 900,
-      upkeep: 35,
+      cost: 4800,
+      upkeep: 85,
       levels: {
-        1: { cost: 900, upkeep: 35, jobs: 90, revenue: 5.0, pollution: 5, power: 40, water: 25 },
-        2: { cost: 1600, upkeep: 60, jobs: 160, revenue: 6.2, pollution: 6, power: 70, water: 40 },
-        3: { cost: 2600, upkeep: 95, jobs: 260, revenue: 7.5, pollution: 4, power: 100, water: 60 },
+        1: { cost: 4800, upkeep: 85, jobs: 90, revenue: 5.0, pollution: 5, power: 40, water: 25 },
+        2: { cost: 8400, upkeep: 150, jobs: 160, revenue: 6.2, pollution: 6, power: 70, water: 40 },
+        3: { cost: 14000, upkeep: 240, jobs: 260, revenue: 7.5, pollution: 4, power: 100, water: 60 },
       },
       maxBonus: 'Distrito Financiero: Multiplica los ingresos comerciales de toda la ciudad en +15%.',
       description: 'Rascacielos corporativo con fachada acristalada de alta tecnología.',
@@ -342,12 +397,12 @@ export const CONFIG = {
       category: 'farm',
       size: 2, // 2x2
       height: 20,
-      cost: 320,
-      upkeep: 10,
+      cost: 1500,
+      upkeep: 25,
       levels: {
-        1: { cost: 320, upkeep: 10, jobs: 25, foodCapacity: 100, happiness: 5, power: 5, water: 30 },
-        2: { cost: 550, upkeep: 18, jobs: 45, foodCapacity: 250, happiness: 10, power: 8, water: 55 },
-        3: { cost: 950, upkeep: 28, jobs: 70, foodCapacity: 500, happiness: 18, power: 12, water: 80 },
+        1: { cost: 1500, upkeep: 25, jobs: 25, foodCapacity: 100, happiness: 5, power: 5, water: 30 },
+        2: { cost: 2600, upkeep: 45, jobs: 45, foodCapacity: 250, happiness: 10, power: 8, water: 55 },
+        3: { cost: 4200, upkeep: 70, jobs: 70, foodCapacity: 500, happiness: 18, power: 12, water: 80 },
       },
       maxBonus: 'Invernaderos Hidropónicos: Inmunidad a sequías y olas de calor; salud pública +20%.',
       description: 'Cultivos parcelados, silos de granos y huertos periurbanos.',
@@ -364,12 +419,12 @@ export const CONFIG = {
       branch: 'mass',
       size: 2, // 2x2
       height: 52,
-      cost: 420,
-      upkeep: 18,
+      cost: 3800,
+      upkeep: 65,
       levels: {
-        1: { cost: 420, upkeep: 18, jobs: 90, revenuePerJob: 3.8, pollution: 28, power: 35, water: 25 },
-        2: { cost: 800, upkeep: 32, jobs: 180, revenuePerJob: 4.4, pollution: 45, power: 65, water: 45 },
-        3: { cost: 1500, upkeep: 55, jobs: 300, revenuePerJob: 5.2, pollution: 65, power: 110, water: 70 },
+        1: { cost: 3800, upkeep: 65, jobs: 90, revenuePerJob: 3.8, pollution: 28, power: 35, water: 25 },
+        2: { cost: 6600, upkeep: 115, jobs: 180, revenuePerJob: 4.4, pollution: 45, power: 65, water: 45 },
+        3: { cost: 11000, upkeep: 185, jobs: 300, revenuePerJob: 5.2, pollution: 65, power: 110, water: 70 },
       },
       maxBonus: 'Líneas Automatizadas: Duplica ingresos brutos de exportación y desbloquea superproducción.',
       description: 'Industria pesada. Emplea a gran volumen pero emite densas nubes de smog.',
@@ -385,12 +440,12 @@ export const CONFIG = {
       branch: 'tech',
       size: 2, // 2x2
       height: 64,
-      cost: 850,
-      upkeep: 35,
+      cost: 5200,
+      upkeep: 90,
       levels: {
-        1: { cost: 850, upkeep: 35, jobs: 45, revenuePerJob: 6.8, pollution: -4, research: 5, power: 25, water: 15 },
-        2: { cost: 1500, upkeep: 58, jobs: 85, revenuePerJob: 8.2, pollution: -10, research: 12, power: 45, water: 25 },
-        3: { cost: 2400, upkeep: 88, jobs: 140, revenuePerJob: 10.0, pollution: -20, research: 24, power: 75, water: 40 },
+        1: { cost: 5200, upkeep: 90, jobs: 45, revenuePerJob: 6.8, pollution: -4, research: 5, power: 25, water: 15 },
+        2: { cost: 9000, upkeep: 155, jobs: 85, revenuePerJob: 8.2, pollution: -10, research: 12, power: 45, water: 25 },
+        3: { cost: 15000, upkeep: 250, jobs: 140, revenuePerJob: 10.0, pollution: -20, research: 24, power: 75, water: 40 },
       },
       maxBonus: 'Centro Cuántico: Absorbe polución en 3 celdas a la redonda y reduce costos de ciencia -30%.',
       description: 'Hub de bioingeniería y computación limpia con empleo altamente remunerado.',
@@ -407,12 +462,12 @@ export const CONFIG = {
       agroIndustry: true,
       size: 2, // 2x2
       height: 48,
-      cost: 580,
-      upkeep: 24,
+      cost: 3200,
+      upkeep: 55,
       levels: {
-        1: { cost: 580, upkeep: 24, jobs: 50, revenuePerJob: 4.6, pollution: 12, power: 22, water: 30, exportBoost: 1.8 },
-        2: { cost: 1000, upkeep: 42, jobs: 95, revenuePerJob: 5.8, pollution: 18, power: 40, water: 50, exportBoost: 2.5 },
-        3: { cost: 1700, upkeep: 68, jobs: 160, revenuePerJob: 7.2, pollution: 24, power: 65, water: 75, exportBoost: 3.5 },
+        1: { cost: 3200, upkeep: 55, jobs: 50, revenuePerJob: 4.6, pollution: 12, power: 22, water: 30, exportBoost: 1.8 },
+        2: { cost: 5600, upkeep: 95, jobs: 95, revenuePerJob: 5.8, pollution: 18, power: 40, water: 50, exportBoost: 2.5 },
+        3: { cost: 9200, upkeep: 155, jobs: 160, revenuePerJob: 7.2, pollution: 24, power: 65, water: 75, exportBoost: 3.5 },
       },
       maxBonus: 'Bioprocesador Gourmet: Transforma cosechas en manufacturas alimentarias, triplicando el margen de exportación agrícola.',
       description: 'Planta de transformación alimentaria con silos metálicos de almacenamiento, empaquetado y muelle de carga.',
@@ -429,12 +484,12 @@ export const CONFIG = {
       category: 'service',
       size: 1, // 1x1
       height: 38,
-      cost: 350,
-      upkeep: 28,
+      cost: 1800,
+      upkeep: 45,
       levels: {
-        1: { cost: 350, upkeep: 28, radius: 7, securityBoost: 25, power: 8, water: 4 },
-        2: { cost: 550, upkeep: 42, radius: 10, securityBoost: 45, power: 12, water: 6 },
-        3: { cost: 900, upkeep: 65, radius: 14, securityBoost: 70, power: 18, water: 8 },
+        1: { cost: 1800, upkeep: 45, radius: 7, securityBoost: 25, power: 8, water: 4 },
+        2: { cost: 3100, upkeep: 75, radius: 10, securityBoost: 45, power: 12, water: 6 },
+        3: { cost: 5000, upkeep: 120, radius: 14, securityBoost: 70, power: 18, water: 8 },
       },
       maxBonus: 'Patrullaje con IA: Erradica el crimen en su radio incluso ante alto desempleo.',
       description: 'Patrullaje preventivo que reduce la delincuencia barrial.',
@@ -449,12 +504,12 @@ export const CONFIG = {
       category: 'service',
       size: 1, // 1x1
       height: 38,
-      cost: 350,
-      upkeep: 28,
+      cost: 1800,
+      upkeep: 45,
       levels: {
-        1: { cost: 350, upkeep: 28, radius: 7, fireDefense: 35, power: 8, water: 15 },
-        2: { cost: 550, upkeep: 42, radius: 10, fireDefense: 60, power: 12, water: 25 },
-        3: { cost: 900, upkeep: 65, radius: 14, fireDefense: 90, power: 16, water: 40 },
+        1: { cost: 1800, upkeep: 45, radius: 7, fireDefense: 35, power: 8, water: 15 },
+        2: { cost: 3100, upkeep: 75, radius: 10, fireDefense: 60, power: 12, water: 25 },
+        3: { cost: 5000, upkeep: 120, radius: 14, fireDefense: 90, power: 16, water: 40 },
       },
       maxBonus: 'Drones de Respuesta Rápida: Extingue incendios por olas de calor en menos de 2s.',
       description: 'Cuerpo de rescate y extinción de incendios urbanos.',
@@ -468,12 +523,12 @@ export const CONFIG = {
       category: 'service',
       size: 2, // 2x2
       height: 48,
-      cost: 650,
-      upkeep: 45,
+      cost: 4500,
+      upkeep: 95,
       levels: {
-        1: { cost: 650, upkeep: 45, radius: 9, healthBoost: 30, power: 25, water: 20 },
-        2: { cost: 1100, upkeep: 75, radius: 13, healthBoost: 55, power: 45, water: 35 },
-        3: { cost: 1900, upkeep: 110, radius: 24, healthBoost: 85, power: 70, water: 50 },
+        1: { cost: 4500, upkeep: 95, radius: 9, healthBoost: 30, power: 25, water: 20 },
+        2: { cost: 7800, upkeep: 160, radius: 13, healthBoost: 55, power: 45, water: 35 },
+        3: { cost: 13000, upkeep: 260, radius: 24, healthBoost: 85, power: 70, water: 50 },
       },
       maxBonus: 'Helipuerto de Trauma: Cero muertes por catástrofes y recuperación post-sismo acelerada.',
       description: 'Atención médica integral con helipuerto y pabellón de urgencias.',
@@ -488,12 +543,12 @@ export const CONFIG = {
       category: 'service',
       size: 1, // 1x1
       height: 36,
-      cost: 480,
-      upkeep: 26,
+      cost: 1900,
+      upkeep: 45,
       levels: {
-        1: { cost: 480, upkeep: 26, radius: 8, educationBoost: 25, power: 10, water: 8 },
-        2: { cost: 780, upkeep: 42, radius: 11, educationBoost: 50, power: 16, water: 12 },
-        3: { cost: 1250, upkeep: 68, radius: 15, educationBoost: 80, power: 24, water: 18 },
+        1: { cost: 1900, upkeep: 45, radius: 8, educationBoost: 25, power: 10, water: 8 },
+        2: { cost: 3200, upkeep: 80, radius: 11, educationBoost: 50, power: 16, water: 12 },
+        3: { cost: 5200, upkeep: 130, radius: 15, educationBoost: 80, power: 24, water: 18 },
       },
       maxBonus: 'Cátedra STEM: Convierte el 80% de la mano de obra en trabajadores calificados.',
       description: 'Formación ciudadana que impulsa las empresas de tecnología y ciencia.',
@@ -508,15 +563,15 @@ export const CONFIG = {
       category: 'service',
       size: 2, // 2x2
       height: 62,
-      cost: 950,
-      upkeep: 55,
+      cost: 5500,
+      upkeep: 115,
       university: true,
       radius: 12,
       jobs: 30,
       levels: {
-        1: { cost: 950, upkeep: 55, radius: 12, educationBoost: 45, researchPoints: 35, jobs: 30, power: 28, water: 20 },
-        2: { cost: 1650, upkeep: 90, radius: 16, educationBoost: 75, researchPoints: 65, jobs: 55, power: 45, water: 30 },
-        3: { cost: 2800, upkeep: 140, radius: 22, educationBoost: 110, researchPoints: 110, jobs: 90, power: 70, water: 45 },
+        1: { cost: 5500, upkeep: 115, radius: 12, educationBoost: 45, researchPoints: 35, jobs: 30, power: 28, water: 20 },
+        2: { cost: 9500, upkeep: 195, radius: 16, educationBoost: 75, researchPoints: 65, jobs: 55, power: 45, water: 30 },
+        3: { cost: 16000, upkeep: 310, radius: 22, educationBoost: 110, researchPoints: 110, jobs: 90, power: 70, water: 45 },
       },
       maxBonus: 'Polo Universitario de Excelencia: Gradúa al 90% de estudiantes con Educación Superior y duplica puntos RP.',
       description: 'Campus de altos estudios que forma profesionales de Nivel Superior (médicos, ingenieros y químicos) y genera abundante ciencia.',
@@ -531,15 +586,15 @@ export const CONFIG = {
       funding: 'public',
       size: 1, // 1x1
       height: 36,
-      cost: 420,
-      upkeep: 28,
+      cost: 2200,
+      upkeep: 50,
       seismicRadar: true,
       radius: 15,
       jobs: 6,
       levels: {
-        1: { cost: 420, upkeep: 28, radius: 15, damageMitigation: 0.50, jobs: 6, power: 14, water: 4 },
-        2: { cost: 720, upkeep: 44, radius: 20, damageMitigation: 0.65, jobs: 10, power: 22, water: 6 },
-        3: { cost: 1150, upkeep: 68, radius: 26, damageMitigation: 0.80, jobs: 16, power: 32, water: 10 },
+        1: { cost: 2200, upkeep: 50, radius: 15, damageMitigation: 0.50, jobs: 6, power: 14, water: 4 },
+        2: { cost: 3800, upkeep: 85, radius: 20, damageMitigation: 0.65, jobs: 10, power: 22, water: 6 },
+        3: { cost: 6200, upkeep: 140, radius: 26, damageMitigation: 0.80, jobs: 16, power: 32, water: 10 },
       },
       maxBonus: 'Red Geotécnica Satelital: Alerta anticipada de 8s, reduce el daño sísmico estructural a la mitad y blindaje de infraestructuras.',
       description: 'Estación sismológica con antena parabólica y sensor de fallas tectónicas para alerta temprana.',
@@ -553,12 +608,12 @@ export const CONFIG = {
       category: 'service',
       size: 2, // 2x2
       height: 56,
-      cost: 1100,
-      upkeep: 75,
+      cost: 5000,
+      upkeep: 110,
       levels: {
-        1: { cost: 1100, upkeep: 75, researchPoints: 18, power: 30, water: 10 },
-        2: { cost: 1900, upkeep: 120, researchPoints: 40, power: 50, water: 18 },
-        3: { cost: 3100, upkeep: 180, researchPoints: 75, power: 80, water: 28 },
+        1: { cost: 5000, upkeep: 110, researchPoints: 18, power: 30, water: 10 },
+        2: { cost: 8800, upkeep: 190, researchPoints: 40, power: 50, water: 18 },
+        3: { cost: 14500, upkeep: 300, researchPoints: 75, power: 80, water: 28 },
       },
       maxBonus: 'Observatorio Sísmico y Satelital: Aviso con 15s de anticipación ante catástrofes.',
       description: 'Genera puntos de investigación (RP) para mitigar catástrofes y optimizar industrias.',
@@ -573,12 +628,12 @@ export const CONFIG = {
       category: 'service',
       size: 2, // 2x2
       height: 54,
-      cost: 800,
-      upkeep: 40,
+      cost: 6000,
+      upkeep: 120,
       levels: {
-        1: { cost: 800, upkeep: 40, happiness: 10, power: 15, water: 10 },
-        2: { cost: 1400, upkeep: 65, happiness: 18, policyDiscount: 0.2, power: 25, water: 16 },
-        3: { cost: 2200, upkeep: 95, happiness: 30, policyDiscount: 0.4, power: 40, water: 24 },
+        1: { cost: 6000, upkeep: 120, happiness: 10, power: 15, water: 10 },
+        2: { cost: 10500, upkeep: 200, happiness: 18, policyDiscount: 0.2, power: 25, water: 16 },
+        3: { cost: 17000, upkeep: 320, happiness: 30, policyDiscount: 0.4, power: 40, water: 24 },
       },
       maxBonus: 'Gabinete Metropolitano: Felicidad pasiva +10% y 2 políticas adicionales sin coste.',
       description: 'Sede del gobierno municipal del alcalde y centro cívico.',
@@ -593,12 +648,12 @@ export const CONFIG = {
       category: 'service',
       size: 1, // 1x1
       height: 16,
-      cost: 220,
-      upkeep: 12,
+      cost: 800,
+      upkeep: 20,
       levels: {
-        1: { cost: 220, upkeep: 12, defense: 1, power: 0, water: 0 },
-        2: { cost: 380, upkeep: 18, defense: 2, power: 0, water: 0 },
-        3: { cost: 600, upkeep: 25, defense: 4, hydroPower: 35, power: 0, water: 0 },
+        1: { cost: 800, upkeep: 20, defense: 1, power: 0, water: 0 },
+        2: { cost: 1400, upkeep: 35, defense: 2, power: 0, water: 0 },
+        3: { cost: 2300, upkeep: 55, defense: 4, hydroPower: 35, power: 0, water: 0 },
       },
       maxBonus: 'Compuertas Geotécnicas: Genera hidroelectricidad limpia (+35 MW) y blinda 4 celdas ribereñas.',
       description: 'Muralla geotécnica que previene inundaciones del río.',
@@ -615,12 +670,12 @@ export const CONFIG = {
       category: 'nature',
       size: 1, // 1x1
       height: 8,
-      cost: 120,
-      upkeep: 5,
+      cost: 450,
+      upkeep: 12,
       levels: {
-        1: { cost: 120, upkeep: 5, happiness: 8, power: 1, water: 3 },
-        2: { cost: 220, upkeep: 8, happiness: 16, power: 2, water: 5 },
-        3: { cost: 380, upkeep: 14, happiness: 28, power: 3, water: 8 },
+        1: { cost: 450, upkeep: 12, happiness: 8, power: 1, water: 3 },
+        2: { cost: 800, upkeep: 20, happiness: 16, power: 2, water: 5 },
+        3: { cost: 1400, upkeep: 32, happiness: 28, power: 3, water: 8 },
       },
       maxBonus: 'Monumento Iluminado: Duplica el valor del suelo y la recaudación de comercios vecinos.',
       description: 'Plaza pavimentada con fuente de agua central y bancos de descanso.',
@@ -635,12 +690,12 @@ export const CONFIG = {
       category: 'nature',
       size: 1, // 1x1
       height: 10,
-      cost: 95,
-      upkeep: 6,
+      cost: 380,
+      upkeep: 10,
       levels: {
-        1: { cost: 95, upkeep: 6, happiness: 12, cooling: 15, pollutionReduction: 6, power: 0, water: 2 },
-        2: { cost: 180, upkeep: 10, happiness: 22, cooling: 25, pollutionReduction: 12, power: 0, water: 3 },
-        3: { cost: 300, upkeep: 16, happiness: 35, cooling: 40, pollutionReduction: 22, power: 0, water: 4 },
+        1: { cost: 380, upkeep: 10, happiness: 12, cooling: 15, pollutionReduction: 6, power: 0, water: 2 },
+        2: { cost: 680, upkeep: 18, happiness: 22, cooling: 25, pollutionReduction: 12, power: 0, water: 3 },
+        3: { cost: 1200, upkeep: 28, happiness: 35, cooling: 40, pollutionReduction: 22, power: 0, water: 4 },
       },
       maxBonus: 'Pulmón Verde con Lago: Enfría el microclima -4°C, eliminando riesgo de fuego.',
       description: 'Arboleda nativa que refresca la ciudad y absorbe smog.',
@@ -655,12 +710,12 @@ export const CONFIG = {
       category: 'nature',
       size: 2, // 2x2
       height: 18,
-      cost: 500,
-      upkeep: 20,
+      cost: 2500,
+      upkeep: 50,
       levels: {
-        1: { cost: 500, upkeep: 20, happiness: 25, pollutionReduction: 18, research: 3, power: 2, water: 8 },
-        2: { cost: 850, upkeep: 35, happiness: 45, pollutionReduction: 35, research: 5, power: 4, water: 14 },
-        3: { cost: 1400, upkeep: 55, happiness: 70, pollutionReduction: 60, research: 8, power: 6, water: 20 },
+        1: { cost: 2500, upkeep: 50, happiness: 25, pollutionReduction: 18, research: 3, power: 2, water: 8 },
+        2: { cost: 4400, upkeep: 85, happiness: 45, pollutionReduction: 35, research: 5, power: 4, water: 14 },
+        3: { cost: 7200, upkeep: 140, happiness: 70, pollutionReduction: 60, research: 8, power: 6, water: 20 },
       },
       maxBonus: 'Santuario Ecológico: Neutraliza polución de hasta 2 fábricas y aporta +8 RP/d en biociencia.',
       description: 'Gran reserva botánica con invernaderos de cristal y flora protegida.',
@@ -675,12 +730,12 @@ export const CONFIG = {
       category: 'nature',
       size: 1, // 1x1
       height: 18,
-      cost: 30,
-      upkeep: 1,
+      cost: 90,
+      upkeep: 3,
       levels: {
-        1: { cost: 30, upkeep: 1, trafficSpeed: 1.05, power: 1, water: 0 },
-        2: { cost: 50, upkeep: 2, trafficSpeed: 1.10, power: 1, water: 0 },
-        3: { cost: 90, upkeep: 3, trafficSpeed: 1.25, power: 1, water: 0 },
+        1: { cost: 90, upkeep: 3, trafficSpeed: 1.05, power: 1, water: 0 },
+        2: { cost: 160, upkeep: 5, trafficSpeed: 1.10, power: 1, water: 0 },
+        3: { cost: 280, upkeep: 8, trafficSpeed: 1.25, power: 1, water: 0 },
       },
       maxBonus: 'Avenida Inteligente: Acelera la velocidad de vehículos y ambulancias en +35%.',
       description: 'Farola urbana con sensor crepuscular y señalización vial.',
@@ -780,9 +835,9 @@ export const CONFIG = {
 
   // SISTEMA MACROECONÓMICO DUAL (El Estado vs. La Empresa Privada)
   ECONOMY: {
-    INITIAL_TREASURY: 4000, // Tesorería Municipal del Estado
-    INITIAL_STATE_TREASURY: 4000,
-    INITIAL_CORPORATE_FUNDS: 3500, // Capital Privado de la Empresa
+    INITIAL_TREASURY: 15000, // Tesorería Municipal del Estado
+    INITIAL_STATE_TREASURY: 15000,
+    INITIAL_CORPORATE_FUNDS: 12000, // Capital Privado de la Empresa
     DEFAULT_TAX_RATES: {
       residential: 0.09, // 9% base
       commercial: 0.10,  // 10% base

@@ -303,15 +303,41 @@ export class Grid {
   }
 
   /**
+   * Cuenta cuántos edificios construidos de un tipo específico existen en el mapa
+   */
+  countBuildings(buildingId) {
+    let count = 0;
+    for (let gy = 0; gy < this.size; gy++) {
+      for (let gx = 0; gx < this.size; gx++) {
+        const b = this.tiles[gy][gx]?.building;
+        if (b && b.isRoot && b.id === buildingId) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Obtiene la población actual de la ciudad
+   */
+  getCurrentPopulation() {
+    if (this.simulation && typeof this.simulation.population === 'number') {
+      return this.simulation.population;
+    }
+    return 0;
+  }
+
+  /**
    * Valida si se puede construir un edificio (1x1 o 2x2) en la coordenada indicada
    */
-  canBuild(gx, gy, buildingId) {
+  canBuild(gx, gy, buildingId, popOverride = null) {
     const def = CONFIG.BUILDINGS[buildingId];
     if (!def) return { allowed: false, reason: 'Edificio desconocido' };
 
     const bSize = def.size || 1;
 
-    // Verificar todas las celdas de la base cuadrada
+    // 1. Verificar límites del mapa, terreno y colisiones
     for (let dy = 0; dy < bSize; dy++) {
       for (let dx = 0; dx < bSize; dx++) {
         const tx = gx + dx;
@@ -332,6 +358,56 @@ export class Grid {
         if (tile.building) {
           return { allowed: false, reason: 'El área requerida está ocupada por otra estructura' };
         }
+      }
+    }
+
+    // 2. Zona de Exclusión Espacial para Edificios Públicos / Servicios (Evitar amontonamiento)
+    if (CONFIG.MIN_PUBLIC_SPACING && CONFIG.MIN_PUBLIC_SPACING[buildingId]) {
+      const minSpacing = CONFIG.MIN_PUBLIC_SPACING[buildingId];
+      for (let y = 0; y < this.size; y++) {
+        for (let x = 0; x < this.size; x++) {
+          const b = this.tiles[y][x]?.building;
+          if (b && b.isRoot && b.id === buildingId) {
+            const dist = Math.abs(gx - x) + Math.abs(gy - y);
+            if (dist < minSpacing) {
+              return {
+                allowed: false,
+                reason: `Zona de exclusión: las estructuras de este tipo deben estar separadas al menos ${minSpacing} casillas para una cobertura equilibrada (distancia actual: ${dist}).`,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Regulación de Densidad Poblacional (Desarrollo premeditado y justificado)
+    if (CONFIG.POPULATION_THRESHOLDS && CONFIG.POPULATION_THRESHOLDS[buildingId]) {
+      const threshold = CONFIG.POPULATION_THRESHOLDS[buildingId];
+      const existingCount = this.countBuildings(buildingId);
+
+      // Límite absoluto de unidades
+      if (threshold.maxTotal && existingCount >= threshold.maxTotal) {
+        return {
+          allowed: false,
+          reason: `Límite máximo alcanzado: solo se permite ${threshold.maxTotal} sede(s) de este edificio en la ciudad.`,
+        };
+      }
+
+      const currentPop = popOverride !== null ? popOverride : this.getCurrentPopulation();
+
+      // Cálculo del umbral poblacional requerido para la siguiente unidad
+      let requiredPop = 0;
+      if (existingCount === 0) {
+        requiredPop = threshold.minPop || 0;
+      } else {
+        requiredPop = Math.max(threshold.minPop || 0, existingCount * (threshold.popPerUnit || 10));
+      }
+
+      if (currentPop < requiredPop) {
+        return {
+          allowed: false,
+          reason: `Densidad insuficiente: requieres al menos ${requiredPop} habitantes para justificar esta unidad (población actual: ${currentPop}).`,
+        };
       }
     }
 

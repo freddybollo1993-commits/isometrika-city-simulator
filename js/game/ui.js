@@ -241,7 +241,7 @@ export class UIManager {
 
         document.querySelectorAll('[data-speed]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal (5s/d)' : '⏩ Velocidad rápida (2.5s/d)');
+        this.showToast(spd === 0 ? '⏸️ Simulación pausada' : spd === 1 ? '▶️ Velocidad normal (10s/d)' : '⏩ Velocidad rápida (5s/d)');
       });
     });
 
@@ -736,7 +736,20 @@ export class UIManager {
         </div>
       `;
 
-      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d\n${b.description}`;
+      let reqText = '';
+      if (CONFIG.POPULATION_THRESHOLDS && CONFIG.POPULATION_THRESHOLDS[b.id]) {
+        const th = CONFIG.POPULATION_THRESHOLDS[b.id];
+        if (th.maxTotal) {
+          reqText = ` | Req: ${th.minPop} hab (Máx: ${th.maxTotal})`;
+        } else {
+          reqText = ` | Req: ${th.minPop} hab (+1 c/${th.popPerUnit} hab)`;
+        }
+      }
+      if (CONFIG.MIN_PUBLIC_SPACING && CONFIG.MIN_PUBLIC_SPACING[b.id]) {
+        reqText += ` | Sep. mínima: ${CONFIG.MIN_PUBLIC_SPACING[b.id]} casillas`;
+      }
+
+      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d${reqText}\n${b.description}`;
 
       card.addEventListener('click', () => {
         this.hideCarousel();
