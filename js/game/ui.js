@@ -22,6 +22,7 @@ export const BUILDING_ICONS = {
   commercial_market: '🏪',
   commercial_super: '🛒',
   commercial_tower: '🏙️',
+  commercial_maintenance: '🛠️',
   farm_organic: '🌾',
   industrial_mass: '🏭',
   industrial_tech: '🔬',
@@ -984,6 +985,29 @@ export class UIManager {
         const eff = building.operationalEfficiency !== undefined ? Math.round(building.operationalEfficiency * 100) : 100;
         const effClass = eff >= 90 ? 'positive' : eff >= 60 ? 'text-warn' : 'negative';
         statsHTML += `<div class="insp-stat-item"><span>Eficiencia Operativa:</span><strong class="${effClass}">${eff}%</strong></div>`;
+
+        if (typeof building.occupancyRatio === 'number') {
+          const occPct = Math.round(building.occupancyRatio * 100);
+          statsHTML += `<div class="insp-stat-item"><span>Carga de Ocupación:</span><strong>${occPct}% (Proporcional)</strong></div>`;
+        }
+      }
+      if (levelData.coverageCapacity) {
+        statsHTML += `<div class="insp-stat-item"><span>Capacidad Mantenimiento:</span><strong class="positive">${levelData.coverageCapacity} edificios</strong></div>`;
+      }
+      if (building.foodSalesToday) {
+        statsHTML += `<div class="insp-stat-item"><span>Ventas Comida Directa:</span><strong class="positive">+$${building.foodSalesToday}/d</strong></div>`;
+      }
+      if (building.supplyChainStatus && building.supplyChainStatus.status !== 'n/a') {
+        const sc = building.supplyChainStatus;
+        const scClass = sc.supplied ? 'positive' : 'negative';
+        const scTitle = sc.supplied ? `🌾 Suministro Granja: Óptimo (${sc.farmDist} celdas)` : '⚠️ Desabastecimiento Logístico';
+        statsHTML += `
+          <div class="insp-stat-item full-width-stat" style="grid-column: 1 / -1; font-size: 0.74rem;">
+            <span>Cadena de Suministro:</span>
+            <strong class="${scClass}">${scTitle}</strong>
+            <small style="display:block; color: #94a3b8; font-size: 0.68rem; margin-top: 2px;">${sc.reason || ''}</small>
+          </div>
+        `;
       }
       if (levelData.revenue || levelData.revenuePerJob) {
         const rev = levelData.revenue || levelData.revenuePerJob;

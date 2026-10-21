@@ -755,6 +755,18 @@ export class Renderer {
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#0f172a');
     }
 
+    // Empresa de Mantenimiento y Servicios Urbanos (1x1)
+    if (def.id === 'commercial_maintenance') {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(x - 10, topY + 4, 20, 8);
+      ctx.fillStyle = '#1e293b';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛠️', x, topY + 8);
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#78350f');
+    }
+
     // Fábrica Masiva (2x2)
     if (def.chimney) {
       const chimX = x + (rotation % 2 === 0 ? 16 : -16);

@@ -40,6 +40,7 @@ export const CONFIG = {
     commercial_store: { minPop: 0, popPerUnit: 10 }, // 1ª libre en la fundación, luego 1 cada 10 hab
     commercial_gastronomy: { minPop: 16, popPerUnit: 20 },
     commercial_market: { minPop: 20, popPerUnit: 25 },
+    commercial_maintenance: { minPop: 15, popPerUnit: 30 }, // Empresa de mantenimiento
     commercial_super: { minPop: 40, popPerUnit: 50 },
     commercial_tower: { minPop: 60, popPerUnit: 70 },
 
@@ -114,8 +115,8 @@ export const CONFIG = {
       category: 'infra',
       size: 1, // 1x1
       cost: 40,
-      upkeep: 1,
-      description: 'Conecta zonas y permite la movilidad urbana.',
+      upkeep: 0.15, // Costo base diario reducido de limpieza; mantenimiento estructural cada 20 días
+      description: 'Conecta zonas, transporta suministros agrícolas a comercios y permite la movilidad urbana.',
       height: 4,
     },
     transit_bus_terminal: {
@@ -397,6 +398,27 @@ export const CONFIG = {
       colorTop: '#cbd5e1',
       colorLeft: '#94a3b8',
       colorRight: '#475569',
+    },
+    commercial_maintenance: {
+      id: 'commercial_maintenance',
+      name: 'Empresa de Mantenimiento y Servicios Urbanos',
+      category: 'commercial',
+      maintenanceFirm: true,
+      size: 1, // 1x1
+      height: 32,
+      cost: 1200,
+      upkeep: 8,
+      jobs: 3,
+      levels: {
+        1: { cost: 1200, upkeep: 8, jobs: 3, coverageCapacity: 25, power: 2, water: 1 },
+        2: { cost: 2200, upkeep: 16, jobs: 6, coverageCapacity: 60, power: 4, water: 2 },
+        3: { cost: 3800, upkeep: 28, jobs: 10, coverageCapacity: 120, power: 6, water: 3 },
+      },
+      maxBonus: 'Ingeniería Predictiva con Drones: Realiza mantenimiento automatizado y erradica el desgaste de edificios.',
+      description: 'Cuadrillas técnicas que cobran los contratos de mantenimiento de la ciudad, evitando que el dinero desaparezca y creando empleo especializado (3 a 10 técnicos).',
+      colorTop: '#f59e0b',
+      colorLeft: '#d97706',
+      colorRight: '#b45309',
     },
 
     // === AGRICULTURA ===

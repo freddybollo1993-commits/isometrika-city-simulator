@@ -88,10 +88,27 @@ export class Simulation {
         const isSuspended = !!b.suspended;
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
-        // Si está suspendido (Modo Ahorro), no demanda energía ni agua
+        // Punto 1: Ocupación Real Proporcional (Gastos modulados al personal e inquilinos reales)
+        let occRatio = 1.0;
+        if (def.category === 'residential') {
+          const cap = (levelData.capacity || def.capacity || 4);
+          const residents = b.residents ? b.residents.length : cap;
+          occRatio = Math.max(0.20, Math.min(1.0, residents / Math.max(1, cap)));
+        } else if (['commercial', 'industrial', 'service', 'utility', 'farm'].includes(def.category)) {
+          const maxW = b.activeJobsNeeded !== undefined 
+            ? b.activeJobsNeeded 
+            : (b.maxWorkers || levelData.jobs || def.jobs || 0);
+          if (maxW > 0) {
+            const assignedW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+            occRatio = Math.max(0.15, Math.min(1.0, 0.15 + 0.85 * (assignedW / maxW)));
+          }
+        }
+        b.occupancyRatio = Math.round(occRatio * 100) / 100;
+
+        // Si está suspendido (Modo Ahorro), no demanda energía ni agua; si opera, escala con la ocupación
         if (!isSuspended) {
-          totalPowerDemand += (levelData.power || def.power || 0);
-          totalWaterDemand += (levelData.water || def.water || 0);
+          totalPowerDemand += Math.round((levelData.power || def.power || 0) * occRatio);
+          totalWaterDemand += Math.round((levelData.water || def.water || 0) * occRatio);
         }
 
         if (def.category === 'utility') {
@@ -486,6 +503,9 @@ export class Simulation {
     let commercialMultiplier = 1.0;
     let agroExportMultiplier = 1.0;
     let policyDiscount = 0;
+    let roadCount = 0;
+    let totalMaintenanceCapacity = 0;
+    let maintenanceFirmCount = 0;
 
     // Contadores de Redes de Servicios Básicos
     let totalPowerSupply = 0;
@@ -514,12 +534,33 @@ export class Simulation {
 
         if (tile.damage > 20) damagedCount++;
 
+        // Punto 1: Ocupación Real Proporcional (Gastos modulados al personal e inquilinos reales)
+        let occRatio = 1.0;
+        if (def.category === 'residential') {
+          const cap = (levelData.capacity || def.capacity || 4);
+          const residents = b.residents ? b.residents.length : cap;
+          occRatio = Math.max(0.20, Math.min(1.0, residents / Math.max(1, cap)));
+        } else if (['commercial', 'industrial', 'service', 'utility', 'farm'].includes(def.category)) {
+          const maxW = b.activeJobsNeeded !== undefined 
+            ? b.activeJobsNeeded 
+            : (b.maxWorkers || levelData.jobs || def.jobs || 0);
+          if (maxW > 0) {
+            const assignedW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+            occRatio = Math.max(0.15, Math.min(1.0, 0.15 + 0.85 * (assignedW / maxW)));
+          }
+        }
+        b.occupancyRatio = Math.round(occRatio * 100) / 100;
+
         // Modo Ahorro / Suspendido: Reduce el mantenimiento físico al 10%
+        // Ocupación Parcial: En la vida real, edificios con baja dotación espacian sus revisiones y pagan costos menores
         const nominalUpkeep = (levelData.upkeep || def.upkeep || 0);
-        const bldgUpkeep = isSuspended ? Math.max(1, Math.round(nominalUpkeep * 0.10)) : nominalUpkeep;
+        const bldgUpkeep = isSuspended 
+          ? Math.max(1, Math.round(nominalUpkeep * 0.10)) 
+          : Math.max(1, Math.round(nominalUpkeep * occRatio));
         baseUpkeep += bldgUpkeep;
 
         if (def.id === 'road') {
+          roadCount++;
           roadUpkeep += bldgUpkeep;
         } else if (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal') {
           if (def.id === 'service_barrier') {
@@ -534,10 +575,10 @@ export class Simulation {
           privateBuildingUpkeep += bldgUpkeep;
         }
 
-        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO (0 si está en modo ahorro / suspendido)
+        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO (0 si está en modo ahorro / suspendido; proporcional a la ocupación real)
         if (!isSuspended) {
-          totalPowerDemand += (levelData.power || def.power || 0);
-          totalWaterDemand += (levelData.water || def.water || 0);
+          totalPowerDemand += Math.round((levelData.power || def.power || 0) * occRatio);
+          totalWaterDemand += Math.round((levelData.water || def.water || 0) * occRatio);
         }
 
         // PLANTAS Y GENERADORES DE SERVICIOS BÁSICOS
@@ -560,15 +601,33 @@ export class Simulation {
         // COMERCIOS
         else if (def.category === 'commercial') {
           if (!isSuspended) {
+            // Punto 2: Cadena de Suministro Real (Granja -> Carretera -> Comercio)
+            let supplyMod = 1.0;
+            const isFoodRetail = ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
+            if (isFoodRetail && this.grid.checkStoreSupplyChain) {
+              const chain = this.grid.checkStoreSupplyChain(gx, gy);
+              b.supplyChainStatus = chain;
+              if (!chain.supplied) {
+                // Sin carretera o sin granja: desabastecimiento logístico
+                supplyMod = 0.40;
+              }
+            } else {
+              b.supplyChainStatus = { supplied: true, status: 'n/a' };
+            }
+
             const jobs = (levelData.jobs || def.jobs || 2);
             commercialJobs += jobs;
             const rev = (levelData.revenue || def.revenuePerJob || 5.5);
-            baseCommTax += jobs * rev * opEff * dilemmaMods.commSalesMultiplier;
+            baseCommTax += jobs * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
 
             if (def.id === 'commercial_tower' && level === 3) {
               commercialMultiplier += 0.15; // Distrito financiero global
             } else if (def.id === 'commercial_gastronomy') {
               parkHappinessBonus += 3;
+            } else if (def.id === 'commercial_maintenance') {
+              // Punto 4: Capacidad de Mantenimiento de la Empresa
+              totalMaintenanceCapacity += (levelData.coverageCapacity || 25) * opEff;
+              maintenanceFirmCount++;
             }
           }
         }
@@ -620,6 +679,18 @@ export class Simulation {
         }
       }
     }
+
+    // Punto 5: Mantenimiento Periódico de Carreteras (Bacheo cada 20 días)
+    let periodicRoadResurfacingCost = 0;
+    if (this.day % 20 === 0 && roadCount > 0) {
+      periodicRoadResurfacingCost = Math.round(roadCount * 1.20);
+      roadUpkeep += periodicRoadResurfacingCost;
+    }
+
+    // Punto 4: Contratos de Mantenimiento Capturados por la Empresa Privada
+    const totalMaintenanceDemand = baseUpkeep;
+    const maintenanceContractsCovered = Math.min(totalMaintenanceDemand, Math.round(totalMaintenanceCapacity * 1.25));
+    this.maintenanceCoverageRatio = totalMaintenanceDemand > 0 ? Math.min(1.0, totalMaintenanceCapacity / totalMaintenanceDemand) : 1.0;
 
     this.housingCapacity = totalHousing;
     this.commercialJobs = commercialJobs;
@@ -827,6 +898,10 @@ export class Simulation {
         powerRatio: this.powerRatio,
         waterRatio: this.waterRatio,
         citizenReport: citizenReport,
+        maintenanceContractsCovered: maintenanceContractsCovered,
+        totalMaintenanceDemand: totalMaintenanceDemand,
+        totalMaintenanceCapacity: totalMaintenanceCapacity,
+        periodicRoadResurfacingCost: periodicRoadResurfacingCost,
       });
 
       this.lastIncome = ecoResult.totalIncome;

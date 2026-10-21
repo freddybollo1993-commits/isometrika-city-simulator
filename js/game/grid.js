@@ -229,6 +229,142 @@ export class Grid {
   }
 
   /**
+   * Verifica si una estructura tiene acceso directo a una carretera adyacente
+   */
+  hasAdjacentRoad(gx, gy, size = 1) {
+    for (let dy = -1; dy <= size; dy++) {
+      for (let dx = -1; dx <= size; dx++) {
+        // Solo bordes perimetrales inmediatos
+        if (dx >= 0 && dx < size && dy >= 0 && dy < size) continue;
+        const tx = gx + dx;
+        const ty = gy + dy;
+        const t = this.getTile(tx, ty);
+        if (t && t.building && t.building.id === 'road') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Busca la granja productora más cercana a una coordenada
+   */
+  findNearestFarm(gx, gy) {
+    let bestFarm = null;
+    let minDist = 999;
+
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && (t.building.id === 'farm_organic' || t.building.id === 'industrial_agro')) {
+          if (t.building.suspended) continue;
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist < minDist) {
+            minDist = dist;
+            bestFarm = { gx: x, gy: y, building: t.building, dist };
+          }
+        }
+      }
+    }
+    return bestFarm;
+  }
+
+  /**
+   * Evalúa la cadena de suministro de un comercio de alimentos (Punto 2)
+   * Requiere: 1) Conexión a carretera, 2) Granja abastecedora conectada en un radio logístico (< 25 celdas)
+   */
+  checkStoreSupplyChain(gx, gy) {
+    const tile = this.getTile(gx, gy);
+    if (!tile || !tile.building) return { supplied: true, status: 'ok' };
+
+    const def = CONFIG.BUILDINGS[tile.building.id];
+    const isFoodRetail = def && ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
+    if (!isFoodRetail) return { supplied: true, status: 'n/a' };
+
+    const hasRoad = this.hasAdjacentRoad(gx, gy, def.size || 1);
+    if (!hasRoad) {
+      return {
+        supplied: false,
+        hasRoad: false,
+        status: 'no_road',
+        reason: 'Sin acceso a carretera: los camiones no pueden descargar insumos frescos.',
+      };
+    }
+
+    const farmInfo = this.findNearestFarm(gx, gy);
+    if (!farmInfo) {
+      return {
+        supplied: false,
+        hasRoad: true,
+        status: 'no_farm',
+        reason: 'Sin granjas activas: no hay producción agrícola en la ciudad.',
+      };
+    }
+
+    const farmDef = CONFIG.BUILDINGS[farmInfo.building.id];
+    const farmHasRoad = this.hasAdjacentRoad(farmInfo.gx, farmInfo.gy, farmDef ? (farmDef.size || 2) : 2);
+    if (!farmHasRoad) {
+      return {
+        supplied: false,
+        hasRoad: true,
+        status: 'farm_no_road',
+        reason: 'La granja productora carece de conexión vial para despachar alimentos.',
+      };
+    }
+
+    if (farmInfo.dist > 25) {
+      return {
+        supplied: false,
+        hasRoad: true,
+        dist: farmInfo.dist,
+        status: 'too_far',
+        reason: `Granja demasiado lejana (${farmInfo.dist} celdas > 25). Los alimentos se deterioran en el camino.`,
+      };
+    }
+
+    return {
+      supplied: true,
+      hasRoad: true,
+      farmDist: farmInfo.dist,
+      status: 'optimal',
+      reason: `Abastecido por granja a ${farmInfo.dist} celdas por vía terrestre.`,
+    };
+  }
+
+  /**
+   * Encuentra el local de venta de comida más cercano a una vivienda (Punto 3)
+   */
+  findNearestFoodVenue(gx, gy) {
+    let bestVenue = null;
+    let minDist = 999;
+
+    const foodBuildingIds = ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy', 'farm_organic'];
+
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && foodBuildingIds.includes(t.building.id)) {
+          if (t.building.suspended) continue;
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist < minDist) {
+            minDist = dist;
+            bestVenue = {
+              gx: x,
+              gy: y,
+              building: t.building,
+              tile: t,
+              distance: dist,
+              id: t.building.id,
+            };
+          }
+        }
+      }
+    }
+    return bestVenue;
+  }
+
+  /**
    * Verifica si una celda está protegida por un Radar Sísmico y Geotécnico
    */
   isTileCoveredBySeismicRadar(gx, gy) {

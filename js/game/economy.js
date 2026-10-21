@@ -193,6 +193,10 @@ export class EconomySystem {
       powerRatio = 1.0,
       waterRatio = 1.0,
       citizenReport = null,
+      maintenanceContractsCovered = 0,
+      totalMaintenanceDemand = 0,
+      totalMaintenanceCapacity = 0,
+      periodicRoadResurfacingCost = 0,
     } = cityContext;
 
     // 1. Fluctuación del mercado exterior
@@ -393,7 +397,10 @@ export class EconomySystem {
     const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
     const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));
 
-    const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales;
+    // Punto 4: Contratos de Mantenimiento Capturados por el Holding Privado
+    const maintenanceRev = maintenanceContractsCovered || 0;
+
+    const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales + maintenanceRev;
 
     // 2. Gastos Operativos y Salarios Privados
     let payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
@@ -456,6 +463,7 @@ export class EconomySystem {
         massIndustrySales,
         techIndustrySales,
         farmSales,
+        maintenanceContracts: maintenanceRev,
         total: totalPrivateRevenue,
       },
       expenses: {

@@ -367,6 +367,9 @@ export class CitizenManager {
             } else if (def.id === 'commercial_super') {
               requiredEdu = 1;
               jobTitle = 'Supervisor de Logística';
+            } else if (def.id === 'commercial_maintenance') {
+              requiredEdu = 1;
+              jobTitle = 'Técnico de Mantenimiento e Instalaciones';
             } else if (def.id === 'commercial_gastronomy') {
               requiredEdu = 0;
               jobTitle = 'Chef / Barista / Servicio Gastronómico';
@@ -609,7 +612,20 @@ export class CitizenManager {
       const rent = resBuilding 
         ? resBuilding.getRent() 
         : (building && typeof building.getRent === 'function' ? building.getRent() : 6);
-      const food = 5; // Gasto diario de alimentación reducido a 5 por día
+      // Punto 3: Micro-flujo espacial de comida al comercio más cercano
+      const food = 5; // Gasto diario de alimentación básico
+      const foodVenue = (grid && typeof grid.findNearestFoodVenue === 'function' && resBuilding)
+        ? grid.findNearestFoodVenue(resBuilding.x, resBuilding.y)
+        : null;
+
+      let foodProximityBonus = 0;
+      if (foodVenue && foodVenue.distance <= 14) {
+        foodVenue.building.foodSalesToday = (foodVenue.building.foodSalesToday || 0) + food;
+        foodProximityBonus = 4; // Acceso cercano a alimentos frescos
+      } else {
+        foodProximityBonus = -4; // Desierto alimentario (viven lejos de tiendas/granjas)
+      }
+
       const taxes = Math.round(salary * taxRate * 10) / 10;
 
       citizen.lastSalary = salary;
@@ -647,7 +663,7 @@ export class CitizenManager {
       sumRemaining += remaining;
 
       // Felicidad individual del agente
-      let citizenHappy = 55;
+      let citizenHappy = 55 + foodProximityBonus;
       if (citizen.currentJob) citizenHappy += 20;
       else citizenHappy -= 30;
 
