@@ -54,13 +54,13 @@ export const CONFIG = {
     utility_power_solar: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación (Fondo Pionero), luego 1 c/25 hab
     utility_power_plant: { minPop: 55, popPerUnit: 70 }, // Gran central eléctrica (drenaje $130/d, requiere 55 hab + demanda fabril)
     utility_water_tower: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación, luego 1 c/25 hab
-    utility_water_plant: { minPop: 50, popPerUnit: 65 }, // Planta potabilizadora ribereña (drenaje $119/d, requiere 50 hab)
+    utility_water_plant: { minPop: 45, popPerUnit: 60 }, // Planta potabilizadora ribereña (1 a 2 técnicos)
 
     // Tránsito y Servicios Públicos (Calibrados según consumo fiscal del sector privado)
     transit_bus_terminal: { minPop: 20, popPerUnit: 35 }, // Drenaje $37/d: 1 chófer ($22) + $15 upkeep
     service_police: { minPop: 18, popPerUnit: 30 }, // Drenaje $38/d: 1 policía ($22) + $16 upkeep (financiado por ~18 hab)
     service_fire: { minPop: 18, popPerUnit: 30 }, // Drenaje $38/d: 1 bombero ($22) + $16 upkeep (financiado por ~18 hab)
-    service_school: { minPop: 22, popPerUnit: 35 }, // Drenaje $45/d: 1 maestro ($27) + $18 upkeep (financiado por ~22 hab)
+    service_school: { minPop: 20, popPerUnit: 35 }, // Drenaje $41/d: 1 instructor ($23) + $18 upkeep (financiado por ~20 hab)
     service_seismic_radar: { minPop: 25, popPerUnit: 45 }, // Drenaje $40/d: 1 operador ($22) + $18 upkeep
     service_cityhall: { minPop: 28, maxTotal: 1 }, // Sede de alcaldía (drenaje $57/d, amortizada a partir de 28 hab)
     service_research: { minPop: 35, popPerUnit: 55 }, // Drenaje $89/d: 2 investigadores ($54) + $35 upkeep
@@ -594,7 +594,7 @@ export const CONFIG = {
         3: { cost: 4500, upkeep: 55, radius: 15, educationBoost: 80, jobs: 6, power: 14, water: 11 },
       },
       maxBonus: 'Cátedra STEM: Convierte el 80% de la mano de obra en trabajadores calificados.',
-      description: 'Formación ciudadana que impulsa las empresas de tecnología y ciencia (2 a 6 docentes).',
+      description: 'Centro de capacitación y formación técnica que gradúa ciudadanos a Nivel 1 (Técnico / Básico). Requiere instructores calificados.',
       colorTop: '#fed7aa',
       colorLeft: '#fb923c',
       colorRight: '#ea580c',

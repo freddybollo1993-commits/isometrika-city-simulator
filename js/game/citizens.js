@@ -164,13 +164,20 @@ export class CitizenManager {
         const home = this._findAvailableHome();
         if (!home) break; // Sin espacio habitacional disponible
 
-        // Asignar nivel educativo según la educación general de la ciudad
+        // Asignar nivel educativo según la demografía urbana y talento inmigrante:
+        // Toda ciudad atrae un núcleo base de técnicos (oficios) y profesionales.
+        // A mayor educación metropolitana, mayor es la atracción de perfiles calificados.
+        const superiorChance = Math.min(30, 8 + Math.round(cityEducation * 0.22));
+        const technicalChance = Math.min(75, 35 + Math.round(cityEducation * 0.40));
+
         let edu = 0;
         const roll = Math.random() * 100;
-        if (roll < cityEducation * 0.35) {
-          edu = 2; // Superior
-        } else if (roll < cityEducation * 0.85) {
-          edu = 1; // Básico
+        if (roll < superiorChance) {
+          edu = 2; // Superior / Profesional
+        } else if (roll < technicalChance) {
+          edu = 1; // Técnico / Básico
+        } else {
+          edu = 0; // Sin estudios formales / Mano de obra general
         }
 
         const citizen = new Citizen(this.nextCitizenId++, home.id, edu);
@@ -210,15 +217,29 @@ export class CitizenManager {
   }
 
   _advanceEducation(cityEducation) {
-    if (Math.random() > 0.35) return;
+    if (Math.random() > 0.40) return;
     for (const citizen of this.citizens.values()) {
       if (citizen.educationLevel < 2) {
         const home = this.residentialBuildings.get(citizen.homeBuildingId);
+        const nearSchool = home && this.grid && this.grid.isTileCoveredBySchool(home.x, home.y);
         const nearUni = home && this.grid && this.grid.isTileCoveredByUniversity(home.x, home.y);
-        const threshold = citizen.educationLevel === 0 ? 30 : (nearUni ? 45 : 65);
-        const chance = nearUni ? 0.28 : 0.08;
-        if (cityEducation >= threshold && Math.random() < chance) {
-          citizen.educationLevel++;
+
+        if (citizen.educationLevel === 0) {
+          // De Sin Estudios (0) a Técnico / Básico (1)
+          // La Academia o Centro Técnico en el vecindario capacita directamente con facilidad (umbral 12)
+          const threshold = nearSchool ? 12 : 25;
+          const chance = nearSchool ? 0.35 : 0.10;
+          if (cityEducation >= threshold && Math.random() < chance) {
+            citizen.educationLevel = 1;
+          }
+        } else if (citizen.educationLevel === 1) {
+          // De Técnico (1) a Superior / Profesional (2)
+          // Requiere cobertura de Universidad Metropolitana o educación global elevada
+          const threshold = nearUni ? 35 : 65;
+          const chance = nearUni ? 0.28 : 0.08;
+          if (cityEducation >= threshold && Math.random() < chance) {
+            citizen.educationLevel = 2;
+          }
         }
       }
     }
@@ -304,11 +325,11 @@ export class CitizenManager {
             requiredEdu = 1;
             jobTitle = 'Operario Hidráulico';
           } else if (def.id === 'utility_water_plant') {
-            requiredEdu = 2; // Requiere superior para química y filtrado
-            jobTitle = 'Químico de Tratamiento de Aguas';
+            requiredEdu = 1; // Técnicos de bombeo, filtrado y redes
+            jobTitle = 'Técnico Hidráulico y Filtrado';
           } else if (def.id === 'service_school') {
-            requiredEdu = 2;
-            jobTitle = 'Profesor / Pedagogo';
+            requiredEdu = 1; // Instructores y docentes de formación técnica
+            jobTitle = 'Instructor Técnico / Formador';
           } else if (def.id === 'service_hospital') {
             requiredEdu = 2;
             jobTitle = 'Médico / Especialista de Salud';
@@ -322,8 +343,8 @@ export class CitizenManager {
             requiredEdu = 1;
             jobTitle = 'Funcionario Administrativo';
           } else if (def.id === 'service_seismic_radar') {
-            requiredEdu = 2;
-            jobTitle = 'Sismólogo / Operador Geotécnico';
+            requiredEdu = 1; // Operadores técnicos de alerta geotécnica
+            jobTitle = 'Técnico de Radar Sísmico';
           } else if (def.id === 'service_research') {
             requiredEdu = 2;
             jobTitle = 'Científico / Investigador';
@@ -487,6 +508,61 @@ export class CitizenManager {
         }
       } else {
         citizen.daysUnemployed++;
+      }
+    }
+
+    // 2.1. SEGUNDA PASADA: Auxiliares y Aprendices para Servicios Públicos Esenciales
+    // Si un servicio público o infraestructura esencial tiene plazas sin cubrir por falta de perfiles
+    // con el nivel académico exacto, admite a ciudadanos disponibles con (eduLevel >= requiredEdu - 1)
+    // como "Auxiliar / En formación", garantizando que escuelas, hospitales o plantas nunca se paralicen al 0%.
+    const unfilledPublicVacancies = publicVacancies.filter((v) => v.filled < v.capacity);
+    if (unfilledPublicVacancies.length > 0) {
+      const unemployedCitizens = citizensList.filter((c) => !c.currentJob);
+      for (const citizen of unemployedCitizens) {
+        let bestVac = null;
+        let bestScore = -Infinity;
+
+        for (const vac of unfilledPublicVacancies) {
+          if (vac.filled >= vac.capacity) continue;
+          if (citizen.educationLevel < vac.requiredEdu - 1) continue;
+
+          const home = this.residentialBuildings.get(citizen.homeBuildingId);
+          const homeX = home ? home.x : 0;
+          const homeY = home ? home.y : 0;
+          const distance = Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy);
+
+          const isApprentice = citizen.educationLevel < vac.requiredEdu;
+          const apprenticeSalary = isApprentice ? Math.round(vac.salary * 0.85) : vac.salary;
+          const score = 500 + apprenticeSalary - (distance * 0.8);
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestVac = vac;
+          }
+        }
+
+        if (bestVac) {
+          bestVac.filled++;
+          bestVac.workersEdu.push(citizen.educationLevel);
+          const isApprentice = citizen.educationLevel < bestVac.requiredEdu;
+          citizen.currentJob = {
+            employerId: bestVac.employerId,
+            salary: isApprentice ? Math.round(bestVac.salary * 0.85) : bestVac.salary,
+            type: bestVac.type,
+            title: isApprentice ? `Auxiliar / ${bestVac.title} (En formación)` : bestVac.title,
+            sector: 'public',
+            gx: bestVac.gx,
+            gy: bestVac.gy,
+          };
+          citizen.daysUnemployed = 0;
+          totalEmployed++;
+          publicEmployed++;
+
+          // Formación en el puesto: trabajar como auxiliar público ofrece experiencia para titularse
+          if (isApprentice && Math.random() < 0.20) {
+            citizen.educationLevel++;
+          }
+        }
       }
     }
 

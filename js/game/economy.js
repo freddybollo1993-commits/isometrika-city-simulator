@@ -640,7 +640,7 @@ export class EconomySystem {
 
     // 2. Determinar salario público estimado según cualificación requerida
     let requiredEdu = 1;
-    if (def.id === 'service_university' || def.id === 'service_hospital' || def.id === 'service_school' || def.id === 'utility_water_plant') {
+    if (def.id === 'service_university' || def.id === 'service_hospital' || def.id === 'service_research') {
       requiredEdu = 2;
     }
     const eduMult = requiredEdu === 2 ? 1.5 : requiredEdu === 1 ? 1.25 : 1.0;

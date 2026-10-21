@@ -187,6 +187,25 @@ export class Grid {
   }
 
   /**
+   * Verifica si una celda está en el radio de cobertura de una Academia o Centro Técnico
+   */
+  isTileCoveredBySchool(gx, gy) {
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        const t = this.tiles[y][x];
+        if (t && t.building && t.building.isRoot && t.building.id === 'service_school') {
+          const def = CONFIG.BUILDINGS['service_school'];
+          const lvl = t.building.level || 1;
+          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 8);
+          const dist = Math.abs(gx - x) + Math.abs(gy - y);
+          if (dist <= rad) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Verifica si una celda está en el radio de cobertura de la Universidad Metropolitana
    */
   isTileCoveredByUniversity(gx, gy) {
