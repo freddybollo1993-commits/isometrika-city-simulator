@@ -151,6 +151,28 @@ export class UIManager {
     this.elBtnDemolishInspector = document.getElementById('btn-demolish-inspector');
     this.elBtnCloseInspector = document.getElementById('btn-close-inspector');
 
+    // Progreso del día y Consejero Municipal
+    this.elDayProgressBar = document.getElementById('day-progress-bar');
+    this.elAdvisorBar = document.getElementById('mayor-advisor-bar');
+    this.elAdvisorPill = document.getElementById('advisor-pill');
+    this.elAdvisorIcon = document.getElementById('advisor-icon');
+    this.elAdvisorLabel = document.getElementById('advisor-label');
+    this.elAdvisorText = document.getElementById('advisor-text');
+
+    // Modal de Dilemas y Decisiones de Gobierno
+    this.elModalDilemma = document.getElementById('modal-dilemma');
+    this.elDilemmaEmoji = document.getElementById('dilemma-emoji');
+    this.elDilemmaTitle = document.getElementById('dilemma-title');
+    this.elDilemmaDesc = document.getElementById('dilemma-desc');
+    this.elDilemmaOptALabel = document.getElementById('dilemma-opt-a-label');
+    this.elDilemmaOptACost = document.getElementById('dilemma-opt-a-cost');
+    this.elDilemmaOptAConseq = document.getElementById('dilemma-opt-a-conseq');
+    this.elBtnDilemmaChooseA = document.getElementById('btn-dilemma-choose-a');
+    this.elDilemmaOptBLabel = document.getElementById('dilemma-opt-b-label');
+    this.elDilemmaOptBCost = document.getElementById('dilemma-opt-b-cost');
+    this.elDilemmaOptBConseq = document.getElementById('dilemma-opt-b-conseq');
+    this.elBtnDilemmaChooseB = document.getElementById('btn-dilemma-choose-b');
+
     // Modales y menús
     this.elModals = document.querySelectorAll('.game-modal');
     this.elModalOverlay = document.getElementById('modal-overlay');
@@ -333,6 +355,26 @@ export class UIManager {
     document.querySelectorAll('.modal-close, #modal-overlay').forEach((el) => {
       el.addEventListener('click', () => this.closeModals());
     });
+
+    // 8B. Barra del Consejero Municipal y Elecciones de Dilemas
+    if (this.elAdvisorBar) {
+      this.elAdvisorBar.addEventListener('click', () => {
+        if (this.game && this.game.audio) this.game.audio.playClick();
+        this.toggleStatsDropdown();
+      });
+    }
+
+    if (this.elBtnDilemmaChooseA) {
+      this.elBtnDilemmaChooseA.addEventListener('click', () => {
+        this.resolveDilemma('opt-a');
+      });
+    }
+
+    if (this.elBtnDilemmaChooseB) {
+      this.elBtnDilemmaChooseB.addEventListener('click', () => {
+        this.resolveDilemma('opt-b');
+      });
+    }
 
     // 9. Botones de acción en modales (Políticas, Reparación, Guardado)
     const btnRepair = document.getElementById('btn-repair-all');
@@ -846,8 +888,18 @@ export class UIManager {
       if (levelData.capacity) {
         statsHTML += `<div class="insp-stat-item"><span>Capacidad:</span><strong>${levelData.capacity} hab.</strong></div>`;
       }
-      if (levelData.jobs) {
-        statsHTML += `<div class="insp-stat-item"><span>Puestos de Empleo:</span><strong>${levelData.jobs}</strong></div>`;
+      if (levelData.jobs || def.jobs) {
+        const totalW = levelData.jobs || def.jobs;
+        const assignedW = building.assignedWorkers !== undefined ? building.assignedWorkers : totalW;
+        statsHTML += `<div class="insp-stat-item"><span>Puestos de Empleo:</span><strong>${assignedW} / ${totalW} operarios</strong></div>`;
+
+        const reqEdu = building.requiredEdu !== undefined ? building.requiredEdu : (def.requiredEdu || 0);
+        const reqEduText = reqEdu === 2 ? '🎓 Superior / Profesional' : reqEdu === 1 ? '📐 Técnico / Básico' : '🌱 Básico / Sin estudios';
+        statsHTML += `<div class="insp-stat-item"><span>Estudios Exigidos:</span><strong>${reqEduText}</strong></div>`;
+
+        const eff = building.operationalEfficiency !== undefined ? Math.round(building.operationalEfficiency * 100) : 100;
+        const effClass = eff >= 90 ? 'positive' : eff >= 60 ? 'text-warn' : 'negative';
+        statsHTML += `<div class="insp-stat-item"><span>Eficiencia Operativa:</span><strong class="${effClass}">${eff}%</strong></div>`;
       }
       if (levelData.revenue || levelData.revenuePerJob) {
         const rev = levelData.revenue || levelData.revenuePerJob;
@@ -1037,6 +1089,82 @@ export class UIManager {
       this.elInspectorSheet.classList.add('hidden');
     }
     this.currentInspected = null;
+  }
+
+  /**
+   * Actualiza la barra de progreso fluida del día actual (0% a 100%)
+   */
+  updateDayProgress(progress) {
+    if (this.elDayProgressBar) {
+      const pct = Math.min(100, Math.max(0, Math.round(progress * 100)));
+      this.elDayProgressBar.style.width = `${pct}%`;
+    }
+  }
+
+  /**
+   * Actualiza la píldora y estado del Consejero Municipal inteligente
+   */
+  updateAdvisor(diag) {
+    if (!diag || !this.elAdvisorPill) return;
+
+    if (this._lastDiagText !== diag.text) {
+      this._lastDiagText = diag.text;
+      if (this.elAdvisorIcon) this.elAdvisorIcon.textContent = diag.icon || '🏛️';
+      if (this.elAdvisorLabel) this.elAdvisorLabel.textContent = `${diag.label || 'Consejero'}:`;
+      if (this.elAdvisorText) this.elAdvisorText.textContent = diag.text || '';
+
+      this.elAdvisorPill.className = `advisor-pill advisor-${diag.level || 'info'}`;
+    }
+  }
+
+  /**
+   * Muestra el modal de dilemas ejecutivos de alcaldía
+   */
+  showDilemma(dilemma) {
+    if (!dilemma || !this.elModalDilemma) return;
+    this.activeDilemma = dilemma;
+
+    if (this.elDilemmaEmoji) this.elDilemmaEmoji.textContent = dilemma.icon || '🏛️';
+    if (this.elDilemmaTitle) this.elDilemmaTitle.textContent = dilemma.title || 'Decisión Ejecutiva';
+    if (this.elDilemmaDesc) this.elDilemmaDesc.textContent = dilemma.description || '';
+
+    const optA = dilemma.options && dilemma.options[0];
+    const optB = dilemma.options && dilemma.options[1];
+
+    if (optA) {
+      if (this.elDilemmaOptALabel) this.elDilemmaOptALabel.textContent = optA.label;
+      if (this.elDilemmaOptACost) this.elDilemmaOptACost.textContent = optA.costText || '';
+      if (this.elDilemmaOptAConseq) this.elDilemmaOptAConseq.textContent = optA.consequenceText || '';
+    }
+
+    if (optB) {
+      if (this.elDilemmaOptBLabel) this.elDilemmaOptBLabel.textContent = optB.label;
+      if (this.elDilemmaOptBCost) this.elDilemmaOptBCost.textContent = optB.costText || '';
+      if (this.elDilemmaOptBConseq) this.elDilemmaOptBConseq.textContent = optB.consequenceText || '';
+    }
+
+    this.openModal('dilemma');
+    if (this.game && this.game.audio) this.game.audio.playClick();
+  }
+
+  /**
+   * Resuelve el dilema con la opción seleccionada (A o B)
+   */
+  resolveDilemma(choiceSlot) {
+    if (!this.activeDilemma) return;
+    const choice = choiceSlot === 'opt-a' ? this.activeDilemma.options[0] : this.activeDilemma.options[1];
+    if (!choice) return;
+
+    const sim = this.game.simulation;
+    const resultMsg = sim.dilemmas.resolve(choice.id, sim);
+    this.closeModals();
+    this.activeDilemma = null;
+
+    if (resultMsg) {
+      this.showToast(`📜 ${resultMsg}`);
+    }
+    if (this.game && this.game.audio) this.game.audio.playBuild();
+    this.updateHUD(sim, this.game.research);
   }
 
   // =========================================================================

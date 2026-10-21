@@ -360,9 +360,16 @@ html, body {
 .hud-time {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: transparent;
   border: none;
+}
+
+.day-display-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
 }
 
 .day-text {
@@ -370,6 +377,23 @@ html, body {
   font-weight: 800;
   color: #facc15;
   white-space: nowrap;
+  line-height: 1;
+}
+
+.day-progress-container {
+  width: 52px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.day-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #facc15);
+  border-radius: 2px;
+  transition: width 0.06s linear;
 }
 
 .speed-group {
@@ -2751,6 +2775,202 @@ html, body {
 .btn-audit-jump:hover {
   background: #38bdf8;
   color: #0f172a;
+}
+
+/* ==========================================================================
+   CONSEJERO MUNICIPAL (TICKER INTELIGENTE DE CUELLOS DE BOTELLA)
+   ========================================================================== */
+.advisor-bar {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 85;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  max-width: 90vw;
+}
+
+.advisor-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-pill);
+  padding: 4px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font-size: 0.72rem;
+  color: #e2e8f0;
+  white-space: nowrap;
+  max-width: 620px;
+  transition: all 0.2s ease;
+}
+
+.advisor-pill:hover {
+  transform: scale(1.02);
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.advisor-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.advisor-label {
+  font-weight: 800;
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.advisor-text {
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.advisor-pill.advisor-warning {
+  border-color: rgba(245, 158, 11, 0.65);
+  background: rgba(35, 24, 10, 0.92);
+}
+.advisor-pill.advisor-warning .advisor-label {
+  color: #fbbf24;
+}
+
+.advisor-pill.advisor-danger {
+  border-color: rgba(239, 68, 68, 0.7);
+  background: rgba(45, 12, 12, 0.94);
+}
+.advisor-pill.advisor-danger .advisor-label {
+  color: #f87171;
+}
+
+.advisor-pill.advisor-success {
+  border-color: rgba(34, 197, 94, 0.6);
+  background: rgba(12, 35, 18, 0.92);
+}
+.advisor-pill.advisor-success .advisor-label {
+  color: #4ade80;
+}
+
+.advisor-pill.advisor-info {
+  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(10, 25, 45, 0.92);
+}
+.advisor-pill.advisor-info .advisor-label {
+  color: #38bdf8;
+}
+
+/* ==========================================================================
+   MODAL DE DILEMAS Y EVENTOS EJECUTIVOS DE ALCALDÍA
+   ========================================================================== */
+.modal-dilemma {
+  max-width: 580px;
+  width: 92vw;
+}
+
+.dilemma-banner {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.dilemma-desc {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.dilemma-options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .dilemma-options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dilemma-card-opt {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.dilemma-card-opt:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.dilemma-opt-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.badge-opt-a {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.badge-opt-b {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.dilemma-opt-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.dilemma-opt-cost {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.dilemma-opt-conseq {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.35;
+  margin: 0;
+  flex: 1;
+}
+
+.btn-dilemma {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-top: 4px;
 }
 
 

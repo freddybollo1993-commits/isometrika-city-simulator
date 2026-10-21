@@ -108,12 +108,21 @@ export class Game {
     if (speed > 0) {
       // 1x = 10000ms (10s por día), 2x = 5000ms (5s por día)
       const interval = Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / Math.max(1, speed));
+      this.currentTickInterval = interval;
+      this.lastTickTime = performance.now();
 
       this.simTimer = setInterval(() => {
+        this.lastTickTime = performance.now();
         this.simulation.tick(this.camera);
         this.ui.updateHUD(this.simulation, this.research);
       }, interval);
     }
+  }
+
+  getDayProgress() {
+    if (this.simulation.isPaused || this.simulation.speed === 0) return 0;
+    const elapsed = performance.now() - (this.lastTickTime || performance.now());
+    return Math.min(1.0, Math.max(0.0, elapsed / Math.max(1, this.currentTickInterval || 10000)));
   }
 
   /**
@@ -601,12 +610,23 @@ export class Game {
 
   loop() {
     this.camera.update();
+    const dayProgress = this.getDayProgress();
+
+    if (this.ui) {
+      this.ui.updateDayProgress(dayProgress);
+      if (!this._diagTick || performance.now() - this._diagTick > 400) {
+        this._diagTick = performance.now();
+        this.ui.updateAdvisor(this.simulation.getCityDiagnostics());
+      }
+    }
+
     this.renderer.render(
       this.grid,
       this.camera,
       this.hoverTile,
       this.ghostState,
-      this.disasters
+      this.disasters,
+      dayProgress
     );
 
     requestAnimationFrame(this.loop);

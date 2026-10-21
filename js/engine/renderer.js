@@ -14,10 +14,12 @@ export class Renderer {
     this.ctx = ctx;
     this.animationTick = 0;
     this.particles = [];
+    this.currentDayProgress = 0;
   }
 
-  render(grid, camera, hoverTile, ghostState, disasters) {
+  render(grid, camera, hoverTile, ghostState, disasters, dayProgress = 0) {
     this.animationTick += 0.05;
+    this.currentDayProgress = dayProgress;
 
     const ctx = this.ctx;
     const w = this.canvas.width;
@@ -73,6 +75,9 @@ export class Renderer {
 
     // 5. Efectos climáticos globales
     this.renderAtmosphericOverlay(ctx, disasters, w, h);
+
+    // 6. Ciclo solar fluido (Día / Atardecer dorado / Noche suave)
+    this.renderSolarCycle(ctx, dayProgress, w, h);
   }
 
   renderTerrainTile(ctx, x, y, tile) {
@@ -327,10 +332,20 @@ export class Renderer {
     if (def.lamp) {
       ctx.fillStyle = '#475569';
       ctx.fillRect(x - 1.5, y - 18, 3, 20);
+
+      const isNight = this.currentDayProgress >= 0.75;
       ctx.beginPath();
       ctx.arc(x, y - 18, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#fde047';
+      ctx.fillStyle = isNight ? '#fef08a' : '#cbd5e1';
       ctx.fill();
+
+      // Aura de luz nocturna proyectada sobre el suelo
+      if (isNight) {
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 2, 14, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       return;
     }
 
@@ -616,6 +631,11 @@ export class Renderer {
       // Detalle de entrada o porche
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, level === 1 ? '#78350f' : '#1e293b');
 
+      // Ventana rústica iluminada de noche
+      const isNightLow = this.currentDayProgress >= 0.78;
+      ctx.fillStyle = isNightLow ? '#fef08a' : 'rgba(255, 255, 255, 0.45)';
+      ctx.fillRect(x + (rotation % 2 === 0 ? -10 : 6), y - 10, 4, 4);
+
       // Nivel 2: Pequeño arbolito / jardín frontal
       if (level === 2) {
         ctx.fillStyle = '#22c55e';
@@ -627,7 +647,8 @@ export class Renderer {
 
     // Torre Departamentos (2x2)
     if (def.id === 'residential_high') {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      const isNightHigh = this.currentDayProgress >= 0.78;
+      ctx.fillStyle = isNightHigh ? '#fef08a' : 'rgba(255, 255, 255, 0.7)';
       for (let floor = 14; floor < h - 10; floor += 12) {
         ctx.fillRect(x - 24, y - floor, 6, 7);
         ctx.fillRect(x + 18, y - floor, 6, 7);
@@ -640,7 +661,8 @@ export class Renderer {
 
     // Vivienda Social Subvencionada (2x2)
     if (def.socialHousing) {
-      ctx.fillStyle = 'rgba(254, 215, 170, 0.9)';
+      const isNightSocial = this.currentDayProgress >= 0.78;
+      ctx.fillStyle = isNightSocial ? '#fef08a' : 'rgba(254, 215, 170, 0.9)';
       for (let floor = 10; floor < h - 8; floor += 10) {
         ctx.fillRect(x - 22, y - floor, 9, 5);
         ctx.fillRect(x - 6, y - floor, 9, 5);
@@ -1125,6 +1147,28 @@ export class Renderer {
         ctx.lineWidth = 10;
         ctx.strokeRect(0, 0, w, h);
       }
+    }
+  }
+
+  /**
+   * Renderiza el filtro de iluminación solar sutil a lo largo de los 10 segundos del día
+   */
+  renderSolarCycle(ctx, dayProgress, w, h) {
+    if (dayProgress === undefined || dayProgress === null) return;
+
+    // 0.65 - 0.85: Atardecer dorado (Golden hour)
+    if (dayProgress >= 0.65 && dayProgress < 0.85) {
+      const p = (dayProgress - 0.65) / 0.20;
+      const sunsetAlpha = Math.sin(p * Math.PI) * 0.12;
+      ctx.fillStyle = `rgba(249, 115, 22, ${sunsetAlpha})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+    // 0.85 - 1.0: Crepúsculo y anochecer suave
+    else if (dayProgress >= 0.85) {
+      const p = (dayProgress - 0.85) / 0.15;
+      const nightAlpha = p * 0.18;
+      ctx.fillStyle = `rgba(15, 23, 42, ${nightAlpha})`;
+      ctx.fillRect(0, 0, w, h);
     }
   }
 }

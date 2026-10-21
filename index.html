@@ -241,7 +241,12 @@
       <!-- Controles de tiempo, velocidad y Menú Desplegable Maestro -->
       <div class="hud-right-controls">
         <div class="hud-item hud-time" title="Tiempo de juego">
-          <span id="stat-day" class="day-text">Día 1</span>
+          <div class="day-display-group">
+            <span id="stat-day" class="day-text">Día 1</span>
+            <div class="day-progress-container" title="Progreso del día actual">
+              <div id="day-progress-bar" class="day-progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
           <div class="speed-group">
             <button class="btn-spd" data-speed="0" title="Pausar">⏸️</button>
             <button class="btn-spd active" data-speed="1" title="Velocidad normal (10s/día)">▶️</button>
@@ -327,6 +332,15 @@
       </div>
     </div>
   </header>
+
+  <!-- BARRA DE DIAGNÓSTICO Y CONSEJERO MUNICIPAL INTELIGENTE -->
+  <aside id="mayor-advisor-bar" class="advisor-bar" title="Toca para ver el informe de cuellos de botella y oportunidades">
+    <div id="advisor-pill" class="advisor-pill advisor-success">
+      <span class="advisor-icon" id="advisor-icon">🏛️</span>
+      <span class="advisor-label" id="advisor-label">Consejero:</span>
+      <span class="advisor-text" id="advisor-text">Analizando estado de la ciudad...</span>
+    </div>
+  </aside>
 
   <!-- BARRA DE GESTIÓN URBANA (5 ICONOS INDEPENDIENTES EN EL LADO IZQUIERDO) -->
   <aside class="hud-left-management" aria-label="Gestión Urbana">
@@ -486,6 +500,38 @@
       <button class="modal-close">&times;</button>
     </div>
     <div id="modal-economy-body" class="modal-body"></div>
+  </div>
+
+  <!-- MODAL DE DILEMAS Y EVENTOS DE ALCALDÍA -->
+  <div id="modal-dilemma" class="game-modal modal-glassmorphic modal-dilemma hidden">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span id="dilemma-emoji" class="modal-emoji">🏛️</span>
+        <h2 id="dilemma-title">Decisión Ejecutiva de Alcaldía</h2>
+      </div>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body modal-body-glass">
+      <div class="dilemma-banner">
+        <p id="dilemma-desc" class="dilemma-desc">Descripción del evento...</p>
+      </div>
+      <div class="dilemma-options-grid">
+        <div id="dilemma-opt-a" class="dilemma-card-opt">
+          <div class="dilemma-opt-badge badge-opt-a">Opción A</div>
+          <h4 id="dilemma-opt-a-label" class="dilemma-opt-title">Opción A</h4>
+          <div id="dilemma-opt-a-cost" class="dilemma-opt-cost">Coste</div>
+          <p id="dilemma-opt-a-conseq" class="dilemma-opt-conseq">Consecuencias</p>
+          <button id="btn-dilemma-choose-a" class="btn-primary btn-dilemma">Decretar Opción A</button>
+        </div>
+        <div id="dilemma-opt-b" class="dilemma-card-opt">
+          <div class="dilemma-opt-badge badge-opt-b">Opción B</div>
+          <h4 id="dilemma-opt-b-label" class="dilemma-opt-title">Opción B</h4>
+          <div id="dilemma-opt-b-cost" class="dilemma-opt-cost">Coste</div>
+          <p id="dilemma-opt-b-conseq" class="dilemma-opt-conseq">Consecuencias</p>
+          <button id="btn-dilemma-choose-b" class="btn-secondary btn-dilemma">Decretar Opción B</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="modal-settings" class="game-modal modal-glassmorphic">

@@ -8,6 +8,7 @@
 import { CONFIG } from './config.js';
 import { EconomySystem } from './economy.js';
 import { CitizenManager } from './citizens.js';
+import { DilemmaManager } from './dilemmas.js';
 
 export class Simulation {
   constructor(grid, corporations, research, disasters, audio, economy = null) {
@@ -18,6 +19,7 @@ export class Simulation {
     this.audio = audio;
     this.economy = economy || new EconomySystem(CONFIG.SIMULATION.INITIAL_FUNDS);
     this.citizens = new CitizenManager(this.grid, this.economy);
+    this.dilemmas = new DilemmaManager();
 
     this.day = 1;
     this.population = CONFIG.SIMULATION.INITIAL_POPULATION;
@@ -54,6 +56,193 @@ export class Simulation {
     this.policies = JSON.parse(JSON.stringify(CONFIG.POLICIES));
     this.speed = 1;
     this.isPaused = false;
+  }
+
+  /**
+   * Calcula la eficiencia operativa (0.15 a 1.25) de una estructura
+   * en función de su dotación de personal real y su nivel de estudios.
+   */
+  getBuildingEfficiency(tile, def, isPioneerPhase) {
+    if (!tile || !tile.building) return 1.0;
+    const b = tile.building;
+
+    // Pasivos sin puestos de operario
+    if (def.category === 'infra' && def.id === 'road') return 1.0;
+    if (def.category === 'nature') return 1.0;
+    if (def.category === 'residential') return 1.0;
+
+    const level = b.level || 1;
+    const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+    const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100);
+
+    // Modo pionero fundacional (menos de 30 hab): servicios automatizados básicos
+    if (isPioneerPhase) {
+      b.operationalEfficiency = healthFactor;
+      return healthFactor;
+    }
+
+    const maxW = b.maxWorkers || levelData.jobs || def.jobs || 0;
+    if (maxW <= 0) {
+      b.operationalEfficiency = healthFactor;
+      return healthFactor;
+    }
+
+    const assigned = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+    const staffingRatio = Math.min(1.0, assigned / Math.max(1, maxW));
+
+    // Exigencia de estudios (0: Sin estudios, 1: Técnico/Básico, 2: Superior/Profesional)
+    const requiredEdu = b.requiredEdu !== undefined ? b.requiredEdu : (def.requiredEdu || 0);
+    let eduQuality = 1.0;
+    if (requiredEdu > 0) {
+      const avgEdu = b.workerEduAvg !== undefined ? b.workerEduAvg : 0;
+      eduQuality = Math.min(1.25, Math.max(0.35, avgEdu / requiredEdu));
+    }
+
+    // 60% cobertura de vacantes + 40% calidad académica de los operarios
+    const eff = Math.max(0.15, Math.min(1.25, (staffingRatio * 0.60 + eduQuality * 0.40))) * healthFactor;
+    b.operationalEfficiency = Math.round(eff * 100) / 100;
+    return eff;
+  }
+
+  /**
+   * Diagnóstico inteligente de cuellos de botella para el Consejero Municipal
+   */
+  getCityDiagnostics() {
+    // 1. Quiebra inminente o déficit
+    if (this.economy && this.economy.stateFunds <= 0) {
+      return {
+        icon: '💸',
+        level: 'danger',
+        label: 'Quiebra Inminente',
+        text: 'Tesorería en $0. Sube impuestos o solicita inyección del sector privado.',
+      };
+    }
+
+    // 2. Apagón o corte de agua severo
+    if (this.hasPowerOutage) {
+      return {
+        icon: '⚡',
+        level: 'danger',
+        label: 'Apagón Eléctrico',
+        text: `Demanda (${this.powerDemand} MW) supera la generación (${this.powerSupply} MW). Amplía la red eléctrica.`,
+      };
+    }
+    if (this.hasWaterShortage) {
+      return {
+        icon: '💧',
+        level: 'danger',
+        label: 'Corte de Agua',
+        text: `Consumo (${this.waterDemand} kL) supera el bombeo (${this.waterSupply} kL). Construye una Torre de Agua.`,
+      };
+    }
+
+    // 3. Alimentos / Hambruna
+    if (this.population > 20 && this.foodCapacity < this.population) {
+      return {
+        icon: '🌾',
+        level: 'danger',
+        label: 'Déficit Alimentario',
+        text: `Población (${this.population}) supera la cosecha (${this.foodCapacity}). Construye Granjas Orgánicas.`,
+      };
+    }
+
+    // 4. Felicidad en riesgo (bloquea inmigración o provoca éxodo)
+    if (this.happiness < 20) {
+      return {
+        icon: '🚨',
+        level: 'danger',
+        label: 'Éxodo de Habitantes',
+        text: `Felicidad crítica (${Math.round(this.happiness)}%). La gente abandona la ciudad a un 2% diario.`,
+      };
+    }
+    if (this.happiness < 50) {
+      return {
+        icon: '😟',
+        level: 'warning',
+        label: 'Inmigración Bloqueada',
+        text: `Felicidad baja (${Math.round(this.happiness)}% < 50%). Se requieren parques, salud o reducir tributos.`,
+      };
+    }
+
+    // 5. Capacidad de vivienda llena
+    if (this.housingCapacity > 0 && this.population >= this.housingCapacity) {
+      return {
+        icon: '🏠',
+        level: 'warning',
+        label: 'Viviendas Llenas',
+        text: `Ocupación al 100% (${this.population}/${this.housingCapacity}). Construye más casas para recibir inmigrantes.`,
+      };
+    }
+
+    // 6. Alertas preventivas de servicios (>85% de capacidad)
+    if (this.powerSupply > 0 && this.powerDemand >= this.powerSupply * 0.85) {
+      return {
+        icon: '⚡',
+        level: 'warning',
+        label: 'Energía al Límite',
+        text: `Generación al ${Math.round((this.powerDemand / this.powerSupply) * 100)}%. Planifica un nuevo Parque Solar (+25 hab).`,
+      };
+    }
+    if (this.waterSupply > 0 && this.waterDemand >= this.waterSupply * 0.85) {
+      return {
+        icon: '💧',
+        level: 'warning',
+        label: 'Agua al Límite',
+        text: `Bombeo al ${Math.round((this.waterDemand / this.waterSupply) * 100)}%. Planifica una nueva Torre de Agua (+25 hab).`,
+      };
+    }
+
+    // 7. Desempleo elevado
+    if (this.unemploymentRate > 25 && this.population >= 20) {
+      return {
+        icon: '💼',
+        level: 'warning',
+        label: 'Desempleo Alto',
+        text: `Tasa de desempleo al ${this.unemploymentRate}%. Se necesitan vacantes en comercios o granjas.`,
+      };
+    }
+
+    // 8. Hito de desbloqueo disponible
+    if (this.population >= 15 && this.grid.countBuildings('service_police') === 0) {
+      return {
+        icon: '👮',
+        level: 'info',
+        label: 'Hito Desbloqueado',
+        text: 'Población suficiente para construir la Comisaría de Seguridad y la Escuela Técnica.',
+      };
+    }
+    if (this.population >= 20 && this.grid.countBuildings('service_cityhall') === 0) {
+      return {
+        icon: '🏛️',
+        level: 'info',
+        label: 'Hito Desbloqueado',
+        text: 'Población lista para erigir la Alcaldía y Palacio Municipal.',
+      };
+    }
+    if (this.population >= 35 && this.grid.countBuildings('service_hospital') === 0) {
+      return {
+        icon: '🏥',
+        level: 'info',
+        label: 'Hito Desbloqueado',
+        text: 'Habilitado el Hospital Central de Alta Resolución.',
+      };
+    }
+    if (this.population >= 60 && this.grid.countBuildings('service_university') === 0) {
+      return {
+        icon: '🎓',
+        level: 'info',
+        label: 'Hito Desbloqueado',
+        text: 'Habilitada la Universidad Metropolitana para formar profesionales.',
+      };
+    }
+
+    // 9. Ciudad armónica y próspera
+    return {
+      icon: '🌟',
+      level: 'success',
+      label: 'Crecimiento Óptimo',
+      text: 'Superávit fiscal, servicios estables y ciudadanos satisfechos.',
+    };
   }
 
   get funds() {
@@ -141,6 +330,13 @@ export class Simulation {
 
     this.day++;
 
+    // 1. SISTEMA DE CIUDADANOS AUTÓNOMOS, ESTUDIOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
+    this.citizens.syncWithGrid(this.grid, this.population, this.education);
+    this.citizens.matchJobs(this.grid, this.economy);
+
+    const isPioneerPhase = this.population < 30;
+    const dilemmaMods = this.dilemmas.getActiveModifiers();
+
     let totalHousing = 0;
     let commercialJobs = 0;
     let farmFoodSupply = 0;
@@ -167,7 +363,7 @@ export class Simulation {
 
     const policeStations = [];
 
-    // 1. Recorrido de estructuras (solo celdas raíz)
+    // 2. Recorrido de estructuras (solo celdas raíz) evaluando operarios reales y nivel de estudios
     for (let gy = 0; gy < this.grid.size; gy++) {
       for (let gx = 0; gx < this.grid.size; gx++) {
         const tile = this.grid.tiles[gy][gx];
@@ -181,6 +377,7 @@ export class Simulation {
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
         const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100);
+        const opEff = this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         if (tile.damage > 20) damagedCount++;
 
@@ -193,9 +390,9 @@ export class Simulation {
         // PLANTAS Y GENERADORES DE SERVICIOS BÁSICOS
         if (def.category === 'utility') {
           if (def.utilityType === 'power') {
-            totalPowerSupply += (levelData.powerSupply || 0) * healthFactor;
+            totalPowerSupply += (levelData.powerSupply || 0) * opEff;
           } else if (def.utilityType === 'water') {
-            totalWaterSupply += (levelData.waterSupply || 0) * healthFactor;
+            totalWaterSupply += (levelData.waterSupply || 0) * opEff;
           }
         }
 
@@ -212,7 +409,7 @@ export class Simulation {
           const jobs = (levelData.jobs || def.jobs || 15);
           commercialJobs += jobs;
           const rev = (levelData.revenue || def.revenuePerJob || 3.5);
-          baseCommTax += jobs * rev * healthFactor;
+          baseCommTax += jobs * rev * opEff * dilemmaMods.commSalesMultiplier;
 
           if (def.id === 'commercial_tower' && level === 3) {
             commercialMultiplier += 0.15; // Distrito financiero global
@@ -229,27 +426,27 @@ export class Simulation {
         }
         // GRANJAS
         else if (def.category === 'farm') {
-          farmFoodSupply += (levelData.foodCapacity || 100);
+          farmFoodSupply += Math.round((levelData.foodCapacity || 100) * opEff * dilemmaMods.foodMultiplier);
           commercialJobs += (levelData.jobs || 20);
           parkHappinessBonus += (levelData.happiness || 5);
         }
         // SERVICIOS PÚBLICOS
         else if (def.id === 'service_police') {
           policeStations.push({ gx, gy, radius: levelData.radius || 7 });
-          policeCoverageCount += (levelData.securityBoost || 25);
+          policeCoverageCount += (levelData.securityBoost || 25) * opEff;
         } else if (def.id === 'service_hospital') {
-          hospitalCoverage += (levelData.healthBoost || 30);
+          hospitalCoverage += (levelData.healthBoost || 30) * opEff;
         } else if (def.id === 'service_school') {
-          educationBoost += (levelData.educationBoost || 25) * healthFactor;
+          educationBoost += (levelData.educationBoost || 25) * opEff;
         } else if (def.id === 'service_university') {
-          educationBoost += (levelData.educationBoost || 45) * healthFactor;
-          researchGen += (levelData.researchPoints || 35) * healthFactor;
+          educationBoost += (levelData.educationBoost || 45) * opEff;
+          researchGen += (levelData.researchPoints || 35) * opEff;
         } else if (def.id === 'transit_bus_terminal') {
           parkHappinessBonus += 4;
         } else if (def.id === 'service_seismic_radar') {
-          policeCoverageCount += 10;
+          policeCoverageCount += 10 * opEff;
         } else if (def.id === 'service_research') {
-          researchGen += (levelData.researchPoints || 18) * healthFactor;
+          researchGen += (levelData.researchPoints || 18) * opEff;
         } else if (def.id === 'service_cityhall') {
           parkHappinessBonus += (levelData.happiness || 10);
           if (levelData.policyDiscount) policyDiscount += levelData.policyDiscount;
@@ -274,23 +471,6 @@ export class Simulation {
 
     // Actualizar nivel educativo
     this.education = Math.min(100, Math.max(10, Math.round(15 + educationBoost + (researchGen * 0.2))));
-
-    // 2. SISTEMA DE CIUDADANOS AUTÓNOMOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
-    this.citizens.syncWithGrid(this.grid, this.population, this.education);
-    this.citizens.matchJobs(this.grid, this.economy);
-
-    // Si la Alcaldía no ofrece salarios competitivos, las plantas públicas sufren déficit de personal
-    // provocando apagones y cortes de agua (Regla 3 del Documento Maestro)
-    // En fase fundacional (menos de 30 hab), los servicios operan en modo pionero automatizado.
-    const isPioneerPhase = this.population < 30;
-    const publicStaffRatio = this.citizens.metrics.publicStaffingRatio || 1.0;
-    // La capacidad de producción de las plantas públicas es proporcional a la cantidad de operarios y a su educación
-    const eduQualityBonus = this.education > 50 ? 1.20 : (this.education > 25 ? 1.0 : 0.85);
-    const publicLaborFactor = isPioneerPhase 
-      ? 1.0 
-      : Math.max(0.20, Math.min(1.35, publicStaffRatio * eduQualityBonus));
-    totalPowerSupply = Math.round(totalPowerSupply * publicLaborFactor);
-    totalWaterSupply = Math.round(totalWaterSupply * publicLaborFactor);
 
     // 3. EQUILIBRIO DE SERVICIOS BÁSICOS (RATIOS DE SUMINISTRO VS DEMANDA)
     this.powerSupply = Math.round(totalPowerSupply);
@@ -412,6 +592,7 @@ export class Simulation {
       calcHappiness -= Math.min(30, damagedCount * 2.5);
     }
 
+    calcHappiness += dilemmaMods.happinessMod;
     this.happiness = Math.max(5, Math.min(100, Math.round(calcHappiness)));
 
     // Migración demográfica
@@ -420,7 +601,7 @@ export class Simulation {
 
     if (this.population < this.housingCapacity) {
       if (this.happiness > 50) { // Margen de felicidad superior al 50% para que lleguen nuevos habitantes
-        const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14));
+        const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14 * dilemmaMods.immigrationMultiplier));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
       } else if (this.happiness < 20 && this.population > minLifeFloor) { // Margen de pérdida menor al 20%
         const departures = Math.max(1, Math.floor(this.population * 0.02)); // Los habitantes se van al 2% por cada tick
@@ -440,6 +621,7 @@ export class Simulation {
     calcSecurity -= this.unemploymentRate * 0.5;
     calcSecurity += Math.min(15, this.education * 0.18);
     calcSecurity += Math.min(15, hospitalCoverage * 0.35);
+    calcSecurity += dilemmaMods.healthMod;
 
     // Sin agua potable los hidrantes pierden presión y la seguridad decae
     if (this.hasWaterShortage) {
@@ -524,6 +706,14 @@ export class Simulation {
     );
 
     this.grid.updateVehicles();
+
+    // 10. EVALUAR DILEMAS Y EVENTOS EJECUTIVOS DE ALCALDÍA
+    const newDilemma = this.dilemmas.tick(this);
+    if (newDilemma) {
+      if (window.gameInstance && window.gameInstance.ui) {
+        window.gameInstance.ui.showDilemma(newDilemma);
+      }
+    }
   }
 
   repairAllCity() {
@@ -580,6 +770,7 @@ export class Simulation {
       speed: this.speed,
       isPaused: this.isPaused,
       citizens: this.citizens ? this.citizens.serialize() : null,
+      dilemmas: this.dilemmas ? this.dilemmas.serialize() : null,
     };
   }
 
@@ -604,6 +795,9 @@ export class Simulation {
     }
     if (data.citizens && this.citizens) {
       this.citizens.deserialize(data.citizens);
+    }
+    if (data.dilemmas && this.dilemmas) {
+      this.dilemmas.deserialize(data.dilemmas);
     }
   }
 }

@@ -474,6 +474,7 @@ export class CitizenManager {
       if (tile && tile.building) {
         tile.building.assignedWorkers = vac.filled;
         tile.building.maxWorkers = vac.capacity;
+        tile.building.requiredEdu = vac.requiredEdu || 0;
         tile.building.workerEduAvg = vac.workersEdu.length > 0 
           ? vac.workersEdu.reduce((a, b) => a + b, 0) / vac.workersEdu.length 
           : 0;
