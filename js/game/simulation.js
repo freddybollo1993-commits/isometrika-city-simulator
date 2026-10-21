@@ -65,6 +65,8 @@ export class Simulation {
   recalculateCapacities() {
     let totalHousing = 0;
     let commercialJobs = 0;
+    let privateActiveWorkers = 0;
+    let privateCapacity = 0;
     let totalCommercialRevenue = 0;
     let farmFoodSupply = 0;
     let totalPowerSupply = 0;
@@ -485,6 +487,8 @@ export class Simulation {
 
     let totalHousing = 0;
     let commercialJobs = 0;
+    let privateActiveWorkers = 0;
+    let privateCapacity = 0;
     let totalCommercialRevenue = 0;
     let farmFoodSupply = 0;
     let baseUpkeep = 0;
@@ -627,7 +631,9 @@ export class Simulation {
             const maxW = (levelData.jobs || def.jobs || 2);
             const activeW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
             commercialJobs += activeW;
-            const rev = (levelData.revenue || def.revenuePerJob || 35.0);
+            privateActiveWorkers += activeW;
+            privateCapacity += maxW;
+            const rev = (levelData.revenue || def.revenuePerJob || 44.0);
             const storeRevenue = activeW * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
             totalCommercialRevenue += storeRevenue;
             baseCommTax += storeRevenue;
@@ -659,6 +665,8 @@ export class Simulation {
             const ruralBonus = (this.pollution < 15) ? 1.20 : 1.0;
             const maxFarmW = (levelData.jobs || def.jobs || 3);
             const activeFarmW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxFarmW;
+            privateActiveWorkers += activeFarmW;
+            privateCapacity += maxFarmW;
             const farmStaffRatio = maxFarmW > 0 ? Math.max(0.15, activeFarmW / maxFarmW) : 1.0;
             const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * dilemmaMods.foodMultiplier);
             farmFoodSupply += effectiveFood;
@@ -763,6 +771,11 @@ export class Simulation {
     // Si hay apagón, la producción industrial se reduce suavemente de forma proporcional (mínimo 60%)
     if (this.hasPowerOutage) {
       corpResult.totalIndustrialRevenue = Math.round(corpResult.totalIndustrialRevenue * Math.max(0.60, this.powerRatio));
+    }
+
+    if (corpResult) {
+      privateActiveWorkers += corpResult.totalIndustrialJobs || 0;
+      privateCapacity += corpResult.totalIndustrialCapacity || 0;
     }
 
     researchGen += corpResult.bonusResearch;
@@ -900,6 +913,8 @@ export class Simulation {
         commercialJobs: this.commercialJobs,
         totalCommercialRevenue: totalCommercialRevenue,
         baseCommRevPerJob: 44.0,
+        privateActiveWorkers,
+        privateCapacity,
         corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
         corpTechRevenue: (this.corporations && this.corporations.techHiring && this.corporations.techHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.45),
         foodSupply: this.foodCapacity,

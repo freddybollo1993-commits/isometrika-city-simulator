@@ -174,7 +174,9 @@ export class EconomySystem {
       baseResTaxRate = 2.2,
       commercialJobs = 0,
       totalCommercialRevenue = 0,
-      baseCommRevPerJob = 35.0,
+      baseCommRevPerJob = 44.0,
+      privateActiveWorkers = 0,
+      privateCapacity = 0,
       corpMassRevenue = 0,
       corpTechRevenue = 0,
       foodSupply = 0,
@@ -428,19 +430,39 @@ export class EconomySystem {
       : 0;
 
     // =========================================================================
-    // EQUILIBRIO DE MERCADO: FIJACIÓN DE PRECIOS Y GARANTÍA DE MARGEN (15% - 22%)
+    // EQUILIBRIO DE MERCADO: FIJACIÓN DE PRECIOS Y MARGEN CONDICIONADO A OPERARIOS
     // =========================================================================
-    // En economía de mercado, los negocios privados fijan sus precios para cubrir
-    // nómina, servicios, mantenimiento e impuestos, dejando un margen objetivo del 18.5%.
-    // Este margen SOLO se ve erosionado o entra en pérdidas ante malas prácticas estatales:
-    // 1) Asfixia tributaria: tasas comerciales/industriales superiores a la norma (Curva de Laffer)
-    // 2) Fallas de suministro público: apagones eléctricos o sequías (utilityEfficiency < 1.0)
-    // 3) Desabastecimiento logístico y sobreendeudamiento
-    const targetBaseMargin = 0.185; // 18.5% estándar en condiciones óptimas (rango 15% - 22%)
+    // Regla de Oro del Empresario:
+    // 1) Una empresa con 100% de puestos ocupados y servicios públicos estables garantiza
+    //    la MÁXIMA utilidad (22%).
+    // 2) Una empresa con solo 1 trabajador genera la UTILIDAD MÍNIMA, que es proporcional
+    //    a la máxima utilidad dividida entre la cantidad de puestos disponibles (22% / N).
+    // 3) La escala general para cualquier dotación de personal (W de N puestos) es:
+    //    targetMargin = (W / N) * 22%.
+    // 4) Este porcentaje solo se ve erosionado o entra en pérdidas ante malas prácticas estatales:
+    //    - Asfixia tributaria (> 10% de tasa impositiva comercial/industrial)
+    //    - Fallas de suministro público: apagones eléctricos o sequías (utilityEfficiency < 1.0)
+    const MAX_POSSIBLE_MARGIN = 0.22; // 22% de utilidad máxima garantizada a plena dotación
+
+    // Ratio agregado de dotación de personal en el holding empresarial
+    const effectivePrivateCapacity = privateCapacity > 0 ? privateCapacity : Math.max(1, commercialJobs);
+    const effectivePrivateActive = privateActiveWorkers > 0 ? privateActiveWorkers : commercialJobs;
+    const staffingScale = effectivePrivateCapacity > 0
+      ? Math.max(0.04, Math.min(1.0, effectivePrivateActive / effectivePrivateCapacity))
+      : 1.0;
+
+    // Utilidad base escalonada según la ocupación de puestos de trabajo (de 1 a N trabajadores)
+    const scaledTargetMargin = MAX_POSSIBLE_MARGIN * staffingScale;
+
+    // Penalización tributaria si el Estado decreta impuestos superiores a la norma (10%)
     const avgTaxRate = (this.taxRates.commercial + this.taxRates.industrial) / 2;
-    const taxPenalty = Math.max(0, (avgTaxRate - 0.10) * 1.40); // Cada punto de impuesto sobre el 10% drena el margen
-    const utilityPenalty = Math.max(0, (1.0 - utilityEfficiency) * 0.50); // Apagones y falta de agua merman drásticamente la ganancia
-    const effectiveAchievableMargin = targetBaseMargin - taxPenalty - utilityPenalty;
+    const taxPenalty = Math.max(0, (avgTaxRate - 0.10) * 1.40);
+
+    // Penalización por fallas de servicios básicos municipales (apagones o sequías)
+    const utilityPenalty = Math.max(0, (1.0 - utilityEfficiency) * 0.50);
+
+    // Margen neto final alcanzable según dotación de personal y calidad del gobierno
+    const effectiveAchievableMargin = scaledTargetMargin - taxPenalty - utilityPenalty;
 
     // Ingreso requerido para cumplir la regla de rentabilidad según el entorno fiscal
     const directObligations = payrollCost + operatingCosts + taxesPaidToState + corporateInterest;
@@ -505,6 +527,9 @@ export class EconomySystem {
       },
       netProfit: corporateNetProfit,
       margin: marginPct,
+      staffingScale: Math.round(staffingScale * 100),
+      maxPossibleMargin: Math.round(MAX_POSSIBLE_MARGIN * 100),
+      targetMargin: Math.round(effectiveAchievableMargin * 100),
       solvency,
     };
 

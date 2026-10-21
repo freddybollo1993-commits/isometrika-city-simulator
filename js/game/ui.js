@@ -1009,6 +1009,18 @@ export class UIManager {
           statsHTML += `<div class="insp-stat-item"><span>Carga de Ocupación:</span><strong>${occPct}% (Proporcional)</strong></div>`;
         }
       }
+      if (['commercial', 'industrial', 'farm'].includes(def.category) && (levelData.jobs || def.jobs)) {
+        const totalW = levelData.jobs || def.jobs;
+        const assignedW = building.assignedWorkers !== undefined ? building.assignedWorkers : totalW;
+        const maxMargin = 22;
+        const currentMargin = totalW > 0 ? Math.round((maxMargin * (assignedW / totalW)) * 10) / 10 : 0;
+        const marginBadge = assignedW >= totalW 
+          ? `🏆 ${currentMargin}% (Máxima Utilidad)`
+          : assignedW === 1 
+            ? `🌱 ${currentMargin}% (Mínima: 22% ÷ ${totalW} puestos)`
+            : `📈 ${currentMargin}% (${assignedW}/${totalW} operarios)`;
+        statsHTML += `<div class="insp-stat-item full-width-stat" style="grid-column: 1 / -1;"><span>Margen de Utilidad:</span><strong class="positive">${marginBadge}</strong></div>`;
+      }
       if (levelData.coverageCapacity) {
         statsHTML += `<div class="insp-stat-item"><span>Capacidad Mantenimiento:</span><strong class="positive">${levelData.coverageCapacity} edificios</strong></div>`;
       }
@@ -2501,6 +2513,9 @@ export class UIManager {
           <div class="eco-kpi-card">
             <span class="kpi-label">Margen sobre Ventas</span>
             <span class="kpi-val ${corpBreakdown.margin >= 15 ? 'text-positive' : corpBreakdown.margin >= 0 ? 'text-warn' : 'text-danger'}">${corpBreakdown.margin || 0}%</span>
+            <small style="font-size: 0.65rem; color: #94a3b8; display: block; margin-top: 2px;">
+              ${corpBreakdown.staffingScale !== undefined ? corpBreakdown.staffingScale : 100}% Ocupación (Tope ${corpBreakdown.maxPossibleMargin || 22}%)
+            </small>
           </div>
           <div class="eco-kpi-card">
             <span class="kpi-label">Salud Financiera</span>
