@@ -926,6 +926,9 @@ export const CONFIG = {
   POLICIES: {
     massSubsidy: {
       id: 'massSubsidy',
+      icon: '🏗️',
+      short: 'Más empleo fabril',
+      effects: [['+25% empleo masivo', 'up'], ['+15% ventas', 'up'], ['+30% polución', 'down']],
       name: 'Subsidio a Contratación Masiva',
       description: 'Incentivos fiscales que aumentan los empleos masivos (+25%) y la recaudación (+15%), pero elevan la polución (+30%).',
       active: false,
@@ -933,6 +936,9 @@ export const CONFIG = {
     },
     cleanStandard: {
       id: 'cleanStandard',
+      icon: '🌿',
+      short: 'Industria más limpia',
+      effects: [['−25% polución', 'up'], ['−10% ventas masivas', 'down']],
       name: 'Normativa de Emisiones Cero',
       description: 'Impone filtros y auditorías verdes. Reduce la polución en 25%, pero penaliza ingresos masivos en 10%.',
       active: false,
@@ -940,6 +946,9 @@ export const CONFIG = {
     },
     stemScholarships: {
       id: 'stemScholarships',
+      icon: '🎓',
+      short: 'Talento calificado',
+      effects: [['+30% producción tech', 'up'], ['+25% investigación', 'up']],
       name: 'Becas de Talento STEM',
       description: 'Forma mano de obra calificada. Aumenta la producción calificada (+30%) y acelera la investigación (+25%).',
       active: false,
@@ -947,6 +956,9 @@ export const CONFIG = {
     },
     emergencyReliefFund: {
       id: 'emergencyReliefFund',
+      icon: '🛟',
+      short: 'Reparación automática',
+      effects: [['Repara daños cada día', 'up']],
       name: 'Fondo de Contingencia Municipal',
       description: 'Acelera la reparación automática de edificios tras un desastre a cambio de un fondo constante.',
       active: true,

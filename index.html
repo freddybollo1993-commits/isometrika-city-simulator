@@ -12,6 +12,7 @@
 
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/finance-hud.css">
+  <link rel="stylesheet" href="css/management-hub.css">
 </head>
 <body class="landscape-app">
 
@@ -361,19 +362,11 @@
     </button>
   </aside>
 
-  <!-- COLUMNA DERECHA: GESTIÓN URBANA (pulgar derecho) -->
+  <!-- COLUMNA DERECHA: ACCESO ÚNICO AL CENTRO DE GESTIÓN (pulgar derecho) -->
   <aside class="hud-right-management" aria-label="Gestión Urbana">
-    <button class="mgmt-icon-btn mgmt-btn-corp" data-open-modal="corporations" title="Empresas & Decretos" aria-label="Empresas y Decretos">
-      <span class="mgmt-emoji">🏭</span>
-      <span class="mgmt-tooltip">Empresas & Decretos</span>
-    </button>
-    <button class="mgmt-icon-btn mgmt-btn-research" data-open-modal="research" title="Ciencia & Investigación" aria-label="Ciencia e Investigación">
-      <span class="mgmt-emoji">🔬</span>
-      <span class="mgmt-tooltip">Ciencia & Investigación</span>
-    </button>
-    <button class="mgmt-icon-btn mgmt-btn-disaster" data-open-modal="disasters" title="Centro de Riesgos" aria-label="Centro de Riesgos">
-      <span class="mgmt-emoji">🌋</span>
-      <span class="mgmt-tooltip">Centro de Riesgos</span>
+    <button class="hub-access-btn" data-open-hub="corp" title="Centro de Gestión: Empresas, Ciencia y Riesgos" aria-label="Centro de Gestión">
+      <span class="hub-access-icons">🏭🔬🌋</span>
+      <small>Gestión</small>
     </button>
   </aside>
 

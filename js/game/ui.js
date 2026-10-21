@@ -8,6 +8,7 @@
 import { CONFIG } from './config.js';
 import { Calendar } from './calendar.js';
 import { FinanceHUD } from './finance-hud.js';
+import { ManagementHub } from './management-hub.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -56,6 +57,7 @@ export class UIManager {
     this.cacheDOMElements();
     this.bindEvents();
     this.financeHud = new FinanceHUD(game, this);
+    this.managementHub = new ManagementHub(game, this);
     this.buildCarousel();
     this.updateFullscreenUI();
     this.updateAudioButtonsState();
