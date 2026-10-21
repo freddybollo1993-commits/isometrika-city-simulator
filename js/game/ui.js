@@ -76,6 +76,9 @@ export class UIManager {
     this.elQuickCorpFunds = document.getElementById('quick-corp-funds');
     this.elQuickCorpCf = document.getElementById('quick-corp-cf');
     this.elQuickPopulation = document.getElementById('quick-population');
+    this.elQuickFoodWrap = document.getElementById('quick-food-wrap');
+    this.elQuickFoodSupply = document.getElementById('quick-food-supply');
+    this.elQuickFoodDenom = document.getElementById('quick-food-denom');
     this.elQuickHappiness = document.getElementById('quick-happiness');
     this.elQuickUtilityStatus = document.getElementById('quick-utility-status');
 
@@ -1210,6 +1213,27 @@ export class UIManager {
     if (this.elQuickPopulation) this.elQuickPopulation.textContent = sim.population.toLocaleString();
     if (this.elQuickHappiness) this.elQuickHappiness.textContent = `${sim.happiness}%`;
 
+    const foodCap = sim.foodCapacity || 0;
+    const pop = sim.population || 0;
+    if (this.elQuickFoodSupply) this.elQuickFoodSupply.textContent = foodCap.toLocaleString();
+    if (this.elQuickFoodDenom) this.elQuickFoodDenom.textContent = `/${pop} hab`;
+
+    if (this.elQuickFoodWrap) {
+      if (pop > 0 && foodCap < pop) {
+        this.elQuickFoodWrap.className = 'sum-item sum-item-food food-deficit';
+        this.elQuickFoodWrap.title = `¡Déficit Alimentario! Cosecha (${foodCap}) no alcanza para la población (${pop} hab). Construye Granjas Orgánicas.`;
+      } else if (pop > 0 && foodCap <= pop * 1.25) {
+        this.elQuickFoodWrap.className = 'sum-item sum-item-food food-tight';
+        this.elQuickFoodWrap.title = `Suministro Justo: Cosecha (${foodCap}) para ${pop} hab. Conviene expandir granjas pronto.`;
+      } else if (foodCap > 0) {
+        this.elQuickFoodWrap.className = 'sum-item sum-item-food food-good';
+        this.elQuickFoodWrap.title = `Soberanía Alimentaria: Cosecha (${foodCap}) holgada para ${pop} habitantes.`;
+      } else {
+        this.elQuickFoodWrap.className = 'sum-item sum-item-food food-warn';
+        this.elQuickFoodWrap.title = 'Sin producción de alimentos (0 hab). Construye Granjas Orgánicas.';
+      }
+    }
+
     // 2. Actualizar panel desplegable completo
     // Card 1: Estado (Alcaldía)
     if (this.elFunds) this.elFunds.textContent = formattedStateFunds;
@@ -1254,7 +1278,15 @@ export class UIManager {
 
     if (this.elPopulation) this.elPopulation.textContent = sim.population.toLocaleString();
     if (this.elCapacity) this.elCapacity.textContent = `/ ${sim.housingCapacity}`;
-    if (this.elFood) this.elFood.textContent = `${sim.foodCapacity || 0} hab.`;
+    if (this.elFood) {
+      if (pop > 0 && foodCap < pop) {
+        this.elFood.innerHTML = `<span class="text-danger">${foodCap} hab. (¡Déficit!)</span>`;
+      } else if (pop > 0 && foodCap <= pop * 1.25) {
+        this.elFood.innerHTML = `<span class="text-warn">${foodCap} hab. (Ajustado)</span>`;
+      } else {
+        this.elFood.innerHTML = `<span class="text-positive">${foodCap} hab. (Óptimo)</span>`;
+      }
+    }
 
     // Card Ciudadano (Agente) y Remanente Financiero
     const elCitSavings = document.getElementById('stat-cit-savings');

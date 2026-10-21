@@ -59,6 +59,72 @@ export class Simulation {
   }
 
   /**
+   * Recalcula instantáneamente suministros, demandas, vivienda y comida
+   * para actualizar el HUD al fundar la ciudad o tras modificaciones en la cuadrícula.
+   */
+  recalculateCapacities() {
+    let totalHousing = 0;
+    let commercialJobs = 0;
+    let farmFoodSupply = 0;
+    let totalPowerSupply = 0;
+    let totalPowerDemand = 0;
+    let totalWaterSupply = 0;
+    let totalWaterDemand = 0;
+    let totalBuildings = 0;
+    const isPioneerPhase = this.population < 30;
+
+    for (let gy = 0; gy < this.grid.size; gy++) {
+      for (let gx = 0; gx < this.grid.size; gx++) {
+        const tile = this.grid.tiles[gy][gx];
+        if (!tile || !tile.building || !tile.building.isRoot) continue;
+
+        totalBuildings++;
+        const b = tile.building;
+        const def = CONFIG.BUILDINGS[b.id];
+        if (!def) continue;
+
+        const level = b.level || 1;
+        const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+        const opEff = this.getBuildingEfficiency(tile, def, isPioneerPhase);
+
+        totalPowerDemand += (levelData.power || def.power || 0);
+        totalWaterDemand += (levelData.water || def.water || 0);
+
+        if (def.category === 'utility') {
+          if (def.utilityType === 'power') {
+            totalPowerSupply += (levelData.powerSupply || 0) * opEff;
+          } else if (def.utilityType === 'water') {
+            totalWaterSupply += (levelData.waterSupply || 0) * opEff;
+          }
+        } else if (def.category === 'residential') {
+          totalHousing += (levelData.capacity || 0);
+        } else if (def.category === 'commercial') {
+          commercialJobs += (levelData.jobs || 0);
+        } else if (def.category === 'farm') {
+          farmFoodSupply += Math.round((levelData.foodCapacity || 100) * opEff);
+          commercialJobs += (levelData.jobs || 20);
+        }
+      }
+    }
+
+    this.housingCapacity = totalHousing;
+    this.commercialJobs = commercialJobs;
+    this.powerSupply = Math.round(totalPowerSupply);
+    this.powerDemand = Math.round(totalPowerDemand);
+    this.waterSupply = Math.round(totalWaterSupply);
+    this.waterDemand = Math.round(totalWaterDemand);
+    this.powerRatio = this.powerDemand > 0 ? Math.min(1.0, this.powerSupply / this.powerDemand) : 1.0;
+    this.waterRatio = this.waterDemand > 0 ? Math.min(1.0, this.waterSupply / this.waterDemand) : 1.0;
+    this.hasPowerOutage = this.powerDemand > 0 && this.powerRatio < 0.95;
+    this.hasWaterShortage = this.waterDemand > 0 && this.waterRatio < 0.95;
+    if (this.hasWaterShortage) {
+      farmFoodSupply = Math.round(farmFoodSupply * Math.max(0.15, this.waterRatio));
+    }
+    this.foodCapacity = farmFoodSupply;
+    this.tileCount = totalBuildings;
+  }
+
+  /**
    * Calcula la eficiencia operativa (0.15 a 1.25) de una estructura
    * en función de su dotación de personal real y su nivel de estudios.
    */
@@ -137,7 +203,7 @@ export class Simulation {
     }
 
     // 3. Alimentos / Hambruna
-    if (this.population > 20 && this.foodCapacity < this.population) {
+    if (this.population > 0 && this.foodCapacity < this.population) {
       return {
         icon: '🌾',
         level: 'danger',
@@ -189,6 +255,14 @@ export class Simulation {
         level: 'warning',
         label: 'Agua al Límite',
         text: `Bombeo al ${Math.round((this.waterDemand / this.waterSupply) * 100)}%. Planifica una nueva Torre de Agua (+25 hab).`,
+      };
+    }
+    if (this.foodCapacity > 0 && this.population > 0 && this.foodCapacity <= this.population * 1.25) {
+      return {
+        icon: '🌾',
+        level: 'warning',
+        label: 'Cosechas al Límite',
+        text: `Producción de alimentos (${this.foodCapacity}) cercana a la demanda poblacional (${this.population} hab). Expande las Granjas Orgánicas.`,
       };
     }
 
@@ -487,6 +561,7 @@ export class Simulation {
     // Modulación por falta de agua en las cosechas
     if (this.hasWaterShortage) {
       farmFoodSupply = Math.round(farmFoodSupply * Math.max(0.15, this.waterRatio));
+      this.foodCapacity = farmFoodSupply;
     }
 
     // Modulación por falta de electricidad en los comercios
@@ -542,10 +617,10 @@ export class Simulation {
     }
 
     // Alimento y granjas
-    if (this.population > 50 && this.foodCapacity < this.population) {
+    if (this.population > 0 && this.foodCapacity < this.population) {
       const deficit = (this.population - this.foodCapacity) / this.population;
       calcHappiness -= deficit * 20;
-    } else if (this.foodCapacity >= this.population && this.population > 20) {
+    } else if (this.foodCapacity >= this.population && this.population > 0) {
       calcHappiness += 8; // Soberanía alimentaria
     }
 

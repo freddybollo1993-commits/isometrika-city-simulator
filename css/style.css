@@ -733,6 +733,20 @@ html, body {
 
 /* Responsive para pantallas móviles pequeñas */
 @media (max-width: 600px) {
+  .dropdown-summary-bar {
+    gap: 4px;
+    font-size: 0.7rem;
+  }
+
+  .dropdown-tag {
+    display: none;
+  }
+
+  .sum-sep {
+    font-size: 0.65rem;
+    opacity: 0.5;
+  }
+
   .hud-left-management {
     top: 48px;
     left: max(6px, env(safe-area-inset-left));
@@ -1708,6 +1722,58 @@ html, body {
 
 .sum-item-corp strong {
   color: #facc15;
+}
+
+/* Indicador de Soberanía Alimentaria en HUD Bar */
+.sum-item-food {
+  transition: all 0.25s ease;
+}
+
+.sum-item-food strong {
+  color: #86efac;
+  font-weight: 700;
+  transition: color 0.25s ease;
+}
+
+.sum-item-food small {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  margin-left: 1px;
+}
+
+.sum-item-food.food-good strong {
+  color: #4ade80;
+}
+
+.sum-item-food.food-tight strong {
+  color: #facc15;
+}
+
+.sum-item-food.food-warn strong {
+  color: #fb923c;
+}
+
+.sum-item-food.food-deficit strong {
+  color: #f87171;
+  text-shadow: 0 0 6px rgba(248, 113, 113, 0.7);
+}
+
+.sum-item-food.food-deficit small {
+  color: #fca5a5;
+}
+
+.sum-item-food.food-deficit {
+  animation: famine-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes famine-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.7));
+  }
 }
 
 .stat-card-state {

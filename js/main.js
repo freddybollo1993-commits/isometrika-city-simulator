@@ -66,6 +66,9 @@ export class Game {
     // Cargar partida previa o fundar ciudad inicial
     if (this.storage.hasSavedGame()) {
       this.storage.load();
+      if (this.simulation && this.simulation.recalculateCapacities) {
+        this.simulation.recalculateCapacities();
+      }
     } else {
       this.setupInitialTown();
     }
@@ -144,6 +147,14 @@ export class Game {
     // Servicios Básicos iniciales: 1 Parque Solar (80 MW) y 1 Torre de Agua (80 kL)
     this.grid.placeBuilding(center - 3, center - 1, 'utility_power_solar', 0);
     this.grid.placeBuilding(center + 3, center - 1, 'utility_water_tower', 0);
+
+    // Granja Orgánica pionera (2x2, 100 de capacidad de comida, 25 empleos)
+    this.grid.placeBuilding(center - 3, center + 1, 'farm_organic', 0);
+
+    // Recalcular capacidades iniciales para sincronizar el HUD
+    if (this.simulation && this.simulation.recalculateCapacities) {
+      this.simulation.recalculateCapacities();
+    }
   }
 
   handleResize() {
