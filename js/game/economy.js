@@ -225,13 +225,13 @@ export class EconomySystem {
     const municipalPropertyFee = Math.round(population * 0.8 * resRateRatio);
 
     // 2. Recaudación Comercial (cobrada sobre los comercios privados)
-    const effectiveCommMultiplier = commercialMultiplier * Math.max(0.35, powerRatio);
+    const effectiveCommMultiplier = commercialMultiplier * Math.max(0.60, powerRatio);
     const commercialTax = Math.round(
       commercialJobs * baseCommRevPerJob * commRateRatio * effectiveCommMultiplier * statePenaltyFactor
     );
 
     // 3. Recaudación Industrial (cobrada sobre fábricas y complejos tecnológicos privados)
-    const rawIndustrialBase = (corpMassRevenue + corpTechRevenue) * Math.max(0.4, powerRatio);
+    const rawIndustrialBase = (corpMassRevenue + corpTechRevenue) * Math.max(0.60, powerRatio);
     const industrialTax = Math.round(rawIndustrialBase * indRateRatio * statePenaltyFactor);
 
     // 4. Venta de Excedentes de Red Eléctrica y Agua (Comercio Regional Público)
@@ -327,7 +327,10 @@ export class EconomySystem {
     const serviceUpkeep = roadExpense + buildingUpkeep;
 
     // Interés por sobregiro municipal de emergencia (si está en negativo)
-    const stateOverdraftInterest = this.stateFunds < 0 ? Math.round(Math.abs(this.stateFunds) * 0.02) : 0;
+    // Tasa calibrada de crédito de contingencia (0.25% diario con tope máximo de seguridad para no crear agujeros negros fiscales)
+    const stateOverdraftInterest = this.stateFunds < 0 
+      ? Math.min(15, Math.max(1, Math.round(Math.abs(this.stateFunds) * 0.0025))) 
+      : 0;
 
     const stateTotalExpenses = Math.round(serviceUpkeep + publicPayroll + policyExpenses + totalImportsCost + stateOverdraftInterest);
     const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
@@ -372,9 +375,9 @@ export class EconomySystem {
     // PARTE D: CUENTA DE RESULTADOS DEL SECTOR PRIVADO (EL EMPRESARIO)
     // =========================================================================
 
-    // Si la empresa está en bancarrota previa o sufre apagón, la productividad cae suavemente
-    const corpSolvencyFactor = this.corporateFunds < -1500 ? 0.60 : this.corporateFunds <= 0 ? 0.80 : 1.0;
-    const corpProductionEfficiency = utilityEfficiency * corpSolvencyFactor;
+    // Si la empresa está en bancarrota previa o sufre apagón, la productividad se modula proporcionalmente
+    const corpSolvencyFactor = this.corporateFunds < -1500 ? 0.75 : this.corporateFunds <= 0 ? 0.88 : 1.0;
+    const corpProductionEfficiency = Math.max(0.60, utilityEfficiency) * corpSolvencyFactor;
 
     // 1. Ingresos por Ventas Privadas (Alquileres + Comercios + Alimentos + Exportaciones)
     const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
@@ -393,9 +396,14 @@ export class EconomySystem {
     const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales;
 
     // 2. Gastos Operativos y Salarios Privados
-    const payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
+    let payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
       ? citizenReport.totalPrivateWages
       : Math.round(commercialJobs * 16 + (corpMassRevenue + corpTechRevenue) * 0.25);
+
+    // Amortiguador de quiebra empresarial: contención operativa en números rojos
+    if (this.corporateFunds < 0 && totalPrivateRevenue > 0) {
+      payrollCost = Math.min(payrollCost, Math.max(Math.round(payrollCost * 0.75), Math.round(totalPrivateRevenue * 0.80)));
+    }
 
     // Mantenimiento de instalaciones privadas (almacenes, naves e invernaderos)
     const privateMaintenance = typeof privateBuildingUpkeep === 'number' 
@@ -408,8 +416,10 @@ export class EconomySystem {
     const operatingCosts = Math.round(totalPrivateRevenue * 0.10) + privateMaintenance + corporateUtilityBills;
     const taxesPaidToState = commercialTax + industrialTax;
 
-    // Sobregiro / Intereses de crédito privado de emergencia
-    const corporateInterest = this.corporateFunds < 0 ? Math.round(Math.abs(this.corporateFunds) * 0.02) : 0;
+    // Sobregiro / Intereses de crédito privado de emergencia (0.25% diario con tope protector de $12/d)
+    const corporateInterest = this.corporateFunds < 0 
+      ? Math.min(12, Math.max(1, Math.round(Math.abs(this.corporateFunds) * 0.0025))) 
+      : 0;
 
     const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState + corporateInterest;
     const corporateNetProfit = totalPrivateRevenue - totalPrivateExpenses;

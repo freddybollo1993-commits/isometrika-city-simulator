@@ -50,7 +50,27 @@ export class Renderer {
 
         // Si hay edificio y es celda raíz, dibujarlo
         if (tile.building && tile.building.isRoot) {
-          this.renderBuildingInstance(ctx, tile.building, gx, gy);
+          if (tile.building.suspended) {
+            ctx.save();
+            ctx.globalAlpha = 0.65;
+            this.renderBuildingInstance(ctx, tile.building, gx, gy);
+            ctx.restore();
+            // Indicador flotante de modo ahorro
+            ctx.save();
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const def = CONFIG.BUILDINGS[tile.building.id];
+            const bH = def ? (def.height || 24) : 24;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+            ctx.beginPath();
+            ctx.arc(iso.x, iso.y - bH - 10, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText('⏸️', iso.x, iso.y - bH - 10);
+            ctx.restore();
+          } else {
+            this.renderBuildingInstance(ctx, tile.building, gx, gy);
+          }
         } else if (tile.deco === 'tree') {
           this.renderTree(ctx, iso.x, iso.y);
         }

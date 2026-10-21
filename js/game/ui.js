@@ -150,6 +150,7 @@ export class UIManager {
     this.elBtnUpgrade = document.getElementById('btn-upgrade-building');
     this.elInspNextLvl = document.getElementById('insp-next-lvl');
     this.elInspUpgradeCost = document.getElementById('insp-upgrade-cost');
+    this.elBtnSuspendInspector = document.getElementById('btn-suspend-inspector');
     this.elBtnRotateInspector = document.getElementById('btn-rotate-inspector');
     this.elBtnDemolishInspector = document.getElementById('btn-demolish-inspector');
     this.elBtnCloseInspector = document.getElementById('btn-close-inspector');
@@ -385,6 +386,12 @@ export class UIManager {
     if (this.elBtnUpgrade) {
       this.elBtnUpgrade.addEventListener('click', () => {
         this.game.upgradeInspectedBuilding();
+      });
+    }
+
+    if (this.elBtnSuspendInspector) {
+      this.elBtnSuspendInspector.addEventListener('click', () => {
+        this.game.toggleSuspendInspectedBuilding();
       });
     }
 
@@ -937,14 +944,28 @@ export class UIManager {
 
     const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
     if (this.elInspStats) {
-      let statsHTML = `
+      let statsHTML = '';
+
+      if (building.suspended) {
+        statsHTML += `
+          <div class="insp-stat-item full-width-stat" style="grid-column: 1 / -1; background: rgba(234, 179, 8, 0.15); border: 1px solid #eab308; padding: 6px; border-radius: 6px; color: #fde047; font-size: 0.75rem; text-align: center;">
+            ⏸️ <strong>Modo Ahorro Activo</strong>: Consumo de luz y agua en 0. Nóminas en receso y mantenimiento reducido al 10%.
+          </div>
+        `;
+      }
+
+      const actualUpkeep = building.suspended 
+        ? Math.max(1, Math.round((levelData.upkeep || def.upkeep) * 0.10))
+        : (levelData.upkeep || def.upkeep);
+
+      statsHTML += `
         <div class="insp-stat-item">
           <span>Dimensiones:</span>
           <strong>${def.size || 1}x${def.size || 1}</strong>
         </div>
         <div class="insp-stat-item">
           <span>Mantenimiento:</span>
-          <strong class="negative">-$${levelData.upkeep || def.upkeep}/d</strong>
+          <strong class="${building.suspended ? 'text-warn' : 'negative'}">-$${actualUpkeep}/d${building.suspended ? ' (10%)' : ''}</strong>
         </div>
       `;
 
@@ -1142,6 +1163,13 @@ export class UIManager {
         if (this.elInspNextLvl) this.elInspNextLvl.textContent = 'MÁX';
         if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = '';
       }
+    }
+
+    if (this.elBtnSuspendInspector) {
+      this.elBtnSuspendInspector.innerHTML = building.suspended ? '▶️ Reanudar' : '⏸️ Pausar';
+      this.elBtnSuspendInspector.title = building.suspended 
+        ? 'Reanudar operación activa del edificio' 
+        : 'Poner en modo ahorro (0 luz/agua, sueldos congelados, 10% mantenimiento)';
     }
 
     this.elInspectorSheet.classList.remove('hidden');

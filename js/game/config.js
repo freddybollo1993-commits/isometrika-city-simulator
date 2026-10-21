@@ -51,20 +51,20 @@ export const CONFIG = {
 
     // Servicios Básicos
     utility_power_solar: { minPop: 0, popPerUnit: 20 }, // 1ª libre en la fundación, luego 1 cada 20 hab
-    utility_power_plant: { minPop: 40, popPerUnit: 65 },
+    utility_power_plant: { minPop: 50, popPerUnit: 70 },
     utility_water_tower: { minPop: 0, popPerUnit: 20 }, // 1ª libre en la fundación, luego 1 cada 20 hab
-    utility_water_plant: { minPop: 40, popPerUnit: 65 },
+    utility_water_plant: { minPop: 50, popPerUnit: 70 },
 
     // Tránsito y Servicios Públicos
-    transit_bus_terminal: { minPop: 16, popPerUnit: 30 },
-    service_police: { minPop: 10, popPerUnit: 25 },
-    service_fire: { minPop: 10, popPerUnit: 25 },
-    service_hospital: { minPop: 25, popPerUnit: 50 },
-    service_school: { minPop: 12, popPerUnit: 30 },
-    service_university: { minPop: 45, popPerUnit: 75 },
-    service_seismic_radar: { minPop: 20, popPerUnit: 45 },
-    service_research: { minPop: 30, popPerUnit: 55 },
-    service_cityhall: { minPop: 16, maxTotal: 1 }, // Solo 1 sede de alcaldía en la ciudad
+    transit_bus_terminal: { minPop: 20, popPerUnit: 35 },
+    service_police: { minPop: 15, popPerUnit: 30 },
+    service_fire: { minPop: 15, popPerUnit: 30 },
+    service_hospital: { minPop: 50, popPerUnit: 65 }, // Desbloqueo realista: requiere base tributaria suficiente
+    service_school: { minPop: 20, popPerUnit: 35 },
+    service_university: { minPop: 60, popPerUnit: 85 },
+    service_seismic_radar: { minPop: 25, popPerUnit: 50 },
+    service_research: { minPop: 35, popPerUnit: 60 },
+    service_cityhall: { minPop: 25, maxTotal: 1 }, // Sede de alcaldía a partir de 25 hab
   },
 
   // Zonas de exclusión espacial: Distancia Manhattan mínima entre edificios públicos del mismo tipo
@@ -149,13 +149,13 @@ export const CONFIG = {
       utilityType: 'power',
       size: 1, // 1x1
       height: 14,
-      cost: 1400,
+      cost: 1200,
       upkeep: 12,
       jobs: 1,
       levels: {
-        1: { cost: 1400, upkeep: 12, powerSupply: 60, jobs: 1, pollution: 0 },
-        2: { cost: 2500, upkeep: 22, powerSupply: 130, jobs: 2, pollution: 0 },
-        3: { cost: 4000, upkeep: 36, powerSupply: 220, jobs: 4, pollution: -1 },
+        1: { cost: 1200, upkeep: 12, powerSupply: 75, jobs: 1, pollution: 0 },
+        2: { cost: 2300, upkeep: 22, powerSupply: 150, jobs: 2, pollution: 0 },
+        3: { cost: 3800, upkeep: 36, powerSupply: 250, jobs: 4, pollution: -1 },
       },
       maxBonus: 'Baterías de Grafeno: Generación limpia 24/7 y superávit de energía que genera dividendos.',
       description: 'Paneles solares de silicio con acumuladores para energía limpia (1 a 4 técnicos solares).',
@@ -197,9 +197,9 @@ export const CONFIG = {
       upkeep: 10,
       jobs: 1,
       levels: {
-        1: { cost: 1000, upkeep: 10, waterSupply: 60, jobs: 1, pressureBoost: 10 },
-        2: { cost: 1800, upkeep: 18, waterSupply: 130, jobs: 2, pressureBoost: 20 },
-        3: { cost: 3000, upkeep: 30, waterSupply: 220, jobs: 4, pressureBoost: 35 },
+        1: { cost: 1000, upkeep: 10, waterSupply: 75, jobs: 1, pressureBoost: 10 },
+        2: { cost: 1800, upkeep: 18, waterSupply: 150, jobs: 2, pressureBoost: 20 },
+        3: { cost: 3000, upkeep: 30, waterSupply: 250, jobs: 4, pressureBoost: 35 },
       },
       maxBonus: 'Red Hidráulica Presurizada: Inmunidad total a sequías y garantiza caudal constante.',
       description: 'Depósito elevado de gravedad que bombea y abastece agua potable (1 a 4 operarios).',

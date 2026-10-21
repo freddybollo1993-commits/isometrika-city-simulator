@@ -563,6 +563,22 @@ export class Game {
     }
   }
 
+  toggleSuspendInspectedBuilding() {
+    if (!this.ui.currentInspected) return;
+    const { gx, gy, building } = this.ui.currentInspected;
+
+    const isSuspended = this.grid.toggleSuspend(gx, gy);
+    if (isSuspended !== null) {
+      this.audio.playClick();
+      const statusText = isSuspended 
+        ? '⏸️ Edificio en modo pausa (sin consumo de luz/agua y mantenimiento al 10%)' 
+        : '▶️ Edificio reactivado y plenamente operativo';
+      this.ui.showToast(statusText);
+      this.ui.showInspector(gx, gy, building);
+      this.ui.updateHUD(this.simulation, this.research);
+    }
+  }
+
   rotateInspectedBuilding() {
     if (!this.ui.currentInspected) return;
     const { gx, gy } = this.ui.currentInspected;

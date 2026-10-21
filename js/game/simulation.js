@@ -85,10 +85,14 @@ export class Simulation {
 
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
-        const opEff = this.getBuildingEfficiency(tile, def, isPioneerPhase);
+        const isSuspended = !!b.suspended;
+        const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
-        totalPowerDemand += (levelData.power || def.power || 0);
-        totalWaterDemand += (levelData.water || def.water || 0);
+        // Si está suspendido (Modo Ahorro), no demanda energía ni agua
+        if (!isSuspended) {
+          totalPowerDemand += (levelData.power || def.power || 0);
+          totalWaterDemand += (levelData.water || def.water || 0);
+        }
 
         if (def.category === 'utility') {
           if (def.utilityType === 'power') {
@@ -99,10 +103,12 @@ export class Simulation {
         } else if (def.category === 'residential') {
           totalHousing += (levelData.capacity || 0);
         } else if (def.category === 'commercial') {
-          commercialJobs += (levelData.jobs || 0);
+          if (!isSuspended) commercialJobs += (levelData.jobs || 0);
         } else if (def.category === 'farm') {
-          farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff);
-          commercialJobs += (levelData.jobs || 4);
+          if (!isSuspended) {
+            farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff);
+            commercialJobs += (levelData.jobs || 4);
+          }
         }
       }
     }
@@ -132,6 +138,12 @@ export class Simulation {
     if (!tile || !tile.building) return 1.0;
     const b = tile.building;
 
+    // Si el edificio está suspendido / modo ahorro, eficiencia = 0
+    if (b.suspended) {
+      b.operationalEfficiency = 0;
+      return 0;
+    }
+
     // Pasivos sin puestos de operario
     if (def.category === 'infra' && def.id === 'road') return 1.0;
     if (def.category === 'nature') return 1.0;
@@ -147,7 +159,11 @@ export class Simulation {
       return healthFactor;
     }
 
-    const maxW = b.maxWorkers || levelData.jobs || def.jobs || 0;
+    // Usar la dotación activa requerida según escala de población si existe
+    const maxW = b.activeJobsNeeded !== undefined 
+      ? b.activeJobsNeeded 
+      : (b.maxWorkers || levelData.jobs || def.jobs || 0);
+
     if (maxW <= 0) {
       b.operationalEfficiency = healthFactor;
       return healthFactor;
@@ -188,13 +204,22 @@ export class Simulation {
       };
     }
 
-    // 1. Quiebra inminente o déficit
+    // 1. Quiebra inminente o déficit público / holding
     if (this.economy && this.economy.stateFunds <= 0) {
       return {
         icon: '💸',
         level: 'danger',
-        label: 'Quiebra Inminente',
-        text: 'Tesorería en $0. Toca para abrir Finanzas, subir tributos o transferir fondos del holding.',
+        label: 'Quiebra Municipal',
+        text: 'Tesorería en $0. Toca para abrir Finanzas, subir tributos o inyectar fondos del holding.',
+        action: 'economy',
+      };
+    }
+    if (this.economy && this.economy.corporateFunds <= 0) {
+      return {
+        icon: '🏢',
+        level: 'danger',
+        label: 'Holding en Deuda',
+        text: `Capital empresarial en números rojos ($${this.economy.corporateFunds.toLocaleString()}). Toca para abrir Finanzas y emitir un rescate público.`,
         action: 'economy',
       };
     }
@@ -205,7 +230,7 @@ export class Simulation {
         icon: '⚡',
         level: 'danger',
         label: 'Apagón Eléctrico',
-        text: `Demanda (${this.powerDemand} MW) supera la generación (${this.powerSupply} MW). Toca para erigir un Parque Solar.`,
+        text: `Demanda (${this.powerDemand} MW) supera la generación (${this.powerSupply} MW). Erige otro Parque Solar o pausa edificios no esenciales.`,
         solveTool: 'utility_power_solar',
       };
     }
@@ -484,11 +509,14 @@ export class Simulation {
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
         const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100);
-        const opEff = this.getBuildingEfficiency(tile, def, isPioneerPhase);
+        const isSuspended = !!b.suspended;
+        const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         if (tile.damage > 20) damagedCount++;
 
-        const bldgUpkeep = (levelData.upkeep || def.upkeep || 0);
+        // Modo Ahorro / Suspendido: Reduce el mantenimiento físico al 10%
+        const nominalUpkeep = (levelData.upkeep || def.upkeep || 0);
+        const bldgUpkeep = isSuspended ? Math.max(1, Math.round(nominalUpkeep * 0.10)) : nominalUpkeep;
         baseUpkeep += bldgUpkeep;
 
         if (def.id === 'road') {
@@ -506,9 +534,11 @@ export class Simulation {
           privateBuildingUpkeep += bldgUpkeep;
         }
 
-        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO
-        totalPowerDemand += (levelData.power || def.power || 0);
-        totalWaterDemand += (levelData.water || def.water || 0);
+        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO (0 si está en modo ahorro / suspendido)
+        if (!isSuspended) {
+          totalPowerDemand += (levelData.power || def.power || 0);
+          totalWaterDemand += (levelData.water || def.water || 0);
+        }
 
         // PLANTAS Y GENERADORES DE SERVICIOS BÁSICOS
         if (def.category === 'utility') {
@@ -529,29 +559,33 @@ export class Simulation {
         }
         // COMERCIOS
         else if (def.category === 'commercial') {
-          const jobs = (levelData.jobs || def.jobs || 2);
-          commercialJobs += jobs;
-          const rev = (levelData.revenue || def.revenuePerJob || 5.5);
-          baseCommTax += jobs * rev * opEff * dilemmaMods.commSalesMultiplier;
+          if (!isSuspended) {
+            const jobs = (levelData.jobs || def.jobs || 2);
+            commercialJobs += jobs;
+            const rev = (levelData.revenue || def.revenuePerJob || 5.5);
+            baseCommTax += jobs * rev * opEff * dilemmaMods.commSalesMultiplier;
 
-          if (def.id === 'commercial_tower' && level === 3) {
-            commercialMultiplier += 0.15; // Distrito financiero global
-          } else if (def.id === 'commercial_gastronomy') {
-            parkHappinessBonus += 3;
+            if (def.id === 'commercial_tower' && level === 3) {
+              commercialMultiplier += 0.15; // Distrito financiero global
+            } else if (def.id === 'commercial_gastronomy') {
+              parkHappinessBonus += 3;
+            }
           }
         }
         // INDUSTRIAS
         else if (def.category === 'industrial') {
-          if (def.id === 'industrial_agro') {
+          if (!isSuspended && def.id === 'industrial_agro') {
             const boost = (levelData.exportBoost || 1.8);
             if (boost > agroExportMultiplier) agroExportMultiplier = boost;
           }
         }
         // GRANJAS
         else if (def.category === 'farm') {
-          farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff * dilemmaMods.foodMultiplier);
-          commercialJobs += (levelData.jobs || 4);
-          parkHappinessBonus += (levelData.happiness || 5);
+          if (!isSuspended) {
+            farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff * dilemmaMods.foodMultiplier);
+            commercialJobs += (levelData.jobs || 4);
+            parkHappinessBonus += (levelData.happiness || 5);
+          }
         }
         // SERVICIOS PÚBLICOS
         else if (def.id === 'service_police') {
@@ -613,10 +647,9 @@ export class Simulation {
       this.foodCapacity = farmFoodSupply;
     }
 
-    // Modulación por falta de electricidad en los comercios
+    // Modulación por falta de electricidad en la investigación (la modulación comercial la realiza el motor económico)
     if (this.hasPowerOutage) {
-      commercialMultiplier *= Math.max(0.35, this.powerRatio);
-      researchGen = Math.round(researchGen * Math.max(0.25, this.powerRatio));
+      researchGen = Math.round(researchGen * Math.max(0.50, this.powerRatio));
     }
 
     // 4. BUCLE DE ECONOMÍA ESPACIAL DE LOS CIUDADANOS (Fricción Manhattan, Remanente y Escalado Orgánico)
@@ -636,9 +669,9 @@ export class Simulation {
       this.research
     );
 
-    // Si hay apagón, la producción industrial se reduce
+    // Si hay apagón, la producción industrial se reduce suavemente de forma proporcional (mínimo 60%)
     if (this.hasPowerOutage) {
-      corpResult.totalIndustrialRevenue = Math.round(corpResult.totalIndustrialRevenue * Math.max(0.4, this.powerRatio));
+      corpResult.totalIndustrialRevenue = Math.round(corpResult.totalIndustrialRevenue * Math.max(0.60, this.powerRatio));
     }
 
     researchGen += corpResult.bonusResearch;
@@ -724,9 +757,13 @@ export class Simulation {
     const minLifeFloor = Math.min(this.housingCapacity, 8);
 
     if (this.population < this.housingCapacity) {
-      if (this.happiness > 50) { // Margen de felicidad superior al 50% para que lleguen nuevos habitantes
+      if (this.happiness > 50) { // Crecimiento robusto con felicidad > 50%
         const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14 * dilemmaMods.immigrationMultiplier));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
+      } else if (this.happiness >= 35 && this.unemploymentRate < 25 && this.day % 2 === 0) {
+        // Goteo de colonos pioneros: Si hay viviendas y empleo disponible, llegan familias pioneras (+1 hab cada 2 días)
+        // Evita que la ciudad quede petrificada en un callejón sin salida con 40-49 habitantes
+        this.population = Math.min(this.housingCapacity, this.population + 1);
       } else if (this.happiness < 20 && this.population > minLifeFloor) { // Margen de pérdida menor al 20%
         const departures = Math.max(1, Math.floor(this.population * 0.02)); // Los habitantes se van al 2% por cada tick
         this.population = Math.max(minLifeFloor, this.population - departures);

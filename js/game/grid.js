@@ -579,6 +579,27 @@ export class Grid {
   }
 
   /**
+   * Pausa o reactiva la operación de un edificio (Modo Ahorro / Standby)
+   * Reduce a 0 su demanda de agua y luz, congela vacantes de empleo y reduce el mantenimiento al 10%.
+   */
+  toggleSuspend(gx, gy) {
+    const tile = this.getTile(gx, gy);
+    if (!tile || !tile.building) return null;
+
+    let rootTile = tile;
+    if (tile.building.isChild) {
+      rootTile = this.getTile(tile.building.rootGx, tile.building.rootGy);
+    }
+
+    if (rootTile && rootTile.building) {
+      const b = rootTile.building;
+      b.suspended = !b.suspended;
+      return b.suspended;
+    }
+    return null;
+  }
+
+  /**
    * Demuele la estructura completa (libera todas las celdas en 1x1 y 2x2)
    */
   demolish(gx, gy) {

@@ -254,6 +254,12 @@ export class CitizenManager {
         const def = CONFIG.BUILDINGS[tile.building.id];
         if (!def) continue;
 
+        // Si el edificio está en modo ahorro / suspendido, no genera puestos de trabajo
+        if (tile.building.suspended) {
+          tile.building.assignedWorkers = 0;
+          continue;
+        }
+
         const level = tile.building.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
         const bldgUid = `bldg_${gx}_${gy}`;
@@ -265,6 +271,22 @@ export class CitizenManager {
 
           let jobsCount = levelData.jobs !== undefined ? levelData.jobs : (def.jobs !== undefined ? def.jobs : 2);
           if (jobsCount <= 0) continue;
+
+          // Escalado Dinámico de Personal Público según Carga Poblacional Real:
+          // Un pueblo de 40-50 hab no debe pagar la nómina médica o docente de una metrópolis de 200 hab
+          const curPop = this.citizens.length || 0;
+          if (def.id === 'service_hospital') {
+            jobsCount = curPop < 50 ? 1 : curPop < 90 ? Math.min(2, jobsCount) : jobsCount;
+          } else if (def.id === 'service_school') {
+            jobsCount = curPop < 45 ? 1 : jobsCount;
+          } else if (def.id === 'service_cityhall') {
+            jobsCount = curPop < 45 ? 1 : jobsCount;
+          } else if (def.id === 'service_university') {
+            jobsCount = curPop < 80 ? 1 : curPop < 140 ? 2 : jobsCount;
+          } else if (def.id === 'transit_bus_terminal') {
+            jobsCount = curPop < 45 ? 1 : jobsCount;
+          }
+          tile.building.activeJobsNeeded = jobsCount;
 
           let requiredEdu = 1;
           let jobTitle = 'Operario de Servicios Públicos';
