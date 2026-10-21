@@ -173,7 +173,7 @@ export class EconomySystem {
       housingCapacity = 1,
       baseResTaxRate = 2.2,
       commercialJobs = 0,
-      baseCommRevPerJob = 5.5,
+      baseCommRevPerJob = 30.0,
       corpMassRevenue = 0,
       corpTechRevenue = 0,
       foodSupply = 0,
@@ -228,15 +228,15 @@ export class EconomySystem {
     // Tasa municipal fija por ocupación residencial (canon de conservación urbana)
     const municipalPropertyFee = Math.round(population * 0.8 * resRateRatio);
 
-    // 2. Recaudación Comercial (cobrada sobre los comercios privados)
+    // 2. Recaudación Comercial (cobrada sobre los comercios privados, 10% base)
     const effectiveCommMultiplier = commercialMultiplier * Math.max(0.60, powerRatio);
     const commercialTax = Math.round(
-      commercialJobs * baseCommRevPerJob * commRateRatio * effectiveCommMultiplier * statePenaltyFactor
+      commercialJobs * baseCommRevPerJob * this.taxRates.commercial * effectiveCommMultiplier * statePenaltyFactor
     );
 
-    // 3. Recaudación Industrial (cobrada sobre fábricas y complejos tecnológicos privados)
+    // 3. Recaudación Industrial (cobrada sobre fábricas y complejos tecnológicos privados, 10% base)
     const rawIndustrialBase = (corpMassRevenue + corpTechRevenue) * Math.max(0.60, powerRatio);
-    const industrialTax = Math.round(rawIndustrialBase * indRateRatio * statePenaltyFactor);
+    const industrialTax = Math.round(rawIndustrialBase * this.taxRates.industrial * statePenaltyFactor);
 
     // 4. Venta de Excedentes de Red Eléctrica y Agua (Comercio Regional Público)
     let exportEnergyRev = 0;
@@ -392,7 +392,7 @@ export class EconomySystem {
       ? citizenReport.totalFoodConsumed
       : Math.round(foodSupply * 0.95);
 
-    const commercialSales = Math.round(commercialJobs * 6.5 * effectiveCommMultiplier * corpProductionEfficiency);
+    const commercialSales = Math.round(commercialJobs * baseCommRevPerJob * effectiveCommMultiplier * corpProductionEfficiency);
     const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
     const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
     const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));

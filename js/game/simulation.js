@@ -617,7 +617,7 @@ export class Simulation {
 
             const jobs = (levelData.jobs || def.jobs || 2);
             commercialJobs += jobs;
-            const rev = (levelData.revenue || def.revenuePerJob || 5.5);
+            const rev = (levelData.revenue || def.revenuePerJob || 30.0);
             baseCommTax += jobs * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
 
             if (def.id === 'commercial_tower' && level === 3) {
@@ -882,7 +882,7 @@ export class Simulation {
         housingCapacity: this.housingCapacity,
         baseResTaxRate: 2.2,
         commercialJobs: this.commercialJobs,
-        baseCommRevPerJob: 5.5,
+        baseCommRevPerJob: 30.0,
         corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
         corpTechRevenue: (this.corporations && this.corporations.techHiring && this.corporations.techHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.45),
         foodSupply: this.foodCapacity,

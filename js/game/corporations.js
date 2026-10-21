@@ -58,7 +58,7 @@ export class CorporationsManager {
         const lvl = tile.building.level || 1;
         const levelData = (def.levels && def.levels[lvl]) ? def.levels[lvl] : def;
         const jobs = levelData.jobs || def.jobs || 50;
-        const revPerJob = levelData.revenuePerJob || def.revenuePerJob || 3.8;
+        const revPerJob = levelData.revenuePerJob || def.revenuePerJob || 32.0;
         const pollution = levelData.pollution !== undefined ? levelData.pollution : (def.pollution || 15);
         const tileDamage = tile.damage || 0;
 
