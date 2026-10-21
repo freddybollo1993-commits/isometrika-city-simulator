@@ -38,11 +38,11 @@ export class EconomySystem {
 
     // Precios fluctuantes del mercado internacional de commodities
     const basePrices = ecoConfig.GLOBAL_MARKET_PRICES || {
-      food: 1.6,
-      massGoods: 3.4,
-      techGoods: 7.8,
-      energy: 0.85,
-      water: 0.65,
+      food: 2.8,
+      massGoods: 4.2,
+      techGoods: 9.5,
+      energy: 0.95,
+      water: 0.75,
     };
 
     this.marketPrices = { ...basePrices };
@@ -226,7 +226,8 @@ export class EconomySystem {
     let importFoodCost = 0;
 
     if (foodSupply > population && population > 0) {
-      exportFoodVol = Math.floor((foodSupply - population) * 0.7);
+      const surplusFood = foodSupply - population;
+      exportFoodVol = Math.floor(surplusFood * 0.90);
       const effectiveFoodPrice = Math.round(this.marketPrices.food * Math.max(1.0, agroExportMultiplier) * 100) / 100;
       exportFoodRev = Math.round(exportFoodVol * effectiveFoodPrice);
     } else if (population > foodSupply && foodSupply > 0) {
@@ -249,18 +250,18 @@ export class EconomySystem {
     const rawCommSales = (typeof totalCommercialRevenue === 'number' && totalCommercialRevenue > 0)
       ? totalCommercialRevenue
       : Math.round(commercialJobs * baseCommRevPerJob * effectiveCommMultiplier);
-    const commercialSales = Math.round(rawCommSales * corpProductionEfficiency);
+    let commercialSales = Math.round(rawCommSales * corpProductionEfficiency);
 
     // Ventas industriales: estrictamente proporcionales a la producción real
-    const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
-    const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
-    const totalIndustrialSales = massIndustrySales + techIndustrySales;
+    let massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
+    let techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
+    let totalIndustrialSales = massIndustrySales + techIndustrySales;
 
     // Ventas agrícolas y alimentos
     const localFoodSales = (citizenReport && citizenReport.totalFoodConsumed > 0)
       ? citizenReport.totalFoodConsumed
       : Math.round(foodSupply * 0.95);
-    const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));
+    let farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.40, waterRatio));
 
     // Alquileres de vivienda privada y social
     const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
@@ -408,21 +409,17 @@ export class EconomySystem {
       ? citizenReport.totalPrivateWages
       : Math.round(commercialJobs * 22 + (corpMassRevenue + corpTechRevenue) * 0.25);
 
-    // Amortiguador de quiebra empresarial: contención operativa en números rojos
-    if (this.corporateFunds < 0 && totalPrivateRevenue > 0) {
-      payrollCost = Math.min(payrollCost, Math.max(Math.round(payrollCost * 0.75), Math.round(totalPrivateRevenue * 0.80)));
-    }
-
     // Mantenimiento de instalaciones privadas modulado a ocupación real de trabajadores
     const privateMaintenance = typeof privateBuildingUpkeep === 'number' 
       ? privateBuildingUpkeep 
-      : Math.round(totalPrivateRevenue * 0.06);
+      : Math.round(totalPrivateRevenue * 0.05);
 
     // Tarifas de insumos básicos (agua/luz comercial e industrial) proporcionales a trabajadores activos
     const corporateUtilityBills = commercialTariff + industrialTariff;
 
-    // Costos operativos balanceados (8% de ventas + mantenimiento real proporcional + servicios reales)
-    const operatingCosts = Math.round(totalPrivateRevenue * 0.08) + privateMaintenance + corporateUtilityBills;
+    // Costos operativos e insumos (2% en suministros menores de venta + mantenimiento real proporcional + servicios reales)
+    const operatingSupplies = Math.round(totalPrivateRevenue * 0.02);
+    const operatingCosts = operatingSupplies + privateMaintenance + corporateUtilityBills;
     const taxesPaidToState = commercialTax + industrialTax;
 
     // Sobregiro / Intereses de crédito privado de emergencia (0.25% diario con tope protector de $12/d)
@@ -430,8 +427,36 @@ export class EconomySystem {
       ? Math.min(12, Math.max(1, Math.round(Math.abs(this.corporateFunds) * 0.0025))) 
       : 0;
 
-    const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState + corporateInterest;
-    const corporateNetProfit = totalPrivateRevenue - totalPrivateExpenses;
+    // =========================================================================
+    // EQUILIBRIO DE MERCADO: FIJACIÓN DE PRECIOS Y GARANTÍA DE MARGEN (15% - 22%)
+    // =========================================================================
+    // En economía de mercado, los negocios privados fijan sus precios para cubrir
+    // nómina, servicios, mantenimiento e impuestos, dejando un margen objetivo del 18.5%.
+    // Este margen SOLO se ve erosionado o entra en pérdidas ante malas prácticas estatales:
+    // 1) Asfixia tributaria: tasas comerciales/industriales superiores a la norma (Curva de Laffer)
+    // 2) Fallas de suministro público: apagones eléctricos o sequías (utilityEfficiency < 1.0)
+    // 3) Desabastecimiento logístico y sobreendeudamiento
+    const targetBaseMargin = 0.185; // 18.5% estándar en condiciones óptimas (rango 15% - 22%)
+    const avgTaxRate = (this.taxRates.commercial + this.taxRates.industrial) / 2;
+    const taxPenalty = Math.max(0, (avgTaxRate - 0.10) * 1.40); // Cada punto de impuesto sobre el 10% drena el margen
+    const utilityPenalty = Math.max(0, (1.0 - utilityEfficiency) * 0.50); // Apagones y falta de agua merman drásticamente la ganancia
+    const effectiveAchievableMargin = targetBaseMargin - taxPenalty - utilityPenalty;
+
+    // Ingreso requerido para cumplir la regla de rentabilidad según el entorno fiscal
+    const directObligations = payrollCost + operatingCosts + taxesPaidToState + corporateInterest;
+    const viableRevenueFloor = Math.round(directObligations / Math.max(0.40, (1.0 - effectiveAchievableMargin)));
+
+    let effectiveTotalPrivateRevenue = totalPrivateRevenue;
+    if (effectiveAchievableMargin > 0 && effectiveTotalPrivateRevenue < viableRevenueFloor) {
+      // Ajuste orgánico de precios minoristas y agroindustriales al consumidor
+      const revDeficit = viableRevenueFloor - effectiveTotalPrivateRevenue;
+      effectiveTotalPrivateRevenue = viableRevenueFloor;
+      commercialSales += Math.round(revDeficit * 0.55);
+      farmSales += Math.round(revDeficit * 0.45);
+    }
+
+    const totalPrivateExpenses = directObligations;
+    const corporateNetProfit = effectiveTotalPrivateRevenue - totalPrivateExpenses;
 
     this.corporateFunds += corporateNetProfit;
 
@@ -446,7 +471,10 @@ export class EconomySystem {
     if (this.corporateFunds < -2000 || (this.corporateFunds < 0 && this.consecutivePrivateLossDays >= 5)) {
       solvency = 'crisis';
       this.isCorporateCrisis = true;
-    } else if (this.corporateFunds < 800 || corporateNetProfit < 0) {
+    } else if (corporateNetProfit < 0) {
+      solvency = 'ajustado';
+      this.isCorporateCrisis = false;
+    } else if (this.corporateFunds < 200 && corporateNetProfit < 15) {
       solvency = 'ajustado';
       this.isCorporateCrisis = false;
     } else {
@@ -454,8 +482,8 @@ export class EconomySystem {
       this.isCorporateCrisis = false;
     }
 
-    const marginPct = totalPrivateRevenue > 0 
-      ? Math.round((corporateNetProfit / totalPrivateRevenue) * 100) 
+    const marginPct = effectiveTotalPrivateRevenue > 0 
+      ? Math.round((corporateNetProfit / effectiveTotalPrivateRevenue) * 100) 
       : 0;
 
     this.corporateBreakdown = {
@@ -466,7 +494,7 @@ export class EconomySystem {
         techIndustrySales,
         farmSales,
         maintenanceContracts: maintenanceRev,
-        total: totalPrivateRevenue,
+        total: effectiveTotalPrivateRevenue,
       },
       expenses: {
         payroll: payrollCost,

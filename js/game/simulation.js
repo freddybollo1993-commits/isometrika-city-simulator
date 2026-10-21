@@ -899,7 +899,7 @@ export class Simulation {
         baseResTaxRate: 2.2,
         commercialJobs: this.commercialJobs,
         totalCommercialRevenue: totalCommercialRevenue,
-        baseCommRevPerJob: 35.0,
+        baseCommRevPerJob: 44.0,
         corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
         corpTechRevenue: (this.corporations && this.corporations.techHiring && this.corporations.techHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.45),
         foodSupply: this.foodCapacity,
