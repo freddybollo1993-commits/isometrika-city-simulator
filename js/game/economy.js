@@ -14,6 +14,7 @@
 
 import { CONFIG } from './config.js';
 import { Ledger } from './ledger.js';
+import { clearSupplyMarket, SUPPLY_RULES } from './supply-chain.js';
 
 // Ruido determinista por día y producto (la economía es reproducible en pruebas)
 function marketNoise(day, index) {
@@ -225,6 +226,8 @@ export class EconomySystem {
       citizenReport = null,
       totalMaintenanceCapacity = 0,
       householdCitizens = [],
+      supplyOutput = {},
+      logisticsCapacity = 0,
       priceIndex = 1,
       cycle = null,
       tourism = 1,
@@ -273,8 +276,9 @@ export class EconomySystem {
     const exportTechVol = Math.floor(corpTechRevenue * 0.28);
     const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
 
-    const massIndustrySales = L.transfer('external', 'corporate',
-      Math.round((corpMassRevenue * 1.3 + exportMassRev) * productionEfficiency * cycleIndustrial), 'Ventas de manufactura al mercado regional');
+    // Producción de las fábricas masivas: primero abastece a los comercios locales (Parte D bis),
+    // el resto se vende al mercado regional
+    const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * productionEfficiency * cycleIndustrial);
     const techIndustrySales = L.transfer('external', 'corporate',
       Math.round((corpTechRevenue * 1.4 + exportTechRev) * productionEfficiency * cycleIndustrial), 'Ventas tecnológicas al mercado regional');
     const totalIndustrialSales = massIndustrySales + techIndustrySales;
@@ -327,12 +331,35 @@ export class EconomySystem {
     const municipalPropertyFee = L.transfer('corporate', 'state',
       (report.privateResidents || 0) * 0.8 * priceIndex * resRateRatio, 'Canon de conservación urbana');
 
-    // Materias primas y mercancía compradas a proveedores de fuera de la ciudad
+    // =========================================================================
+    // PARTE D bis: MERCADO LOCAL DE INSUMOS (primero la ciudad, luego importar o exportar)
+    // =========================================================================
     const inputs = eco.INPUT_COSTS || {};
-    const rawMaterials = L.transfer('corporate', 'external',
-      massIndustrySales * (inputs.massGoods ?? 0.47) + techIndustrySales * (inputs.techGoods ?? 0.33), 'Materias primas industriales');
-    const wholesaleGoods = L.transfer('corporate', 'external',
-      commercialSales * (inputs.retail ?? 0.28), 'Mercancía de mayoristas para comercios');
+    const componentsOutput = supplyOutput.components || 0;
+    const supplyDemand = {
+      materials: massIndustrySales * (inputs.massGoods ?? 0.47) + componentsOutput * SUPPLY_RULES.COMPONENT_MATERIALS_RATIO,
+      components: techIndustrySales * (inputs.techGoods ?? 0.33),
+      goods: (commercialSales / Math.max(0.5, priceIndex)) * (inputs.retail ?? 0.28),
+    };
+    const localSupply = {
+      materials: supplyOutput.materials || 0,
+      components: componentsOutput,
+      goods: massIndustrySales,
+    };
+    const market = clearSupplyMarket(supplyDemand, localSupply,
+      SUPPLY_RULES.BASE_LOGISTICS_CAPACITY + logisticsCapacity);
+    this.supplyMarket = market;
+
+    const importMult = 1 + SUPPLY_RULES.IMPORT_SURCHARGE;
+    const exportMult = (1 - SUPPLY_RULES.EXPORT_DISCOUNT) * (cycle ? cycle.exportPrices : 1);
+    let rawMaterials = 0;
+    rawMaterials += L.transfer('corporate', 'external', market.items.materials.imported * importMult, 'Importación de materias primas');
+    rawMaterials += L.transfer('corporate', 'external', market.items.components.imported * importMult, 'Importación de componentes');
+    const wholesaleGoods = L.transfer('corporate', 'external', market.items.goods.imported * importMult, 'Importación de mercancía para comercios');
+    const supplierExports = L.transfer('external', 'corporate', market.items.materials.exported * exportMult, 'Exportación de materias primas')
+      + L.transfer('external', 'corporate', market.items.components.exported * exportMult, 'Exportación de componentes');
+    // Las fábricas venden a la región solo lo que no compraron los comercios de la ciudad
+    L.transfer('external', 'corporate', market.items.goods.exported, 'Ventas de manufactura al mercado regional');
 
     // Insumos operativos menores comprados a proveedores externos
     const grossBeforeSupplies = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev;
@@ -386,10 +413,11 @@ export class EconomySystem {
     const effectiveAchievableMargin = MAX_POSSIBLE_MARGIN * staffingScale - taxPenalty - utilityPenalty;
 
     const payrollCost = report.totalPrivateWages || 0;
-    let operatingCosts = operatingSupplies + rawMaterials + wholesaleGoods + privateMaintenance * (1 - coverage) + commercialTariff + industrialTariff
+    // Las compras de mercancía a fábricas locales son coste de los comercios e ingreso de las fábricas (ambos del holding)
+    let operatingCosts = operatingSupplies + rawMaterials + wholesaleGoods + market.items.goods.local + privateMaintenance * (1 - coverage) + commercialTariff + industrialTariff
       + municipalPropertyFee + importFoodCost;
     let taxesPaidToState = commercialTax + industrialTax;
-    let revenueTotal = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev;
+    let revenueTotal = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev + supplierExports;
 
     let priceAdjustment = 0;
     if (effectiveAchievableMargin > 0) {

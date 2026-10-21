@@ -394,6 +394,9 @@ export class CitizenManager {
             } else if (def.id === 'commercial_maintenance') {
               requiredEdu = 1;
               jobTitle = 'Técnico de Mantenimiento e Instalaciones';
+            } else if (def.id === 'commercial_distribution') {
+              requiredEdu = 0;
+              jobTitle = 'Operario Logístico / Mozo de Almacén';
             } else if (def.id === 'commercial_gastronomy') {
               requiredEdu = 0;
               jobTitle = 'Chef / Barista / Servicio Gastronómico';
@@ -405,6 +408,12 @@ export class CitizenManager {
             if (def.branch === 'tech') {
               requiredEdu = 2;
               jobTitle = 'Ingeniero de Nanotecnología';
+            } else if (def.id === 'supply_components') {
+              requiredEdu = 1;
+              jobTitle = 'Técnico de Ensamblaje de Componentes';
+            } else if (def.id === 'supply_quarry') {
+              requiredEdu = 0;
+              jobTitle = 'Cantero / Operario de Aserradero';
             } else if (def.branch === 'agro' || def.id === 'industrial_agro') {
               requiredEdu = Math.random() < 0.35 ? 1 : 0;
               jobTitle = 'Técnico / Operario Agroindustrial';

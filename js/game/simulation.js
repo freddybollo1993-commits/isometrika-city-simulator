@@ -548,6 +548,9 @@ export class Simulation {
     let policyDiscount = 0;
     let roadCount = 0;
     let totalMaintenanceCapacity = 0;
+    let logisticsCapacity = 0;
+    const supplyOutput = { materials: 0, components: 0 };
+    let supplierPollution = 0;
     let maintenanceFirmCount = 0;
 
     // Contadores de Redes de Servicios Básicos
@@ -650,7 +653,15 @@ export class Simulation {
         }
         // COMERCIOS
         else if (def.category === 'commercial') {
-          if (!isSuspended) {
+          if (!isSuspended && def.logisticsHub) {
+            // Centro de distribución: mueve insumos entre empresas locales, no vende al público
+            const maxW = (levelData.jobs || def.jobs || 4);
+            const activeW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+            commercialJobs += activeW;
+            privateActiveWorkers += activeW;
+            privateCapacity += maxW;
+            logisticsCapacity += (levelData.logisticsCapacity || 900) * opEff * (maxW > 0 ? activeW / maxW : 1);
+          } else if (!isSuspended) {
             // Punto 2: Cadena de Suministro Real (Granja -> Carretera -> Comercio)
             let supplyMod = 1.0;
             const isFoodRetail = ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
@@ -689,6 +700,15 @@ export class Simulation {
         }
         // INDUSTRIAS
         else if (def.category === 'industrial') {
+          if (!isSuspended && def.branch === 'supply') {
+            // Proveedores locales: producen insumos a precio regional según su plantilla real
+            const maxW = (levelData.jobs || def.jobs || 4);
+            const activeW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+            privateActiveWorkers += activeW;
+            privateCapacity += maxW;
+            supplyOutput[def.supplies] = (supplyOutput[def.supplies] || 0) + activeW * (levelData.outputPerJob || 40) * opEff * healthFactor;
+            supplierPollution += (levelData.pollution || 0) * (maxW > 0 ? activeW / maxW : 1);
+          }
           if (!isSuspended && def.id === 'industrial_agro') {
             const boost = (levelData.exportBoost || 1.8);
             if (boost > agroExportMultiplier) agroExportMultiplier = boost;
@@ -828,7 +848,7 @@ export class Simulation {
     this.unemploymentRate = this.citizens.metrics.unemploymentRate;
 
     // 5. POLUCIÓN Y AMBIENTE
-    const rawPollution = corpResult.netIndustrialPollution + Math.floor(this.population / 40);
+    const rawPollution = corpResult.netIndustrialPollution + Math.round(supplierPollution) + Math.floor(this.population / 40);
     const parkMitigation = Math.min(rawPollution * 0.5, parkHappinessBonus * 0.65);
     this.pollution = Math.max(2, Math.round(rawPollution - parkMitigation));
 
@@ -971,6 +991,8 @@ export class Simulation {
         waterRatio: this.waterRatio,
         citizenReport: citizenReport,
         totalMaintenanceCapacity: totalMaintenanceCapacity,
+        supplyOutput,
+        logisticsCapacity,
         priceIndex,
         cycle: this.region.phase,
         tourism: this.season.tourism,

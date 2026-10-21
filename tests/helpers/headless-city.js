@@ -95,7 +95,7 @@ export function growCity(sim, grid, c, day) {
  * Jugador automático: traza una cuadrícula de calles y cada 3 días construye lo que
  * la ciudad pide (vivienda si está llena, empleo si hay paro, servicios cuando se permiten).
  */
-export function autoPlayer(sim, grid, c) {
+export function autoPlayer(sim, grid, c, { useSuppliers = true } = {}) {
   if (sim.day === 2) {
     for (const gy of [c - 4, c + 4]) for (let gx = c - 8; gx <= c + 8; gx++) build(sim, grid, gx, gy, 'road');
     for (const gx of [c - 8, c + 8]) for (let gy = c - 4; gy <= c + 4; gy++) build(sim, grid, gx, gy, 'road');
@@ -111,6 +111,14 @@ export function autoPlayer(sim, grid, c) {
   if (sim.powerRatio < 1 || sim.powerDemand > sim.powerSupply * 0.85) wants.push('utility_power_solar');
   if (sim.waterRatio < 1 || sim.waterDemand > sim.waterSupply * 0.85) wants.push('utility_water_tower');
   wants.push('service_police', 'service_fire', 'service_school', 'service_cityhall', 'transit_bus_terminal', 'service_hospital');
+
+  // Cadena de suministro: construir proveedores locales cuando se importa mucho
+  const market = sim.economy.supplyMarket;
+  if (useSuppliers && market) {
+    if (market.items.materials.imported > 150) wants.unshift('supply_quarry');
+    if (market.items.components.imported > 150) wants.unshift('supply_components');
+    if (market.logisticsRatio < 0.95) wants.unshift('commercial_distribution');
+  }
 
   for (const id of wants) {
     let placed = false;

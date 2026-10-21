@@ -29,6 +29,14 @@
   construcción y mantenimiento; los salarios la siguen con retraso. Los precios del mercado
   regional no dependen de la inflación local, así que una ciudad inflada pierde competitividad.
 
+## Fase 1.5 — Cadenas de suministro locales ✅
+- Nuevos proveedores: 🪨 Cantera y Aserradero (materias primas), ⚙️ Taller de Componentes
+  (componentes, consume materias primas) y 🚚 Centro de Distribución Mayorista (capacidad logística).
+- Las fábricas masivas abastecen de mercancía a tiendas, mercados y supermercados de la ciudad.
+- Prioridad cada día: comercio local → importar el faltante (+10 %) → exportar el sobrante (−15 % flete).
+- Pestaña **🏭 Suministros** en Finanzas con el porcentaje local de cada insumo y consejos.
+- Pendiente para Fase 2: que la construcción (pública y privada) compre materiales a la cantera local.
+
 ## Fase 2 — Megaproyectos
 - Obras de 3 a 5 fases: metro, puerto fluvial, presa, aeropuerto regional, parque tecnológico, estadio.
 - Financiación pública, privada o mixta; constructora local (el dinero queda en la ciudad) o externa

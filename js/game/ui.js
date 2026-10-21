@@ -24,6 +24,9 @@ export const BUILDING_ICONS = {
   commercial_super: '🛒',
   commercial_tower: '🏙️',
   commercial_maintenance: '🛠️',
+  commercial_distribution: '🚚',
+  supply_quarry: '🪨',
+  supply_components: '⚙️',
   farm_organic: '🌾',
   industrial_mass: '🏭',
   industrial_tech: '🔬',
@@ -2180,6 +2183,9 @@ export class UIManager {
           <button class="eco-tab-btn ${this.currentEcoTab === 'outlook' ? 'active' : ''}" data-eco-tab="outlook">
             <span>🌍 Coyuntura</span>
           </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'supply' ? 'active' : ''}" data-eco-tab="supply">
+            <span>🏭 Suministros</span>
+          </button>
         </div>
 
         <!-- CONTENIDO DINÁMICO SEGÚN PESTAÑA ACTIVA -->
@@ -2362,6 +2368,13 @@ export class UIManager {
           this._bindAuditJumpButtons(area);
         }
       }
+      // Si está en pestaña Suministros
+      else if (this.currentEcoTab === 'supply') {
+        const area = elContent.querySelector('#eco-tab-content-area');
+        if (area) {
+          area.innerHTML = this._renderEcoTabContent('supply', eco, sim);
+        }
+      }
       // Si está en pestaña Coyuntura
       else if (this.currentEcoTab === 'outlook') {
         const area = elContent.querySelector('#eco-tab-content-area');
@@ -2384,6 +2397,62 @@ export class UIManager {
         }
       }
     }
+  }
+
+  /**
+   * Suministros: cuánto de cada insumo se compra en la ciudad, cuánto se importa y cuánto se exporta.
+   */
+  _renderSupplyTab(eco) {
+    const market = eco.supplyMarket;
+    if (!market) {
+      return `<div class="eco-section"><p style="font-size: 0.78rem; color: #cbd5e1;">El mercado de insumos se abre al cerrar el primer día.</p></div>`;
+    }
+    const fmt = (v) => `$${Math.round(v).toLocaleString()}`;
+    const advice = {
+      materials: 'Construye una 🪨 Cantera y Aserradero para dejar de importar materias primas.',
+      components: 'Construye un ⚙️ Taller de Componentes para abastecer a los complejos tecnológicos.',
+      goods: 'Construye una 🏭 Fábrica masiva: su producción abastece primero a los comercios de la ciudad.',
+    };
+
+    const cards = Object.values(market.items).map((it) => {
+      const share = Math.round(it.localShare * 100);
+      const shareClass = share >= 80 ? 'text-positive' : share >= 40 ? 'text-warn' : 'text-danger';
+      const tip = it.imported > 50 && it.supply < it.demand ? advice[it.id] : '';
+      return `
+        <div class="eco-section">
+          <div class="eco-section-title">
+            <span>${it.icon} ${it.name}</span>
+            <strong class="${shareClass}">${it.demand > 0 ? share + '% local' : 'Sin demanda'}</strong>
+          </div>
+          <div class="stat-bar-track" style="height: 8px; margin: 4px 0 8px;">
+            <div class="stat-bar-fill ${share >= 80 ? 'good' : share >= 40 ? 'warn' : 'danger'}" style="width: ${it.demand > 0 ? share : 0}%;"></div>
+          </div>
+          <div class="eco-ledger-row"><span>Demanda de las empresas:</span><strong>${fmt(it.demand)}/d</strong></div>
+          <div class="eco-ledger-row"><span>Producción local:</span><strong>${fmt(it.supply)}/d</strong></div>
+          <div class="eco-ledger-row"><span>🏘️ Comprado en la ciudad:</span><strong class="text-positive">${fmt(it.local)}/d</strong></div>
+          <div class="eco-ledger-row"><span>🌐 Importado (+10 %):</span><strong class="text-danger">${fmt(it.imported)}/d</strong></div>
+          <div class="eco-ledger-row"><span>🚢 Sobrante exportado (−15 % flete):</span><strong>${fmt(it.exported)}/d</strong></div>
+          <p style="font-size: 0.68rem; color: #94a3b8; margin: 6px 0 0;">Producen: ${it.producers} · Consumen: ${it.consumers}</p>
+          ${tip ? `<p style="font-size: 0.72rem; color: #fbbf24; margin: 4px 0 0;">💡 ${tip}</p>` : ''}
+        </div>`;
+    }).join('');
+
+    const logPct = market.logisticsCapacity > 0 ? Math.round((market.logisticsUsed / market.logisticsCapacity) * 100) : 0;
+    const saturated = market.logisticsRatio < 0.999;
+    return `
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>🚚 Capacidad logística local</span>
+          <strong class="${saturated ? 'text-danger' : 'text-positive'}">${logPct}% en uso</strong>
+        </div>
+        <div class="eco-ledger-row"><span>Comercio local movido hoy:</span><strong>${fmt(market.logisticsUsed)} de ${fmt(market.logisticsCapacity)}</strong></div>
+        <p style="font-size: 0.70rem; color: #94a3b8; margin: 6px 0 0;">
+          Las empresas compran primero a proveedores de la ciudad; solo importan lo que falta y exportan lo que sobra.
+          ${saturated ? '⚠️ La logística está saturada: construye un 🚚 Centro de Distribución Mayorista para mover más producción local.' : ''}
+        </p>
+      </div>
+      ${cards}
+    `;
   }
 
   /**
@@ -2537,6 +2606,10 @@ export class UIManager {
 
     if (tab === 'outlook') {
       return this._renderOutlookTab(sim);
+    }
+
+    if (tab === 'supply') {
+      return this._renderSupplyTab(eco);
     }
 
     if (tab === 'audit') {

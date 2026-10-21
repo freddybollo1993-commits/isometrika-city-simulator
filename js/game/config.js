@@ -50,6 +50,11 @@ export const CONFIG = {
     industrial_agro: { minPop: 20, popPerUnit: 35 },
     industrial_tech: { minPop: 35, popPerUnit: 50 },
 
+    // Proveedores de la cadena de suministro local
+    supply_quarry: { minPop: 10, popPerUnit: 30 },
+    supply_components: { minPop: 30, popPerUnit: 45 },
+    commercial_distribution: { minPop: 25, popPerUnit: 60 },
+
     // Servicios Básicos
     utility_power_solar: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación (Fondo Pionero), luego 1 c/25 hab
     utility_power_plant: { minPop: 55, popPerUnit: 70 }, // Gran central eléctrica (drenaje $130/d, requiere 55 hab + demanda fabril)
@@ -421,6 +426,29 @@ export const CONFIG = {
       colorRight: '#b45309',
     },
 
+    commercial_distribution: {
+      id: 'commercial_distribution',
+      name: 'Centro de Distribución Mayorista',
+      category: 'commercial',
+      logisticsHub: true,
+      size: 2, // 2x2
+      height: 30,
+      cost: 2600,
+      upkeep: 22,
+      jobs: 4,
+      levels: {
+        1: { cost: 2600, upkeep: 22, jobs: 4, logisticsCapacity: 900, power: 6, water: 3, pollution: 2 },
+        2: { cost: 4600, upkeep: 40, jobs: 8, logisticsCapacity: 2200, power: 10, water: 5, pollution: 3 },
+        3: { cost: 7400, upkeep: 65, jobs: 14, logisticsCapacity: 4500, power: 16, water: 8, pollution: 3 },
+      },
+      maxBonus: 'Plataforma Logística Regional: distribuye toda la producción local antes de recurrir a importaciones.',
+      description: 'Almacenes y muelles de carga que mueven materias primas, componentes y mercancía entre empresas de la ciudad, para comprar en casa antes de importar (4 a 14 operarios logísticos).',
+      colorTop: '#fde68a',
+      colorLeft: '#f59e0b',
+      colorRight: '#b45309',
+      silos: true,
+    },
+
     // === AGRICULTURA ===
     farm_organic: {
       id: 'farm_organic',
@@ -514,6 +542,53 @@ export const CONFIG = {
       colorLeft: '#94a3b8',
       colorRight: '#64748b',
       silos: true,
+    },
+
+    // === PROVEEDORES DE LA CADENA DE SUMINISTRO ===
+    supply_quarry: {
+      id: 'supply_quarry',
+      name: 'Cantera y Aserradero',
+      category: 'industrial',
+      branch: 'supply',
+      supplies: 'materials',
+      size: 2, // 2x2
+      height: 22,
+      cost: 1800,
+      upkeep: 16,
+      jobs: 4,
+      levels: {
+        1: { cost: 1800, upkeep: 16, jobs: 4, outputPerJob: 40, pollution: 6, power: 6, water: 4 },
+        2: { cost: 3200, upkeep: 30, jobs: 8, outputPerJob: 50, pollution: 9, power: 10, water: 6 },
+        3: { cost: 5400, upkeep: 50, jobs: 14, outputPerJob: 60, pollution: 12, power: 16, water: 9 },
+      },
+      maxBonus: 'Extracción Sostenible: duplica la vida útil del yacimiento y reduce el polvo en suspensión a la mitad.',
+      description: 'Extrae piedra, arena y madera para las fábricas de la ciudad. Lo que no se vende aquí se exporta (4 a 14 canteros y aserradores).',
+      colorTop: '#d6d3d1',
+      colorLeft: '#a8a29e',
+      colorRight: '#78716c',
+    },
+    supply_components: {
+      id: 'supply_components',
+      name: 'Taller de Componentes',
+      category: 'industrial',
+      branch: 'supply',
+      supplies: 'components',
+      size: 1, // 1x1
+      height: 30,
+      cost: 2400,
+      upkeep: 20,
+      jobs: 4,
+      levels: {
+        1: { cost: 2400, upkeep: 20, jobs: 4, outputPerJob: 55, pollution: 3, power: 8, water: 3 },
+        2: { cost: 4200, upkeep: 36, jobs: 8, outputPerJob: 68, pollution: 4, power: 14, water: 5 },
+        3: { cost: 7000, upkeep: 60, jobs: 14, outputPerJob: 85, pollution: 4, power: 22, water: 8 },
+      },
+      maxBonus: 'Microfabricación de Precisión: los complejos tecnológicos cercanos producen un 10 % más.',
+      description: 'Ensambla circuitos y piezas para los complejos tecnológicos, usando materias primas locales (4 a 14 técnicos).',
+      colorTop: '#a5b4fc',
+      colorLeft: '#6366f1',
+      colorRight: '#4338ca',
+      glow: true,
     },
 
     // === INSTITUCIONES PÚBLICAS Y SERVICIOS ===
