@@ -424,21 +424,22 @@ export const CONFIG = {
     // === AGRICULTURA ===
     farm_organic: {
       id: 'farm_organic',
-      name: 'Granja Agrícola Orgánica',
+      name: 'Granja Agrícola y Huertos Rurales',
       category: 'farm',
       size: 2, // 2x2
       height: 20,
-      cost: 1300,
-      upkeep: 14,
+      cost: 1200,
+      upkeep: 12,
       jobs: 3,
-      foodCapacity: 40,
+      foodCapacity: 60,
+      logisticsRange: 65, // Alcance logístico interurbano: abastece comercios a larga distancia desde la periferia rural
       levels: {
-        1: { cost: 1300, upkeep: 14, jobs: 3, foodCapacity: 40, happiness: 5, power: 2, water: 12 },
-        2: { cost: 2200, upkeep: 26, jobs: 6, foodCapacity: 90, happiness: 10, power: 4, water: 22 },
-        3: { cost: 3600, upkeep: 42, jobs: 10, foodCapacity: 180, happiness: 18, power: 6, water: 35 },
+        1: { cost: 1200, upkeep: 12, jobs: 3, foodCapacity: 60, logisticsRange: 65, happiness: 5, power: 2, water: 12 },
+        2: { cost: 2200, upkeep: 24, jobs: 6, foodCapacity: 140, logisticsRange: 90, happiness: 10, power: 4, water: 22 },
+        3: { cost: 3600, upkeep: 38, jobs: 10, foodCapacity: 260, logisticsRange: 999, happiness: 18, power: 6, water: 35 },
       },
-      maxBonus: 'Invernaderos Hidropónicos: Inmunidad a sequías y olas de calor; salud pública +20%.',
-      description: 'Cultivos parcelados, silos de granos y huertos periurbanos (3 a 10 agricultores, alimenta 40 a 180 hab).',
+      maxBonus: 'Invernaderos Hidropónicos y Logística Fría: Inmunidad climática y distribución metropolitana sin límite de distancia.',
+      description: 'Producción agroalimentaria rural de gran escala. Diseñada para operar en zonas rurales y despachar insumos frescos a tiendas y mercados urbanos mediante la red vial (3 a 10 agricultores, alimenta 60 a 260 hab).',
       colorTop: '#bef264',
       colorLeft: '#a3e635',
       colorRight: '#65a30d',
@@ -500,10 +501,12 @@ export const CONFIG = {
       cost: 2800,
       upkeep: 30,
       jobs: 7,
+      logisticsRange: 999, // Distribución regional ilimitada
+      foodCapacity: 120,
       levels: {
-        1: { cost: 2800, upkeep: 30, jobs: 7, revenuePerJob: 8.5, pollution: 6, power: 10, water: 14, exportBoost: 1.8 },
-        2: { cost: 4800, upkeep: 50, jobs: 14, revenuePerJob: 10.5, pollution: 10, power: 18, water: 24, exportBoost: 2.5 },
-        3: { cost: 8000, upkeep: 80, jobs: 24, revenuePerJob: 13.0, pollution: 15, power: 30, water: 38, exportBoost: 3.5 },
+        1: { cost: 2800, upkeep: 30, jobs: 7, foodCapacity: 120, logisticsRange: 999, revenuePerJob: 8.5, pollution: 6, power: 10, water: 14, exportBoost: 1.8 },
+        2: { cost: 4800, upkeep: 50, jobs: 14, foodCapacity: 240, logisticsRange: 999, revenuePerJob: 10.5, pollution: 10, power: 18, water: 24, exportBoost: 2.5 },
+        3: { cost: 8000, upkeep: 80, jobs: 24, foodCapacity: 400, logisticsRange: 999, revenuePerJob: 13.0, pollution: 15, power: 30, water: 38, exportBoost: 3.5 },
       },
       maxBonus: 'Bioprocesador Gourmet: Transforma cosechas en manufacturas alimentarias, triplicando el margen de exportación agrícola.',
       description: 'Planta de transformación alimentaria con silos metálicos de almacenamiento (7 a 24 empleos agroindustriales).',

@@ -123,7 +123,7 @@ export class Simulation {
           if (!isSuspended) commercialJobs += (levelData.jobs || 0);
         } else if (def.category === 'farm') {
           if (!isSuspended) {
-            farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff);
+            farmFoodSupply += Math.round((levelData.foodCapacity || 60) * opEff);
             commercialJobs += (levelData.jobs || 4);
           }
         }
@@ -636,12 +636,16 @@ export class Simulation {
           if (!isSuspended && def.id === 'industrial_agro') {
             const boost = (levelData.exportBoost || 1.8);
             if (boost > agroExportMultiplier) agroExportMultiplier = boost;
+            farmFoodSupply += Math.round((levelData.foodCapacity || 120) * opEff);
           }
         }
-        // GRANJAS
+        // GRANJAS (Zonas Rurales de Gran Escala)
         else if (def.category === 'farm') {
           if (!isSuspended) {
-            farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff * dilemmaMods.foodMultiplier);
+            // Bono de Entorno Rural: Aire puro (< 15 ppm) eleva el rendimiento de la cosecha en +20%
+            const ruralBonus = (this.pollution < 15) ? 1.20 : 1.0;
+            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * dilemmaMods.foodMultiplier);
+            farmFoodSupply += effectiveFood;
             commercialJobs += (levelData.jobs || 4);
             parkHappinessBonus += (levelData.happiness || 5);
           }

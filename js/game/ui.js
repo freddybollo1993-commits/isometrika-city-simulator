@@ -1016,6 +1016,11 @@ export class UIManager {
       if (levelData.foodCapacity) {
         statsHTML += `<div class="insp-stat-item"><span>Alimento:</span><strong class="positive">${levelData.foodCapacity} hab.</strong></div>`;
       }
+      if (levelData.logisticsRange || def.logisticsRange) {
+        const lr = levelData.logisticsRange || def.logisticsRange;
+        const lrText = lr >= 999 ? 'Metropolitano (Sin límite)' : `${lr} celdas por carretera`;
+        statsHTML += `<div class="insp-stat-item"><span>Despacho Logístico Rural:</span><strong class="positive">${lrText}</strong></div>`;
+      }
       if (levelData.radius) {
         statsHTML += `<div class="insp-stat-item"><span>Radio de Cobertura:</span><strong>${levelData.radius} celdas</strong></div>`;
       }

@@ -313,13 +313,18 @@ export class Grid {
       };
     }
 
-    if (farmInfo.dist > 25) {
+    const farmLvl = farmInfo.building.level || 1;
+    const maxLogisticsRange = (farmDef && farmDef.levels && farmDef.levels[farmLvl] && farmDef.levels[farmLvl].logisticsRange)
+      || (farmDef && farmDef.logisticsRange)
+      || 65; // Gran alcance interurbano: permite erigir granjas en la periferia rural lejana y abastecer la ciudad
+
+    if (farmInfo.dist > maxLogisticsRange) {
       return {
         supplied: false,
         hasRoad: true,
         dist: farmInfo.dist,
         status: 'too_far',
-        reason: `Granja demasiado lejana (${farmInfo.dist} celdas > 25). Los alimentos se deterioran en el camino.`,
+        reason: `Granja fuera del radio de despacho (${farmInfo.dist} celdas > ${maxLogisticsRange}). Requiere camiones refrigerados o procesadora.`,
       };
     }
 
@@ -328,7 +333,7 @@ export class Grid {
       hasRoad: true,
       farmDist: farmInfo.dist,
       status: 'optimal',
-      reason: `Abastecido por granja a ${farmInfo.dist} celdas por vía terrestre.`,
+      reason: `Abastecido desde zona rural a ${farmInfo.dist} celdas por vía terrestre.`,
     };
   }
 
