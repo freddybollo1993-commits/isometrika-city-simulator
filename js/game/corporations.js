@@ -57,8 +57,10 @@ export class CorporationsManager {
 
         const lvl = tile.building.level || 1;
         const levelData = (def.levels && def.levels[lvl]) ? def.levels[lvl] : def;
-        const jobs = levelData.jobs || def.jobs || 50;
-        const revPerJob = levelData.revenuePerJob || def.revenuePerJob || 32.0;
+        const maxJobs = levelData.jobs || def.jobs || 10;
+        const b = tile.building;
+        const activeJobs = b.assignedWorkers !== undefined ? b.assignedWorkers : maxJobs;
+        const revPerJob = levelData.revenuePerJob || def.revenuePerJob || 36.0;
         const pollution = levelData.pollution !== undefined ? levelData.pollution : (def.pollution || 15);
         const tileDamage = tile.damage || 0;
 
@@ -67,15 +69,15 @@ export class CorporationsManager {
 
         if (def.branch === 'mass' || def.branch === 'agro') {
           massCount++;
-          massCapacity += jobs;
-          massBaseRev += jobs * revPerJob * healthMultiplier;
-          massBasePollution += pollution * healthMultiplier;
+          massCapacity += maxJobs;
+          massBaseRev += activeJobs * revPerJob * healthMultiplier;
+          massBasePollution += pollution * (maxJobs > 0 ? (activeJobs / maxJobs) : 1) * healthMultiplier;
         } else if (def.branch === 'tech') {
           techCount++;
-          techCapacity += jobs;
-          techBaseRev += jobs * revPerJob * healthMultiplier;
-          techBasePollutionOffset += Math.abs(pollution) * healthMultiplier;
-          techBaseResearch += (levelData.research || levelData.researchPoints || def.researchPoints || 0) * healthMultiplier;
+          techCapacity += maxJobs;
+          techBaseRev += activeJobs * revPerJob * healthMultiplier;
+          techBasePollutionOffset += Math.abs(pollution) * (maxJobs > 0 ? (activeJobs / maxJobs) : 1) * healthMultiplier;
+          techBaseResearch += (levelData.research || levelData.researchPoints || def.researchPoints || 0) * (maxJobs > 0 ? (activeJobs / maxJobs) : 1) * healthMultiplier;
         }
       }
     }

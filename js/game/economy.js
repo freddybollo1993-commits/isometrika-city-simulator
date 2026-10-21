@@ -173,7 +173,8 @@ export class EconomySystem {
       housingCapacity = 1,
       baseResTaxRate = 2.2,
       commercialJobs = 0,
-      baseCommRevPerJob = 30.0,
+      totalCommercialRevenue = 0,
+      baseCommRevPerJob = 35.0,
       corpMassRevenue = 0,
       corpTechRevenue = 0,
       foodSupply = 0,
@@ -213,8 +214,67 @@ export class EconomySystem {
     // Sanción suave si el Estado acumula déficit crítico
     const statePenaltyFactor = this.stateFunds < -1500 ? 0.70 : this.stateFunds <= 0 ? 0.85 : 1.0;
 
+    // Modulador de productividad corporativa según solvencia e insumos
+    const corpSolvencyFactor = this.corporateFunds < -1500 ? 0.75 : this.corporateFunds <= 0 ? 0.88 : 1.0;
+    const corpProductionEfficiency = Math.max(0.60, utilityEfficiency) * corpSolvencyFactor;
+
     // =========================================================================
-    // PARTE A: INGRESOS FISCALES DEL ESTADO (ALCALDÍA)
+    // PARTE A: COMERCIO EXTERIOR Y FACTURACIÓN PRIVADA BASE
+    // =========================================================================
+    let exportFoodVol = 0;
+    let exportFoodRev = 0;
+    let importFoodCost = 0;
+
+    if (foodSupply > population && population > 0) {
+      exportFoodVol = Math.floor((foodSupply - population) * 0.7);
+      const effectiveFoodPrice = Math.round(this.marketPrices.food * Math.max(1.0, agroExportMultiplier) * 100) / 100;
+      exportFoodRev = Math.round(exportFoodVol * effectiveFoodPrice);
+    } else if (population > foodSupply && foodSupply > 0) {
+      const foodDeficit = population - foodSupply;
+      const importVol = Math.min(foodDeficit, Math.ceil(population * 0.25));
+      importFoodCost = Math.round(importVol * (this.marketPrices.food * 1.15));
+      this.trade.imports.foodEmergency = { volume: importVol, cost: importFoodCost };
+    } else {
+      this.trade.imports.foodEmergency = { volume: 0, cost: 0 };
+    }
+
+    const exportMassVol = Math.floor(corpMassRevenue * 0.22);
+    const exportMassRev = Math.round(exportMassVol * (this.marketPrices.massGoods * 0.25));
+
+    const exportTechVol = Math.floor(corpTechRevenue * 0.28);
+    const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
+
+    // Ventas en comercios: estrictamente proporcionales a los dependientes activos
+    const effectiveCommMultiplier = commercialMultiplier * Math.max(0.60, powerRatio);
+    const rawCommSales = (typeof totalCommercialRevenue === 'number' && totalCommercialRevenue > 0)
+      ? totalCommercialRevenue
+      : Math.round(commercialJobs * baseCommRevPerJob * effectiveCommMultiplier);
+    const commercialSales = Math.round(rawCommSales * corpProductionEfficiency);
+
+    // Ventas industriales: estrictamente proporcionales a la producción real
+    const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
+    const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
+    const totalIndustrialSales = massIndustrySales + techIndustrySales;
+
+    // Ventas agrícolas y alimentos
+    const localFoodSales = (citizenReport && citizenReport.totalFoodConsumed > 0)
+      ? citizenReport.totalFoodConsumed
+      : Math.round(foodSupply * 0.95);
+    const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));
+
+    // Alquileres de vivienda privada y social
+    const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
+      ? citizenReport.totalCitizenRents
+      : Math.round(population * 5);
+    const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
+      ? citizenReport.totalPublicHousingRent
+      : 0;
+
+    const maintenanceRev = maintenanceContractsCovered || 0;
+    const totalPrivateRevenue = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev;
+
+    // =========================================================================
+    // PARTE B: INGRESOS FISCALES DEL ESTADO (ALCALDÍA)
     // =========================================================================
 
     // 1. Recaudación Residencial (pagada por los ciudadanos autónomos)
@@ -228,15 +288,11 @@ export class EconomySystem {
     // Tasa municipal fija por ocupación residencial (canon de conservación urbana)
     const municipalPropertyFee = Math.round(population * 0.8 * resRateRatio);
 
-    // 2. Recaudación Comercial (cobrada sobre los comercios privados, 10% base)
-    const effectiveCommMultiplier = commercialMultiplier * Math.max(0.60, powerRatio);
-    const commercialTax = Math.round(
-      commercialJobs * baseCommRevPerJob * this.taxRates.commercial * effectiveCommMultiplier * statePenaltyFactor
-    );
+    // 2. Recaudación Comercial (ESTRICTAMENTE el porcentaje asignado sobre las ventas reales)
+    const commercialTax = Math.round(commercialSales * this.taxRates.commercial * statePenaltyFactor);
 
-    // 3. Recaudación Industrial (cobrada sobre fábricas y complejos tecnológicos privados, 10% base)
-    const rawIndustrialBase = (corpMassRevenue + corpTechRevenue) * Math.max(0.60, powerRatio);
-    const industrialTax = Math.round(rawIndustrialBase * this.taxRates.industrial * statePenaltyFactor);
+    // 3. Recaudación Industrial (ESTRICTAMENTE el porcentaje asignado sobre las ventas reales)
+    const industrialTax = Math.round(totalIndustrialSales * this.taxRates.industrial * statePenaltyFactor);
 
     // 4. Venta de Excedentes de Red Eléctrica y Agua (Comercio Regional Público)
     let exportEnergyRev = 0;
@@ -255,48 +311,16 @@ export class EconomySystem {
 
     const publicUtilityDividends = hydroRevenue + exportEnergyRev + exportWaterRev;
 
-    // 5. Tarifas Municipales de Servicios Básicos (Agua y Energía prestados por el municipio)
+    // 5. Tarifas Municipales de Servicios Básicos (Moduladas según personal real activo)
     const residentialTariff = Math.round(population * 1.20 * utilityEfficiency);
-    const commercialTariff = Math.round(commercialJobs * 0.80 * utilityEfficiency);
-    const industrialTariff = Math.round((corpMassRevenue + corpTechRevenue) * 0.03 * utilityEfficiency);
+    const commercialTariff = Math.round(commercialJobs * 0.40 * utilityEfficiency);
+    const industrialTariff = Math.round(totalIndustrialSales * 0.02 * utilityEfficiency);
     const utilityTariffs = residentialTariff + commercialTariff + industrialTariff;
 
     // 6. Fondo de Estabilización Pionero (Alivio inicial durante la fundación)
     const pioneerSupport = population < 30 ? Math.round((30 - population) * 0.7) : 0;
 
-    // 7. Alquileres de Vivienda Social Municipal
-    const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
-      ? citizenReport.totalPublicHousingRent
-      : 0;
-
     const stateTotalIncome = residentialTax + municipalPropertyFee + commercialTax + industrialTax + publicUtilityDividends + utilityTariffs + pioneerSupport + publicHousingRent;
-
-    // =========================================================================
-    // PARTE B: COMERCIO EXTERIOR PRIVADO (GRANJAS E INDUSTRIAS)
-    // =========================================================================
-    let exportFoodVol = 0;
-    let exportFoodRev = 0;
-    let importFoodCost = 0;
-
-    if (foodSupply > population && population > 0) {
-      exportFoodVol = Math.floor((foodSupply - population) * 0.7);
-      const effectiveFoodPrice = Math.round(this.marketPrices.food * Math.max(1.0, agroExportMultiplier) * 100) / 100;
-      exportFoodRev = Math.round(exportFoodVol * effectiveFoodPrice);
-    } else if (population > foodSupply && foodSupply > 0) {
-      // Importación urgente de grano cubierta por el Estado
-      const foodDeficit = population - foodSupply;
-      const importVol = Math.min(foodDeficit, Math.ceil(population * 0.25));
-      importFoodCost = Math.round(importVol * (this.marketPrices.food * 1.15));
-      this.trade.imports.foodEmergency = { volume: importVol, cost: importFoodCost };
-    } else {
-      this.trade.imports.foodEmergency = { volume: 0, cost: 0 };
-    }
-
-    const exportMassVol = Math.floor(corpMassRevenue * 0.22);
-    const exportMassRev = Math.round(exportMassVol * (this.marketPrices.massGoods * 0.25));
-
-    const exportTechVol = Math.floor(corpTechRevenue * 0.28);
-    const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
 
     const totalExportsRevenue = exportFoodRev + exportMassRev + exportTechRev + exportEnergyRev + exportWaterRev;
     const totalImportsCost = importFoodCost;
@@ -379,48 +403,26 @@ export class EconomySystem {
     // PARTE D: CUENTA DE RESULTADOS DEL SECTOR PRIVADO (EL EMPRESARIO)
     // =========================================================================
 
-    // Si la empresa está en bancarrota previa o sufre apagón, la productividad se modula proporcionalmente
-    const corpSolvencyFactor = this.corporateFunds < -1500 ? 0.75 : this.corporateFunds <= 0 ? 0.88 : 1.0;
-    const corpProductionEfficiency = Math.max(0.60, utilityEfficiency) * corpSolvencyFactor;
-
-    // 1. Ingresos por Ventas Privadas (Alquileres + Comercios + Alimentos + Exportaciones)
-    const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
-      ? citizenReport.totalCitizenRents
-      : Math.round(population * 6);
-
-    const localFoodSales = (citizenReport && citizenReport.totalFoodConsumed > 0)
-      ? citizenReport.totalFoodConsumed
-      : Math.round(foodSupply * 0.95);
-
-    const commercialSales = Math.round(commercialJobs * baseCommRevPerJob * effectiveCommMultiplier * corpProductionEfficiency);
-    const massIndustrySales = Math.round((corpMassRevenue * 1.3 + exportMassRev) * corpProductionEfficiency);
-    const techIndustrySales = Math.round((corpTechRevenue * 1.4 + exportTechRev) * corpProductionEfficiency);
-    const farmSales = Math.round((localFoodSales + exportFoodRev) * Math.max(0.3, waterRatio));
-
-    // Punto 4: Contratos de Mantenimiento Capturados por el Holding Privado
-    const maintenanceRev = maintenanceContractsCovered || 0;
-
-    const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales + maintenanceRev;
-
-    // 2. Gastos Operativos y Salarios Privados
+    // 2. Gastos Operativos y Salarios Privados (Directamente proporcionales a trabajadores reales)
     let payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
       ? citizenReport.totalPrivateWages
-      : Math.round(commercialJobs * 16 + (corpMassRevenue + corpTechRevenue) * 0.25);
+      : Math.round(commercialJobs * 22 + (corpMassRevenue + corpTechRevenue) * 0.25);
 
     // Amortiguador de quiebra empresarial: contención operativa en números rojos
     if (this.corporateFunds < 0 && totalPrivateRevenue > 0) {
       payrollCost = Math.min(payrollCost, Math.max(Math.round(payrollCost * 0.75), Math.round(totalPrivateRevenue * 0.80)));
     }
 
-    // Mantenimiento de instalaciones privadas (almacenes, naves e invernaderos)
+    // Mantenimiento de instalaciones privadas modulado a ocupación real de trabajadores
     const privateMaintenance = typeof privateBuildingUpkeep === 'number' 
-      ? Math.round(privateBuildingUpkeep * 0.45) 
-      : Math.round(totalPrivateRevenue * 0.08);
+      ? privateBuildingUpkeep 
+      : Math.round(totalPrivateRevenue * 0.06);
 
-    // Tarifas de insumos básicos (agua/luz comercial e industrial) pagadas al municipio
+    // Tarifas de insumos básicos (agua/luz comercial e industrial) proporcionales a trabajadores activos
     const corporateUtilityBills = commercialTariff + industrialTariff;
 
-    const operatingCosts = Math.round(totalPrivateRevenue * 0.10) + privateMaintenance + corporateUtilityBills;
+    // Costos operativos balanceados (8% de ventas + mantenimiento real proporcional + servicios reales)
+    const operatingCosts = Math.round(totalPrivateRevenue * 0.08) + privateMaintenance + corporateUtilityBills;
     const taxesPaidToState = commercialTax + industrialTax;
 
     // Sobregiro / Intereses de crédito privado de emergencia (0.25% diario con tope protector de $12/d)

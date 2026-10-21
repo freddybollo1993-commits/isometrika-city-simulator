@@ -65,6 +65,7 @@ export class Simulation {
   recalculateCapacities() {
     let totalHousing = 0;
     let commercialJobs = 0;
+    let totalCommercialRevenue = 0;
     let farmFoodSupply = 0;
     let totalPowerSupply = 0;
     let totalPowerDemand = 0;
@@ -484,6 +485,7 @@ export class Simulation {
 
     let totalHousing = 0;
     let commercialJobs = 0;
+    let totalCommercialRevenue = 0;
     let farmFoodSupply = 0;
     let baseUpkeep = 0;
     let roadUpkeep = 0;
@@ -539,14 +541,18 @@ export class Simulation {
         if (def.category === 'residential') {
           const cap = (levelData.capacity || def.capacity || 4);
           const residents = b.residents ? b.residents.length : cap;
-          occRatio = Math.max(0.20, Math.min(1.0, residents / Math.max(1, cap)));
+          occRatio = Math.max(0.15, Math.min(1.0, residents / Math.max(1, cap)));
         } else if (['commercial', 'industrial', 'service', 'utility', 'farm'].includes(def.category)) {
           const maxW = b.activeJobsNeeded !== undefined 
             ? b.activeJobsNeeded 
             : (b.maxWorkers || levelData.jobs || def.jobs || 0);
           if (maxW > 0) {
             const assignedW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
-            occRatio = Math.max(0.15, Math.min(1.0, 0.15 + 0.85 * (assignedW / maxW)));
+            // Si el edificio tiene 0 trabajadores: 10% de mantenimiento base en reposo (sin desgaste activo)
+            // Si tiene trabajadores: 10% base + 90% proporcional a la cantidad real de empleados
+            occRatio = (assignedW === 0) 
+              ? 0.10 
+              : Math.min(1.0, 0.10 + 0.90 * (assignedW / maxW));
           }
         }
         b.occupancyRatio = Math.round(occRatio * 100) / 100;
@@ -575,10 +581,13 @@ export class Simulation {
           privateBuildingUpkeep += bldgUpkeep;
         }
 
-        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO (0 si está en modo ahorro / suspendido; proporcional a la ocupación real)
+        // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO (0 si está en modo ahorro; proporcional a trabajadores reales)
         if (!isSuspended) {
-          totalPowerDemand += Math.round((levelData.power || def.power || 0) * occRatio);
-          totalWaterDemand += Math.round((levelData.water || def.water || 0) * occRatio);
+          const utilityOccRatio = (['commercial', 'industrial', 'farm'].includes(def.category) && b.assignedWorkers === 0)
+            ? 0.05
+            : occRatio;
+          totalPowerDemand += Math.round((levelData.power || def.power || 0) * utilityOccRatio);
+          totalWaterDemand += Math.round((levelData.water || def.water || 0) * utilityOccRatio);
         }
 
         // PLANTAS Y GENERADORES DE SERVICIOS BÁSICOS
@@ -615,18 +624,22 @@ export class Simulation {
               b.supplyChainStatus = { supplied: true, status: 'n/a' };
             }
 
-            const jobs = (levelData.jobs || def.jobs || 2);
-            commercialJobs += jobs;
-            const rev = (levelData.revenue || def.revenuePerJob || 30.0);
-            baseCommTax += jobs * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
+            const maxW = (levelData.jobs || def.jobs || 2);
+            const activeW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxW;
+            commercialJobs += activeW;
+            const rev = (levelData.revenue || def.revenuePerJob || 35.0);
+            const storeRevenue = activeW * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
+            totalCommercialRevenue += storeRevenue;
+            baseCommTax += storeRevenue;
 
             if (def.id === 'commercial_tower' && level === 3) {
               commercialMultiplier += 0.15; // Distrito financiero global
             } else if (def.id === 'commercial_gastronomy') {
               parkHappinessBonus += 3;
             } else if (def.id === 'commercial_maintenance') {
-              // Punto 4: Capacidad de Mantenimiento de la Empresa
-              totalMaintenanceCapacity += (levelData.coverageCapacity || 25) * opEff;
+              // Punto 4: Capacidad de Mantenimiento proporcional a técnicos contratados
+              const maintStaffRatio = maxW > 0 ? (activeW / maxW) : 1.0;
+              totalMaintenanceCapacity += (levelData.coverageCapacity || 25) * opEff * maintStaffRatio;
               maintenanceFirmCount++;
             }
           }
@@ -644,9 +657,12 @@ export class Simulation {
           if (!isSuspended) {
             // Bono de Entorno Rural: Aire puro (< 15 ppm) eleva el rendimiento de la cosecha en +20%
             const ruralBonus = (this.pollution < 15) ? 1.20 : 1.0;
-            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * dilemmaMods.foodMultiplier);
+            const maxFarmW = (levelData.jobs || def.jobs || 3);
+            const activeFarmW = b.assignedWorkers !== undefined ? b.assignedWorkers : maxFarmW;
+            const farmStaffRatio = maxFarmW > 0 ? Math.max(0.15, activeFarmW / maxFarmW) : 1.0;
+            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * dilemmaMods.foodMultiplier);
             farmFoodSupply += effectiveFood;
-            commercialJobs += (levelData.jobs || 4);
+            // No sumar puestos de granjas a commercialJobs para evitar doble tributación comercial
             parkHappinessBonus += (levelData.happiness || 5);
           }
         }
@@ -882,7 +898,8 @@ export class Simulation {
         housingCapacity: this.housingCapacity,
         baseResTaxRate: 2.2,
         commercialJobs: this.commercialJobs,
-        baseCommRevPerJob: 30.0,
+        totalCommercialRevenue: totalCommercialRevenue,
+        baseCommRevPerJob: 35.0,
         corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
         corpTechRevenue: (this.corporations && this.corporations.techHiring && this.corporations.techHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.45),
         foodSupply: this.foodCapacity,
