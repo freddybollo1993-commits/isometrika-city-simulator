@@ -163,7 +163,7 @@ export class EconomySystem {
   /**
    * Actualiza los precios del mercado exterior con oscilador estacional y ruido browniano
    */
-  updateGlobalMarket(day) {
+  updateGlobalMarket(day, cycleMultiplier = 1) {
     const volatility = (CONFIG.ECONOMY && CONFIG.ECONOMY.PRICE_VOLATILITY) || 0.06;
     const basePrices = (CONFIG.ECONOMY && CONFIG.ECONOMY.GLOBAL_MARKET_PRICES) || {
       food: 1.6,
@@ -176,7 +176,7 @@ export class EconomySystem {
     Object.keys(this.marketPrices).forEach((key, index) => {
       const seasonal = Math.sin(day * 0.12 + (key.charCodeAt(0) % 5)) * 0.10;
       const noise = marketNoise(day, index) * volatility;
-      const factor = 1 + seasonal + noise;
+      const factor = (1 + seasonal + noise) * cycleMultiplier;
 
       const newPrice = Math.max(basePrices[key] * 0.55, Math.min(basePrices[key] * 2.0, basePrices[key] * factor));
       const trend = newPrice - this.marketPrices[key];
@@ -225,6 +225,9 @@ export class EconomySystem {
       citizenReport = null,
       totalMaintenanceCapacity = 0,
       householdCitizens = [],
+      priceIndex = 1,
+      cycle = null,
+      tourism = 1,
       stateStartFunds = this.stateFunds,
       corpStartFunds = this.corporateFunds,
     } = cityContext;
@@ -233,8 +236,10 @@ export class EconomySystem {
     const eco = CONFIG.ECONOMY || {};
     const report = citizenReport || {};
 
-    // 1. Fluctuación del mercado exterior
-    this.updateGlobalMarket(day);
+    // 1. Fluctuación del mercado exterior (los precios regionales siguen al ciclo, no a la inflación local)
+    const cycleIndustrial = cycle ? cycle.industrialDemand : 1;
+    const cycleVisitors = cycle ? cycle.visitors : 1;
+    this.updateGlobalMarket(day, cycle ? cycle.exportPrices : 1);
 
     const resRateRatio = this.taxRates.residential / 0.09;
     const utilityEfficiency = Math.min(powerRatio, waterRatio);
@@ -269,9 +274,9 @@ export class EconomySystem {
     const exportTechRev = Math.round(exportTechVol * (this.marketPrices.techGoods * 0.28));
 
     const massIndustrySales = L.transfer('external', 'corporate',
-      Math.round((corpMassRevenue * 1.3 + exportMassRev) * productionEfficiency), 'Ventas de manufactura al mercado regional');
+      Math.round((corpMassRevenue * 1.3 + exportMassRev) * productionEfficiency * cycleIndustrial), 'Ventas de manufactura al mercado regional');
     const techIndustrySales = L.transfer('external', 'corporate',
-      Math.round((corpTechRevenue * 1.4 + exportTechRev) * productionEfficiency), 'Ventas tecnológicas al mercado regional');
+      Math.round((corpTechRevenue * 1.4 + exportTechRev) * productionEfficiency * cycleIndustrial), 'Ventas tecnológicas al mercado regional');
     const totalIndustrialSales = massIndustrySales + techIndustrySales;
 
     // =========================================================================
@@ -282,7 +287,7 @@ export class EconomySystem {
     const unusedCapacity = Math.max(0, totalCommercialRevenue - residentPurchases);
     const visitorShare = eco.REGIONAL_VISITOR_SHARE !== undefined ? eco.REGIONAL_VISITOR_SHARE : 0.55;
     const visitorSales = L.transfer('external', 'corporate',
-      Math.round(unusedCapacity * visitorShare * effectiveCommMultiplier), 'Compras de visitantes regionales');
+      Math.round(unusedCapacity * visitorShare * effectiveCommMultiplier * cycleVisitors * tourism), 'Compras de visitantes regionales');
     let commercialSales = residentPurchases + visitorSales;
 
     const citizenRents = report.totalCitizenRents || 0;
@@ -316,11 +321,18 @@ export class EconomySystem {
     let commercialTax = L.transfer('corporate', 'state', commercialSales * this.taxRates.commercial, 'Impuesto comercial');
     const industrialTax = L.transfer('corporate', 'state', totalIndustrialSales * this.taxRates.industrial, 'Impuesto industrial');
 
-    const commercialTariff = L.transfer('corporate', 'state', commercialJobs * 0.40 * utilityEfficiency, 'Tarifas de luz y agua comerciales');
+    const commercialTariff = L.transfer('corporate', 'state', commercialJobs * 0.40 * priceIndex * utilityEfficiency, 'Tarifas de luz y agua comerciales');
     const industrialTariff = L.transfer('corporate', 'state', totalIndustrialSales * 0.02 * utilityEfficiency, 'Tarifas de luz y agua industriales');
     // El canon de conservación lo paga el propietario de la vivienda privada (el holding)
     const municipalPropertyFee = L.transfer('corporate', 'state',
-      (report.privateResidents || 0) * 0.8 * resRateRatio, 'Canon de conservación urbana');
+      (report.privateResidents || 0) * 0.8 * priceIndex * resRateRatio, 'Canon de conservación urbana');
+
+    // Materias primas y mercancía compradas a proveedores de fuera de la ciudad
+    const inputs = eco.INPUT_COSTS || {};
+    const rawMaterials = L.transfer('corporate', 'external',
+      massIndustrySales * (inputs.massGoods ?? 0.47) + techIndustrySales * (inputs.techGoods ?? 0.33), 'Materias primas industriales');
+    const wholesaleGoods = L.transfer('corporate', 'external',
+      commercialSales * (inputs.retail ?? 0.28), 'Mercancía de mayoristas para comercios');
 
     // Insumos operativos menores comprados a proveedores externos
     const grossBeforeSupplies = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev;
@@ -374,7 +386,7 @@ export class EconomySystem {
     const effectiveAchievableMargin = MAX_POSSIBLE_MARGIN * staffingScale - taxPenalty - utilityPenalty;
 
     const payrollCost = report.totalPrivateWages || 0;
-    let operatingCosts = operatingSupplies + privateMaintenance * (1 - coverage) + commercialTariff + industrialTariff
+    let operatingCosts = operatingSupplies + rawMaterials + wholesaleGoods + privateMaintenance * (1 - coverage) + commercialTariff + industrialTariff
       + municipalPropertyFee + importFoodCost;
     let taxesPaidToState = commercialTax + industrialTax;
     let revenueTotal = citizenRents + commercialSales + totalIndustrialSales + farmSales + maintenanceRev;
@@ -663,7 +675,8 @@ export class EconomySystem {
     }
     const eduMult = requiredEdu === 2 ? 1.5 : requiredEdu === 1 ? 1.25 : 1.0;
     const baseWage = 18; // publicWageBase
-    const estimatedSalaryPerWorker = Math.round(baseWage * eduMult);
+    const wageIndex = this.region ? this.region.wageIndex : 1;
+    const estimatedSalaryPerWorker = Math.round(baseWage * eduMult * wageIndex);
     const estimatedDailyPayroll = jobsCount * estimatedSalaryPerWorker;
 
     // 3. Mantenimiento físico diario del edificio (con el mismo factor que se cobra en calculateTick)
@@ -673,7 +686,7 @@ export class EconomySystem {
     const isStaffedPublic = (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal')
       && def.id !== 'service_barrier';
     const nominalUpkeep = levelData.upkeep || def.upkeep || 0;
-    const physicalUpkeep = Math.round(nominalUpkeep * (isStaffedPublic ? staffedFactor : 1));
+    const physicalUpkeep = Math.round(nominalUpkeep * (this.region ? this.region.priceIndex : 1) * (isStaffedPublic ? staffedFactor : 1));
 
     // 4. Consumo Fiscal Diario Total (CF)
     const totalDailyCost = physicalUpkeep + estimatedDailyPayroll;

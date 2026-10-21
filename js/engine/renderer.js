@@ -104,7 +104,7 @@ export class Renderer {
     const tw = CONFIG.CANVAS.TILE_WIDTH;
     const th = CONFIG.CANVAS.TILE_HEIGHT;
 
-    let fill = CONFIG.PALETTE.grass[tile.variation || 0];
+    let fill = (this.grassPalette || CONFIG.PALETTE.grass)[tile.variation || 0];
 
     if (tile.terrain === 'water') {
       const wave = Math.sin(this.animationTick * 1.5 + tile.gx * 0.8 + tile.gy * 0.8) * 0.08;

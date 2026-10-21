@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { Calendar } from './calendar.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -861,7 +862,7 @@ export class UIManager {
         </div>
         <div class="card-name">${b.name}</div>
         <div class="card-bottom">
-          <span class="card-cost">$${b.cost}</span>
+          <span class="card-cost">${this.game.simulation.getBuildingCost(b).toLocaleString()}</span>
           <span class="card-fund-tag ${fundBadgeClass}">${fundTag}</span>
           ${feasBadgeHTML}
         </div>
@@ -880,7 +881,7 @@ export class UIManager {
         reqText += ` | Sep. mínima: ${CONFIG.MIN_PUBLIC_SPACING[b.id]} casillas`;
       }
 
-      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d${reqText}\n${b.description}${feasTitleText}`;
+      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: ${this.game.simulation.getBuildingCost(b).toLocaleString()} | Mant: $${b.upkeep}/d${reqText}\n${b.description}${feasTitleText}`;
 
       card.addEventListener('click', () => {
         this.hideCarousel();
@@ -930,7 +931,7 @@ export class UIManager {
     if (!this.elGhostManipulator) return;
     this.elGhostManipulator.classList.remove('hidden');
     if (this.elGhostConfirmText) {
-      this.elGhostConfirmText.textContent = `Construir $${def.cost}`;
+      this.elGhostConfirmText.textContent = `Construir ${this.game.simulation.getBuildingCost(def).toLocaleString()}`;
     }
   }
 
@@ -1215,7 +1216,7 @@ export class UIManager {
         if (this.elInspNextLvl) this.elInspNextLvl.textContent = nextLvl;
         const funding = this.game.simulation.getFundingType(def);
         const fundLabel = funding === 'public' ? '🏛️ Estado' : '💼 Privado';
-        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = `$${nextData.cost} (${fundLabel})`;
+        if (this.elInspUpgradeCost) this.elInspUpgradeCost.textContent = `${this.game.simulation.getBuildingCost(def, nextLvl).toLocaleString()} (${fundLabel})`;
       } else {
         this.elBtnUpgrade.disabled = true;
         this.elBtnUpgrade.style.opacity = '0.5';
@@ -1371,7 +1372,7 @@ export class UIManager {
         const icon = BUILDING_ICONS[toolId] || '🏗️';
         if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = icon;
         if (this.elFocusToolName) this.elFocusToolName.textContent = def ? def.name : toolId;
-        if (this.elFocusToolCost) this.elFocusToolCost.textContent = `Coste: $${(def?.cost || 0).toLocaleString()}`;
+        if (this.elFocusToolCost) this.elFocusToolCost.textContent = `Coste: ${this.game.simulation.getBuildingCost(def).toLocaleString()}`;
         this.game.startGhostPlacement(toolId);
       }
     }
@@ -1653,7 +1654,14 @@ export class UIManager {
       this.elEduStatus.textContent = (sim.education || 20) >= 50 ? 'Talento calificado' : 'En formación';
     }
 
-    if (this.elDay) this.elDay.textContent = `Día ${sim.day}`;
+    if (this.elDay) {
+      const season = sim.season;
+      const phase = sim.region && sim.region.phase;
+      this.elDay.textContent = `${season ? season.icon : ''}${phase ? phase.icon : ''} Día ${sim.day}`;
+      if (season && phase) {
+        this.elDay.title = `${season.name} · ${phase.name} · Inflación ${sim.region.annualInflation}% anual`;
+      }
+    }
 
     // 3. Actualizar Redes de Servicios Básicos (Electricidad y Agua)
     if (this.elQuickUtilityStatus) {
@@ -2169,6 +2177,9 @@ export class UIManager {
           <button class="eco-tab-btn ${this.currentEcoTab === 'ledger' ? 'active' : ''}" data-eco-tab="ledger">
             <span>📒 Libro Contable</span>
           </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'outlook' ? 'active' : ''}" data-eco-tab="outlook">
+            <span>🌍 Coyuntura</span>
+          </button>
         </div>
 
         <!-- CONTENIDO DINÁMICO SEGÚN PESTAÑA ACTIVA -->
@@ -2351,6 +2362,13 @@ export class UIManager {
           this._bindAuditJumpButtons(area);
         }
       }
+      // Si está en pestaña Coyuntura
+      else if (this.currentEcoTab === 'outlook') {
+        const area = elContent.querySelector('#eco-tab-content-area');
+        if (area) {
+          area.innerHTML = this._renderEcoTabContent('outlook', eco, sim);
+        }
+      }
       // Si está en pestaña Libro Contable
       else if (this.currentEcoTab === 'ledger') {
         const area = elContent.querySelector('#eco-tab-content-area');
@@ -2366,6 +2384,76 @@ export class UIManager {
         }
       }
     }
+  }
+
+  /**
+   * Coyuntura: estación del año, fase del ciclo regional e inflación.
+   */
+  _renderOutlookTab(sim) {
+    const region = sim.region;
+    if (!region || !sim.season) return '';
+    const cal = Calendar.info(sim.day);
+    const season = cal.season;
+    const phase = region.phase;
+    const forecast = region.forecast(sim.day);
+    const pct = (m) => {
+      const v = Math.round((m - 1) * 100);
+      return `<strong class="${v > 0 ? 'text-positive' : v < 0 ? 'text-danger' : ''}">${v > 0 ? '+' : ''}${v}%</strong>`;
+    };
+    const costPct = (m) => {
+      const v = Math.round((m - 1) * 100);
+      return `<strong class="${v > 0 ? 'text-danger' : v < 0 ? 'text-positive' : ''}">${v > 0 ? '+' : ''}${v}%</strong>`;
+    };
+    const infl = region.annualInflation;
+    const inflClass = infl > 12 ? 'text-danger' : infl < 0 ? 'text-warn' : 'text-positive';
+    const realWage = Math.round(region.realWageRatio * 100);
+
+    return `
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>${season.icon} ${season.name} · Año ${cal.year}</span>
+          <strong>Día ${cal.dayOfSeason}/30</strong>
+        </div>
+        <p style="font-size: 0.74rem; color: #cbd5e1; margin: 4px 0 8px;">${season.summary}</p>
+        <div class="eco-ledger-row"><span>🌾 Rendimiento de granjas:</span>${pct(season.farmYield)}</div>
+        <div class="eco-ledger-row"><span>⚡ Demanda eléctrica:</span>${costPct(season.powerDemand)}</div>
+        <div class="eco-ledger-row"><span>💧 Demanda de agua:</span>${costPct(season.waterDemand)}</div>
+        <div class="eco-ledger-row"><span>🧳 Turismo y visitantes:</span>${pct(season.tourism)}</div>
+        <div class="eco-ledger-row"><span>🏗️ Coste de construir:</span>${costPct(season.constructionCost)}</div>
+        <p style="font-size: 0.70rem; color: #94a3b8; margin: 6px 0 0;">Próxima estación: ${cal.nextSeason.icon} ${cal.nextSeason.name} en ${cal.daysLeftInSeason} días.</p>
+      </div>
+
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>${phase.icon} Ciclo regional: ${phase.name}</span>
+          <strong>${region.daysLeft(sim.day)} días restantes aprox.</strong>
+        </div>
+        <p style="font-size: 0.74rem; color: #cbd5e1; margin: 4px 0 8px;">${phase.summary}</p>
+        <div class="eco-ledger-row"><span>🏭 Demanda industrial regional:</span>${pct(phase.industrialDemand)}</div>
+        <div class="eco-ledger-row"><span>🚢 Precios de exportación:</span>${pct(phase.exportPrices)}</div>
+        <div class="eco-ledger-row"><span>🛍️ Visitantes de la región:</span>${pct(phase.visitors)}</div>
+        <p style="font-size: 0.70rem; color: #94a3b8; margin: 6px 0 0;">
+          ${forecast && forecast.phase.id !== phase.id
+            ? `🔮 Indicadores adelantados: ${forecast.phase.icon} ${forecast.phase.name.toLowerCase()} en unos ${forecast.inDays} días.`
+            : 'Sin señales de cambio de ciclo por ahora.'}
+        </p>
+      </div>
+
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>💹 Inflación local</span>
+          <strong class="${inflClass}">${infl > 0 ? '+' : ''}${infl}% anual</strong>
+        </div>
+        <div class="eco-ledger-row"><span>🏷️ Nivel de precios (fundación = 100):</span><strong>${Math.round(region.priceIndex * 100)}</strong></div>
+        <div class="eco-ledger-row"><span>💵 Nivel de salarios:</span><strong>${Math.round(region.wageIndex * 100)}</strong></div>
+        <div class="eco-ledger-row"><span>🛒 Poder adquisitivo del salario:</span><strong class="${realWage < 98 ? 'text-danger' : 'text-positive'}">${realWage}%</strong></div>
+        <p style="font-size: 0.70rem; color: #94a3b8; margin: 6px 0 0;">
+          Sube con poco paro, con el auge regional y cuando el dinero de la ciudad crece más rápido que su producción.
+          Encarece alquileres, comida, obras y mantenimiento; los salarios la alcanzan con unos 15 días de retraso.
+          Los precios de exportación no dependen de ella: una ciudad con mucha inflación pierde competitividad.
+        </p>
+      </div>
+    `;
   }
 
   /**
@@ -2445,6 +2533,10 @@ export class UIManager {
     // 0. PESTAÑA AUDITORÍA EN VIVO Y DIAGNÓSTICO
     if (tab === 'ledger') {
       return this._renderLedgerTab(eco);
+    }
+
+    if (tab === 'outlook') {
+      return this._renderOutlookTab(sim);
     }
 
     if (tab === 'audit') {

@@ -9,6 +9,8 @@ import { CONFIG } from './config.js';
 import { EconomySystem } from './economy.js';
 import { CitizenManager } from './citizens.js';
 import { DilemmaManager } from './dilemmas.js';
+import { Calendar } from './calendar.js';
+import { RegionalEconomy } from './regional-economy.js';
 
 export class Simulation {
   constructor(grid, corporations, research, disasters, audio, economy = null) {
@@ -20,6 +22,11 @@ export class Simulation {
     this.economy = economy || new EconomySystem(CONFIG.SIMULATION.INITIAL_FUNDS);
     this.citizens = new CitizenManager(this.grid, this.economy);
     this.dilemmas = new DilemmaManager();
+    // Coyuntura regional (ciclo económico e inflación) y estación del año
+    this.region = new RegionalEconomy();
+    this.economy.region = this.region;
+    this.season = Calendar.seasonForDay(1);
+    this.events = []; // Avisos del día (cambio de estación o de fase económica) para la interfaz
 
     this.day = 1;
     this.population = CONFIG.SIMULATION.INITIAL_POPULATION;
@@ -136,9 +143,9 @@ export class Simulation {
     this.housingCapacity = totalHousing;
     this.commercialJobs = commercialJobs;
     this.powerSupply = Math.round(totalPowerSupply);
-    this.powerDemand = Math.round(totalPowerDemand);
+    this.powerDemand = Math.round(totalPowerDemand * this.season.powerDemand);
     this.waterSupply = Math.round(totalWaterSupply);
-    this.waterDemand = Math.round(totalWaterDemand);
+    this.waterDemand = Math.round(totalWaterDemand * this.season.waterDemand);
     this.powerRatio = this.powerDemand > 0 ? Math.min(1.0, this.powerSupply / this.powerDemand) : 1.0;
     this.waterRatio = this.waterDemand > 0 ? Math.min(1.0, this.waterSupply / this.waterDemand) : 1.0;
     this.hasPowerOutage = this.powerDemand > 0 && this.powerRatio < 0.95;
@@ -434,11 +441,21 @@ export class Simulation {
     return 'private';
   }
 
+  /**
+   * Coste actual de construir o mejorar: precio de catálogo × índice de precios × estación.
+   */
+  getBuildingCost(def, level = 1) {
+    if (!def) return 0;
+    const base = (def.levels && def.levels[level] && def.levels[level].cost)
+      ? def.levels[level].cost
+      : (def.cost || 0);
+    const seasonMult = (this.season && this.season.constructionCost) || 1;
+    return Math.round(base * this.region.priceIndex * seasonMult);
+  }
+
   canAffordBuilding(def, level = 1) {
     if (!def) return { allowed: false, reason: 'Edificio desconocido' };
-    const cost = (def.levels && def.levels[level] && def.levels[level].cost) 
-      ? def.levels[level].cost 
-      : (def.cost || 0);
+    const cost = this.getBuildingCost(def, level);
     const funding = this.getFundingType(def);
 
     if (funding === 'public') {
@@ -478,6 +495,25 @@ export class Simulation {
     // Saldos al abrir el día: el flujo neto diario se mide contra ellos en el libro contable
     const stateStartFunds = this.economy.stateFunds;
     const corpStartFunds = this.economy.corporateFunds;
+
+    // Estación del año y fase del ciclo regional
+    this.events = [];
+    const previousSeason = this.season;
+    this.season = Calendar.seasonForDay(this.day);
+    if (previousSeason && previousSeason.id !== this.season.id) {
+      this.events.push({ type: 'season', text: `${this.season.icon} Llega ${this.season.name.toLowerCase()}: ${this.season.summary}` });
+    }
+    const newPhase = this.region.advance(this.day);
+    if (newPhase) {
+      this.events.push({ type: 'cycle', text: `${newPhase.icon} La región entra en ${newPhase.name.toLowerCase()}: ${newPhase.summary}` });
+    }
+    const forecast = this.region.forecast(this.day);
+    if (forecast && forecast.inDays === 10 && forecast.phase.id !== this.region.phaseId) {
+      this.events.push({ type: 'forecast', text: `🔮 Indicadores adelantados: ${forecast.phase.name.toLowerCase()} en unos 10 días.` });
+    }
+    const priceIndex = this.region.priceIndex;
+    this.citizens.priceIndex = priceIndex;
+    this.citizens.wageIndex = this.region.wageIndex;
 
     // 1. SISTEMA DE CIUDADANOS AUTÓNOMOS, ESTUDIOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
     this.citizens.syncWithGrid(this.grid, this.population, this.education);
@@ -564,7 +600,7 @@ export class Simulation {
 
         // Modo Ahorro / Suspendido: Reduce el mantenimiento físico al 10%
         // Ocupación Parcial: En la vida real, edificios con baja dotación espacian sus revisiones y pagan costos menores
-        const nominalUpkeep = (levelData.upkeep || def.upkeep || 0);
+        const nominalUpkeep = (levelData.upkeep || def.upkeep || 0) * priceIndex;
         const bldgUpkeep = isSuspended 
           ? Math.max(1, Math.round(nominalUpkeep * 0.10)) 
           : Math.max(1, Math.round(nominalUpkeep * occRatio));
@@ -635,7 +671,7 @@ export class Simulation {
             privateActiveWorkers += activeW;
             privateCapacity += maxW;
             const rev = (levelData.revenue || def.revenuePerJob || 44.0);
-            const storeRevenue = activeW * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier;
+            const storeRevenue = activeW * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier * priceIndex;
             totalCommercialRevenue += storeRevenue;
             baseCommTax += storeRevenue;
 
@@ -669,7 +705,7 @@ export class Simulation {
             privateActiveWorkers += activeFarmW;
             privateCapacity += maxFarmW;
             const farmStaffRatio = maxFarmW > 0 ? Math.max(0.15, activeFarmW / maxFarmW) : 1.0;
-            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * dilemmaMods.foodMultiplier);
+            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * dilemmaMods.foodMultiplier * this.season.farmYield);
             farmFoodSupply += effectiveFood;
             // No sumar puestos de granjas a commercialJobs para evitar doble tributación comercial
             parkHappinessBonus += (levelData.happiness || 5);
@@ -904,7 +940,7 @@ export class Simulation {
     Object.values(this.policies).forEach((p) => {
       if (p.active) {
         const disc = Math.min(0.5, policyDiscount);
-        policyExpenses += p.costPerTick * (1 - disc);
+        policyExpenses += p.costPerTick * (1 - disc) * priceIndex;
       }
     });
 
@@ -935,6 +971,9 @@ export class Simulation {
         waterRatio: this.waterRatio,
         citizenReport: citizenReport,
         totalMaintenanceCapacity: totalMaintenanceCapacity,
+        priceIndex,
+        cycle: this.region.phase,
+        tourism: this.season.tourism,
         householdCitizens: Array.from(this.citizens.citizens.values()),
         stateStartFunds,
         corpStartFunds,
@@ -966,6 +1005,7 @@ export class Simulation {
         tileCount: this.tileCount,
         pollution: this.pollution,
         happiness: this.happiness,
+        seasonId: this.season.id,
       },
       this.research,
       this.audio,
@@ -975,7 +1015,22 @@ export class Simulation {
     this.grid.updateVehicles();
 
     // Cierre contable del día
-    this.economy.ledger.closeDay(this.day, this.citizens.getTotalSavings());
+    const householdsTotal = this.citizens.getTotalSavings();
+    this.economy.ledger.closeDay(this.day, householdsTotal);
+
+    // Inflación: presión según paro, ciclo y crecimiento del dinero frente a la producción
+    const corpRev = this.economy.corporateBreakdown.revenue || {};
+    const publicPay = (this.economy.stateBreakdown.expenses || {}).publicPayroll || 0;
+    this.region.updateInflation({
+      day: this.day,
+      unemploymentRate: this.unemploymentRate || 0,
+      money: this.economy.stateFunds + this.economy.corporateFunds + householdsTotal,
+      output: (corpRev.total || 0) + publicPay,
+    });
+
+    if (this.events.length && typeof window !== 'undefined' && window.gameInstance && window.gameInstance.ui) {
+      this.events.forEach((ev) => window.gameInstance.ui.showToast(ev.text));
+    }
 
     // 10. EVALUAR DILEMAS Y EVENTOS EJECUTIVOS DE ALCALDÍA
     const newDilemma = this.dilemmas.tick(this);
@@ -1039,6 +1094,7 @@ export class Simulation {
       isPaused: this.isPaused,
       citizens: this.citizens ? this.citizens.serialize() : null,
       dilemmas: this.dilemmas ? this.dilemmas.serialize() : null,
+      region: this.region.serialize(),
     };
   }
 
@@ -1067,5 +1123,11 @@ export class Simulation {
     if (data.dilemmas && this.dilemmas) {
       this.dilemmas.deserialize(data.dilemmas);
     }
+    if (data.region) {
+      this.region.deserialize(data.region);
+    }
+    this.season = Calendar.seasonForDay(this.day);
+    this.citizens.priceIndex = this.region.priceIndex;
+    this.citizens.wageIndex = this.region.wageIndex;
   }
 }

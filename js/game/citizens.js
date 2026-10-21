@@ -76,6 +76,9 @@ export class CitizenManager {
 
     // Política de salarios base inicial
     this.publicWageBase = 20; // Salario diario base ofrecido por la Alcaldía (calibrado a 20)
+    // Índices de la coyuntura regional (los fija la simulación cada día)
+    this.priceIndex = 1.0; // Precios locales: alquiler, comida y tarifas
+    this.wageIndex = 1.0; // Salarios: siguen a los precios con retraso
     this.privateWageBase = 22; // Salario diario base ofrecido por el holding privado (calibrado a 22)
 
     // Métricas del mercado laboral y pugna salarial
@@ -260,10 +263,10 @@ export class CitizenManager {
     const corpSolvent = economy ? !economy.isCorporateCrisis : true;
 
     // Salarios efectivos modulados por la salud fiscal y corporativa
-    const effPublicWage = Math.max(14, Math.round(this.publicWageBase * (stateSolvent ? 1.0 : 0.65)));
+    const effPublicWage = Math.max(14, Math.round(this.publicWageBase * this.wageIndex * (stateSolvent ? 1.0 : 0.65)));
     const effPrivateWage = Math.max(
       15,
-      Math.round(this.privateWageBase * (corpSolvent ? (economy.corporateFunds > 4000 ? 1.1 : 1.0) : 0.65))
+      Math.round(this.privateWageBase * this.wageIndex * (corpSolvent ? (economy.corporateFunds > 4000 ? 1.1 : 1.0) : 0.65))
     );
 
     // 1. Recorrer grilla e identificar puestos de trabajo disponibles
@@ -457,8 +460,8 @@ export class CitizenManager {
       const home = this.residentialBuildings.get(citizen.homeBuildingId);
       const homeX = home ? home.x : 0;
       const homeY = home ? home.y : 0;
-      const rent = home ? home.getRent() : 6;
-      const food = 5; // Gasto en comida reducido a 5/día
+      const rent = (home ? home.getRent() : 6) * this.priceIndex;
+      const food = 5 * this.priceIndex; // Gasto en comida (5/día a precios de fundación)
 
       let bestJob = null;
       let bestScore = -Infinity;
@@ -700,11 +703,12 @@ export class CitizenManager {
       const salary = citizen.currentJob ? citizen.currentJob.salary : 0;
       const resBuilding = residentialMap.get(citizen.homeBuildingId);
       const building = grid.getBuilding(citizen.homeBuildingId);
-      const rent = resBuilding 
-        ? resBuilding.getRent() 
+      const baseRent = resBuilding
+        ? resBuilding.getRent()
         : (building && typeof building.getRent === 'function' ? building.getRent() : 6);
+      const rent = Math.round(baseRent * this.priceIndex * 100) / 100;
       // Punto 3: Micro-flujo espacial de comida al comercio más cercano
-      const food = 5; // Gasto diario de alimentación básico
+      const food = Math.round(5 * this.priceIndex * 100) / 100; // Alimentación básica a precios actuales
       const foodVenue = (grid && typeof grid.findNearestFoodVenue === 'function' && resBuilding)
         ? grid.findNearestFoodVenue(resBuilding.x, resBuilding.y)
         : null;
@@ -719,7 +723,7 @@ export class CitizenManager {
 
       const taxes = Math.round(salary * taxRate * 10) / 10;
       // Tarifa municipal de agua y luz doméstica: se paga solo el servicio realmente recibido
-      const utilityFee = Math.round(1.20 * utilityEfficiency * 100) / 100;
+      const utilityFee = Math.round(1.20 * this.priceIndex * utilityEfficiency * 100) / 100;
 
       citizen.lastSalary = salary;
       citizen.lastRent = rent;

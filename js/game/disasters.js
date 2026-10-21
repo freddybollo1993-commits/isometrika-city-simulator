@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { Calendar } from './calendar.js';
 
 export class DisasterSystem {
   constructor() {
@@ -70,8 +71,8 @@ export class DisasterSystem {
     // Si la ciudad es aún una aldea virgen sin edificios, posponer
     if (simState.tileCount < 5) return;
 
-    const disasterTypes = ['earthquake', 'flood', 'heatwave'];
-    const chosenType = disasterTypes[Math.floor(Math.random() * disasterTypes.length)];
+    // El tipo de desastre depende de la estación (inundaciones en primavera, calor en verano)
+    const chosenType = Calendar.pickDisasterType(simState.day || 1, Math.random());
 
     let disasterData = null;
 

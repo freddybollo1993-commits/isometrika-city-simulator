@@ -908,6 +908,12 @@ export const CONFIG = {
     PUBLIC_STAFFED_UPKEEP_FACTOR: 0.35, // Fracción del mantenimiento nominal que pagan los edificios públicos con personal
     REGIONAL_VISITOR_SHARE: 0.55, // Parte de la capacidad comercial no usada por vecinos que llenan visitantes de fuera
     MAX_DAILY_PRICE_ADJUSTMENT: 0.03, // Tope diario del ajuste de precios sobre el ahorro disponible de los hogares
+    // Insumos que las empresas compran fuera de la ciudad, como fracción de sus ventas
+    INPUT_COSTS: {
+      massGoods: 0.47, // Materias primas de la manufactura masiva
+      techGoods: 0.33, // Componentes de la industria tecnológica
+      retail: 0.28, // Mercancía que los comercios compran a mayoristas
+    },
     HOUSEHOLD_SPENDING: {
       REMAINING_SHARE: 0.50, // Parte del remanente diario que cada vecino gasta en comercios
       SAVINGS_SHARE: 0.01, // Parte del ahorro por encima del colchón que gasta cada día

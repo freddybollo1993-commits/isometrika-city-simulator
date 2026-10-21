@@ -549,7 +549,7 @@ export class Game {
 
     const res = this.grid.upgradeBuilding(rootGx, rootGy);
     if (res.success) {
-      this.simulation.spendForBuilding(def, res.cost);
+      this.simulation.spendForBuilding(def, afford.cost);
       this.audio.playChime();
       const fundLabel = afford.funding === 'public' ? '🏛️ Obra Pública' : '💼 Inversión Privada';
       this.ui.showToast(`⚡ ¡${def.name} mejorado a Nivel ${res.newLevel}! (${fundLabel})`);
@@ -654,6 +654,10 @@ export class Game {
         this.ui.updateAdvisor(this.simulation.getCityDiagnostics());
       }
     }
+
+    // El césped cambia de tono con la estación del año
+    const season = this.simulation.season;
+    this.renderer.grassPalette = (season && season.grassTint) || null;
 
     this.renderer.render(
       this.grid,

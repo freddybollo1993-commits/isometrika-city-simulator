@@ -1,0 +1,5 @@
+tests/
+.claude/
+docs/
+package.json
+*.md

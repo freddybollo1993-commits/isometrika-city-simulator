@@ -39,9 +39,11 @@ test('el ajuste de precios nunca vacía de golpe los ahorros de los hogares', ()
   }
 });
 
-test('una ciudad gestionada con sensatez no quiebra en 150 días', () => {
+test('una ciudad gestionada con sensatez no quiebra en 3 años (360 días con estaciones y ciclos)', () => {
   const { sim, grid, center } = createCity({ seed: 11 });
-  const log = runDays(sim, 150, (s) => autoPlayer(s, grid, center));
+  const log = runDays(sim, 360, (s) => autoPlayer(s, grid, center));
+  const minCorp = Math.min(...log.map((r) => r.corp));
+  assert.ok(minCorp > -2000, `la empresa llegó a ${minCorp}`);
   assert.equal(sim.economy.isStateBankruptcy, false);
   assert.equal(sim.economy.isCorporateCrisis, false);
   const minState = Math.min(...log.map((r) => r.state));
