@@ -51,21 +51,21 @@ export const CONFIG = {
     industrial_tech: { minPop: 35, popPerUnit: 50 },
 
     // Servicios Básicos
-    utility_power_solar: { minPop: 0, popPerUnit: 20 }, // 1ª libre en la fundación, luego 1 cada 20 hab
-    utility_power_plant: { minPop: 50, popPerUnit: 70 },
-    utility_water_tower: { minPop: 0, popPerUnit: 20 }, // 1ª libre en la fundación, luego 1 cada 20 hab
-    utility_water_plant: { minPop: 50, popPerUnit: 70 },
+    utility_power_solar: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación (Fondo Pionero), luego 1 c/25 hab
+    utility_power_plant: { minPop: 55, popPerUnit: 70 }, // Gran central eléctrica (drenaje $130/d, requiere 55 hab + demanda fabril)
+    utility_water_tower: { minPop: 0, popPerUnit: 25 }, // 1ª libre en la fundación, luego 1 c/25 hab
+    utility_water_plant: { minPop: 50, popPerUnit: 65 }, // Planta potabilizadora ribereña (drenaje $119/d, requiere 50 hab)
 
-    // Tránsito y Servicios Públicos
-    transit_bus_terminal: { minPop: 20, popPerUnit: 35 },
-    service_police: { minPop: 15, popPerUnit: 30 },
-    service_fire: { minPop: 15, popPerUnit: 30 },
-    service_hospital: { minPop: 50, popPerUnit: 65 }, // Desbloqueo realista: requiere base tributaria suficiente
-    service_school: { minPop: 20, popPerUnit: 35 },
-    service_university: { minPop: 60, popPerUnit: 85 },
-    service_seismic_radar: { minPop: 25, popPerUnit: 50 },
-    service_research: { minPop: 35, popPerUnit: 60 },
-    service_cityhall: { minPop: 25, maxTotal: 1 }, // Sede de alcaldía a partir de 25 hab
+    // Tránsito y Servicios Públicos (Calibrados según consumo fiscal del sector privado)
+    transit_bus_terminal: { minPop: 20, popPerUnit: 35 }, // Drenaje $37/d: 1 chófer ($22) + $15 upkeep
+    service_police: { minPop: 18, popPerUnit: 30 }, // Drenaje $38/d: 1 policía ($22) + $16 upkeep (financiado por ~18 hab)
+    service_fire: { minPop: 18, popPerUnit: 30 }, // Drenaje $38/d: 1 bombero ($22) + $16 upkeep (financiado por ~18 hab)
+    service_school: { minPop: 22, popPerUnit: 35 }, // Drenaje $45/d: 1 maestro ($27) + $18 upkeep (financiado por ~22 hab)
+    service_seismic_radar: { minPop: 25, popPerUnit: 45 }, // Drenaje $40/d: 1 operador ($22) + $18 upkeep
+    service_cityhall: { minPop: 28, maxTotal: 1 }, // Sede de alcaldía (drenaje $57/d, amortizada a partir de 28 hab)
+    service_research: { minPop: 35, popPerUnit: 55 }, // Drenaje $89/d: 2 investigadores ($54) + $35 upkeep
+    service_hospital: { minPop: 45, popPerUnit: 60 }, // Drenaje $62 a $116/d: 1 a 3 médicos ($27-$81) + $35 upkeep
+    service_university: { minPop: 55, popPerUnit: 80 }, // Drenaje $69 a $123/d: 1 a 3 profesores + $42 upkeep
   },
 
   // Zonas de exclusión espacial: Distancia Manhattan mínima entre edificios públicos del mismo tipo

@@ -837,6 +837,23 @@ export class UIManager {
       const fundTag = isPublic ? '🏛️ Estado' : '💼 Privado';
       const fundBadgeClass = isPublic ? 'badge-fund-state' : 'badge-fund-corp';
 
+      let feasBadgeHTML = '';
+      let feasTitleText = '';
+      const eco = this.game && this.game.simulation ? this.game.simulation.economy : null;
+      if (isPublic && eco && typeof eco.calculatePublicWorkFeasibility === 'function') {
+        const feas = eco.calculatePublicWorkFeasibility(b.id, 1, {
+          population: this.game.simulation.population || 0,
+          stateNetCashflow: this.game.simulation.netCashflow || 0,
+        });
+        if (feas) {
+          const badgeClass = feas.status === 'safe' ? 'tag-safe' : feas.status === 'warning' ? 'tag-warn' : 'tag-crit';
+          const badgeIcon = feas.status === 'safe' ? '🟢' : feas.status === 'warning' ? '🟡' : '🔴';
+          const badgeLabel = feas.status === 'safe' ? 'Sostenible' : feas.status === 'warning' ? 'Ajustado' : 'Alerta';
+          feasBadgeHTML = `<span class="card-fund-tag ${badgeClass}" title="${feas.summary}">${badgeIcon} ${badgeLabel}</span>`;
+          feasTitleText = `\n\n⚖️ ASESOR FISCAL (Sector Privado):\n• Consumo Operativo: -$${feas.totalDailyCost}/d (Mant: $${feas.physicalUpkeep} + Nómina: $${feas.estimatedDailyPayroll})\n• Diagnóstico: ${feas.summary}\n• Base Sostenible: ${feas.minPopRequired} hab y ${feas.minCommercialStores} tiendas`;
+        }
+      }
+
       card.innerHTML = `
         <div class="card-top">
           <span class="card-icon">${icon}</span>
@@ -846,6 +863,7 @@ export class UIManager {
         <div class="card-bottom">
           <span class="card-cost">$${b.cost}</span>
           <span class="card-fund-tag ${fundBadgeClass}">${fundTag}</span>
+          ${feasBadgeHTML}
         </div>
       `;
 
@@ -862,7 +880,7 @@ export class UIManager {
         reqText += ` | Sep. mínima: ${CONFIG.MIN_PUBLIC_SPACING[b.id]} casillas`;
       }
 
-      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d${reqText}\n${b.description}`;
+      card.title = `${b.name} (${sizeBadge}) - [${fundTag}] Costo: $${b.cost} | Mant: $${b.upkeep}/d${reqText}\n${b.description}${feasTitleText}`;
 
       card.addEventListener('click', () => {
         this.hideCarousel();
@@ -2125,6 +2143,9 @@ export class UIManager {
           <button class="eco-tab-btn ${this.currentEcoTab === 'balance' ? 'active' : ''}" data-eco-tab="balance">
             <span>⚖️ Equilibrio</span>
           </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'public_works' ? 'active' : ''}" data-eco-tab="public_works">
+            <span>🏗️ Viabilidad Obras</span>
+          </button>
           <button class="eco-tab-btn ${this.currentEcoTab === 'audit' ? 'active' : ''}" data-eco-tab="audit">
             <span>📋 Auditoría en Vivo</span>
           </button>
@@ -2310,6 +2331,13 @@ export class UIManager {
           this._bindAuditJumpButtons(area);
         }
       }
+      // Si está en pestaña Viabilidad de Obras Públicas
+      else if (this.currentEcoTab === 'public_works') {
+        const area = elContent.querySelector('#eco-tab-content-area');
+        if (area) {
+          area.innerHTML = this._renderEcoTabContent('public_works', eco, sim);
+        }
+      }
     }
   }
 
@@ -2337,6 +2365,11 @@ export class UIManager {
     // 0. PESTAÑA AUDITORÍA EN VIVO Y DIAGNÓSTICO
     if (tab === 'audit') {
       return this._renderAuditTabContent(eco, sim);
+    }
+
+    // PESTAÑA VIABILIDAD DE OBRAS PÚBLICAS Y CONSUMO FISCAL
+    if (tab === 'public_works') {
+      return this._renderPublicWorksTabContent(eco, sim);
     }
 
     // 1. PESTAÑA EL ESTADO (EL ALCALDE & TRIBUTOS)
@@ -3196,6 +3229,134 @@ export class UIManager {
         this.updateEconomyModalContent(true);
       });
     });
+  }
+
+  _renderPublicWorksTabContent(eco, sim) {
+    const currentPop = sim.population || 0;
+    const currentCashflow = sim.netCashflow || 0;
+    const cfSign = currentCashflow >= 0 ? '+' : '';
+    const cfClass = currentCashflow >= 0 ? 'text-positive' : 'text-danger';
+
+    const publicWorksList = [
+      { id: 'service_police', icon: '👮' },
+      { id: 'service_fire', icon: '🚒' },
+      { id: 'service_school', icon: '🏫' },
+      { id: 'transit_bus_terminal', icon: '🚌' },
+      { id: 'service_seismic_radar', icon: '📡' },
+      { id: 'service_cityhall', icon: '🏛️' },
+      { id: 'service_hospital', icon: '🏥' },
+      { id: 'utility_power_solar', icon: '☀️' },
+      { id: 'utility_water_tower', icon: '💧' },
+      { id: 'utility_water_plant', icon: '🚰' },
+      { id: 'utility_power_plant', icon: '⚡' },
+      { id: 'service_university', icon: '🎓' },
+      { id: 'service_research', icon: '🔬' },
+      { id: 'residential_social', icon: '🏢' },
+    ];
+
+    let cardsHTML = '';
+    publicWorksList.forEach((pw) => {
+      const feas = eco.calculatePublicWorkFeasibility(pw.id, 1, {
+        population: currentPop,
+        stateNetCashflow: currentCashflow,
+      });
+      if (!feas) return;
+
+      const cardStatusClass = feas.status === 'safe' ? 'status-safe' : feas.status === 'warning' ? 'status-warning' : 'status-critical';
+      const badgeStatusClass = feas.status === 'safe' ? 'badge-status-safe' : feas.status === 'warning' ? 'badge-status-warn' : 'badge-status-danger';
+      const adviceClass = feas.status === 'safe' ? 'advice-safe' : feas.status === 'warning' ? 'advice-warn' : 'advice-danger';
+
+      const projectedSign = feas.projectedNetCashflow >= 0 ? '+' : '';
+      const projectedClass = feas.projectedNetCashflow >= 0 ? 'text-positive' : 'text-danger';
+
+      cardsHTML += `
+        <div class="pw-card ${cardStatusClass}">
+          <div class="pw-header">
+            <div class="pw-title-wrap">
+              <span class="pw-icon">${pw.icon}</span>
+              <span class="pw-name">${feas.buildingName}</span>
+            </div>
+            <span class="pw-badge ${badgeStatusClass}">${feas.statusText}</span>
+          </div>
+
+          <div class="pw-stats-rows">
+            <div class="pw-stat-line">
+              <span>Drenaje Fiscal Operativo:</span>
+              <strong class="text-danger">-$${feas.totalDailyCost}/d</strong>
+            </div>
+            <div class="pw-stat-line">
+              <span>Desglose de Costo:</span>
+              <small style="color: #cbd5e1;">Mant: $${feas.physicalUpkeep} | Nómina: $${feas.estimatedDailyPayroll} (${feas.jobsCount} operarios)</small>
+            </div>
+            <div class="pw-stat-line">
+              <span>Flujo Proyectado:</span>
+              <strong class="${projectedClass}">${projectedSign}$${feas.projectedNetCashflow}/d</strong>
+            </div>
+            <div class="pw-stat-line">
+              <span>Base Demográfica Sostenible:</span>
+              <strong>${feas.minPopRequired} hab. (Tienes: ${currentPop})</strong>
+            </div>
+            <div class="pw-stat-line">
+              <span>Soporte Privado Mínimo:</span>
+              <strong style="color: #facc15;">${feas.minCommercialStores} tiendas / ${feas.minIndustrialFactories} fábricas</strong>
+            </div>
+            <div class="pw-stat-line">
+              <span>Ajuste IRPF Requerido Hoy:</span>
+              <strong>${feas.taxAdjustmentNeeded > 0 ? `Subir a ${Math.round(feas.requiredTaxRate * 100)}% (+${Math.round(feas.taxAdjustmentNeeded * 100)}%)` : 'Tasa actual (9%) suficiente'}</strong>
+            </div>
+          </div>
+
+          <div class="pw-advice ${adviceClass}">
+            ${feas.summary}
+          </div>
+        </div>
+      `;
+    });
+
+    return `
+      <!-- KPIs Superiores de Viabilidad -->
+      <div class="eco-kpi-grid">
+        <div class="eco-kpi-card">
+          <span class="kpi-label">Superávit del Estado Hoy</span>
+          <span class="kpi-val ${cfClass}">${cfSign}$${currentCashflow}/d</span>
+        </div>
+        <div class="eco-kpi-card">
+          <span class="kpi-label">Población Activa</span>
+          <span class="kpi-val">${currentPop} hab.</span>
+        </div>
+        <div class="eco-kpi-card">
+          <span class="kpi-label">Rendimiento Fiscal / Hab</span>
+          <span class="kpi-val text-positive">~$2.50/d neto</span>
+        </div>
+        <div class="eco-kpi-card">
+          <span class="kpi-label">Capacidad de Nuevas Obras</span>
+          <span class="kpi-val ${currentCashflow >= 30 ? 'text-positive' : 'text-warn'}">
+            ${currentCashflow > 0 ? `Hasta $${currentCashflow}/d` : 'Sin margen'}
+          </span>
+        </div>
+      </div>
+
+      <div class="eco-section" style="margin-top: 10px;">
+        <div class="eco-section-title">
+          <span>⚖️ Asesor de Viabilidad Fiscal & Planificación Humano-Empresarial</span>
+        </div>
+        <p style="font-size: 0.72rem; color: #94a3b8; margin: 0; line-height: 1.4;">
+          <strong>Regla de Oro:</strong> Los edificios públicos <em>no solo cuestan el dinero de construcción inicial</em>; generan un <strong>drenaje operativo diario</strong> (mantenimiento físico + nómina de policías, médicos, docentes y operarios). El sector privado (ciudadanos + empresas) debe generar suficiente recaudación para sostenerlos. Si construyes sin la base imponible requerida, provocarás un déficit crónico o asfixiarás al Magnate con impuestos confiscatorios.
+        </p>
+      </div>
+
+      <!-- Catálogo de Obras Públicas y Semáforo de Sostenibilidad -->
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>🏛️ Catálogo de Obras Públicas y Semáforo en Tiempo Real</span>
+          <small style="color: #94a3b8;">Evaluado según la economía actual de tu ciudad</small>
+        </div>
+
+        <div class="public-works-grid">
+          ${cardsHTML}
+        </div>
+      </div>
+    `;
   }
 
   _bindAuditJumpButtons(container) {

@@ -1965,6 +1965,156 @@ html, body {
   border: 1px solid rgba(234, 179, 8, 0.4);
 }
 
+/* Badges de viabilidad fiscal en carrusel */
+.card-fund-tag.tag-safe {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+}
+
+.card-fund-tag.tag-warn {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+}
+
+.card-fund-tag.tag-crit {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+/* Obras Públicas & Fiscalidad Tab Styles */
+.public-works-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.pw-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.pw-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.pw-card.status-safe {
+  border-left: 3px solid #22c55e;
+}
+
+.pw-card.status-warning {
+  border-left: 3px solid #eab308;
+}
+
+.pw-card.status-critical {
+  border-left: 3px solid #ef4444;
+}
+
+.pw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pw-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pw-icon {
+  font-size: 1.25rem;
+}
+
+.pw-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.pw-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.badge-status-safe {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.badge-status-warn {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.badge-status-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.pw-stats-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+.pw-stat-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #94a3b8;
+}
+
+.pw-stat-line strong {
+  color: #f1f5f9;
+}
+
+.pw-advice {
+  font-size: 0.70rem;
+  line-height: 1.35;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.advice-safe {
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.advice-warn {
+  background: rgba(234, 179, 8, 0.1);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.advice-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
 /* Estilos para el HUD Bar dual */
 .sum-item-state strong {
   color: #38bdf8;

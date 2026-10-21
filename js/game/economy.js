@@ -607,6 +607,121 @@ export class EconomySystem {
   }
 
   /**
+   * Evalúa la viabilidad fiscal y sostenibilidad macroeconómica de una obra pública
+   * en función de su consumo operativo (mantenimiento físico + nómina pública)
+   * comparado con la capacidad contributiva real del sector privado.
+   *
+   * @param {string} buildingId - ID del edificio (ej: 'service_police', 'service_hospital')
+   * @param {number} targetLevel - Nivel del edificio a evaluar (1, 2 o 3)
+   * @param {object} cityContext - Contexto actual de la ciudad (población, flujo de caja, comercios)
+   * @returns {object} Informe detallado de viabilidad y recomendaciones de ajuste impositivo
+   */
+  calculatePublicWorkFeasibility(buildingId, targetLevel = 1, cityContext = {}) {
+    const def = CONFIG.BUILDINGS[buildingId];
+    if (!def) return null;
+
+    const levelData = (def.levels && def.levels[targetLevel]) ? def.levels[targetLevel] : def;
+    const currentPop = typeof cityContext.population === 'number' ? cityContext.population : 0;
+    const stateNetCashflow = typeof cityContext.stateNetCashflow === 'number' 
+      ? cityContext.stateNetCashflow 
+      : (this.stateBreakdown && typeof this.stateBreakdown.netCashflow === 'number' ? this.stateBreakdown.netCashflow : 0);
+
+    // 1. Determinar número de operarios públicos requeridos según la escala de la ciudad
+    let jobsCount = levelData.jobs !== undefined ? levelData.jobs : (def.jobs !== undefined ? def.jobs : 0);
+    if (def.id === 'service_hospital') {
+      jobsCount = currentPop < 50 ? 1 : currentPop < 90 ? Math.min(2, jobsCount) : jobsCount;
+    } else if (def.id === 'service_school' || def.id === 'service_cityhall' || def.id === 'transit_bus_terminal') {
+      jobsCount = currentPop < 45 ? 1 : jobsCount;
+    } else if (def.id === 'service_university') {
+      jobsCount = currentPop < 80 ? 1 : currentPop < 140 ? 2 : jobsCount;
+    }
+
+    // 2. Determinar salario público estimado según cualificación requerida
+    let requiredEdu = 1;
+    if (def.id === 'service_university' || def.id === 'service_hospital' || def.id === 'service_school' || def.id === 'utility_water_plant') {
+      requiredEdu = 2;
+    }
+    const eduMult = requiredEdu === 2 ? 1.5 : requiredEdu === 1 ? 1.25 : 1.0;
+    const baseWage = 18; // publicWageBase
+    const estimatedSalaryPerWorker = Math.round(baseWage * eduMult);
+    const estimatedDailyPayroll = jobsCount * estimatedSalaryPerWorker;
+
+    // 3. Mantenimiento físico diario del edificio
+    const physicalUpkeep = levelData.upkeep || def.upkeep || 0;
+
+    // 4. Consumo Fiscal Diario Total (CF)
+    const totalDailyCost = physicalUpkeep + estimatedDailyPayroll;
+
+    // 5. Impacto en el Flujo de Caja del Estado
+    const projectedNetCashflow = stateNetCashflow - totalDailyCost;
+
+    // 6. Capital Humano y Empresarial Requerido para sostener la obra sin déficit
+    // Rendimiento fiscal neto disponible por habitante en equilibrio: ~$2.50/hab/día
+    const fiscalYieldPerHab = 2.50;
+    const minPopRequired = Math.max(1, Math.ceil(totalDailyCost / fiscalYieldPerHab));
+    const minWorkforce = Math.ceil(minPopRequired * 0.45);
+    const minCommercialStores = Math.max(1, Math.ceil((minWorkforce * 0.60) / 2));
+    const minIndustrialFactories = Math.max(1, Math.ceil((minWorkforce * 0.40) / 7));
+
+    // 7. Ajuste Impositivo Necesario si se construyera hoy
+    const currentResTaxRate = this.taxRates ? this.taxRates.residential : 0.09;
+    let requiredTaxRate = currentResTaxRate;
+    let taxAdjustmentNeeded = 0;
+
+    if (projectedNetCashflow < 0) {
+      const dailyDeficit = Math.abs(projectedNetCashflow);
+      const activeTaxBase = Math.max(80, currentPop * 22); // Base salarial imponible aproximada
+      taxAdjustmentNeeded = Math.round((dailyDeficit / activeTaxBase) * 1000) / 1000;
+      requiredTaxRate = Math.min(0.25, currentResTaxRate + taxAdjustmentNeeded);
+    }
+
+    // 8. Semáforo de Viabilidad Macroeconómica
+    let status = 'safe'; // 'safe', 'warning', 'critical'
+    let statusText = '🟢 Sostenible';
+    let summary = '';
+
+    if (stateNetCashflow >= totalDailyCost) {
+      status = 'safe';
+      statusText = '🟢 Sostenible';
+      summary = `Superávit suficiente (+$${stateNetCashflow}/d). El sector privado cubre los $${totalDailyCost}/d sin alterar impuestos.`;
+    } else if (projectedNetCashflow >= -15 && requiredTaxRate <= 0.12) {
+      status = 'warning';
+      statusText = '🟡 Ajustado';
+      const adjPct = Math.round(taxAdjustmentNeeded * 100);
+      summary = `Margen fiscal estrecho (déficit proyectado: -$${Math.abs(projectedNetCashflow)}/d). Requiere +${Math.max(0, minPopRequired - currentPop)} hab o ajustar IRPF al ${Math.round(requiredTaxRate * 100)}% (+${adjPct}%).`;
+    } else {
+      status = 'critical';
+      statusText = '🔴 Alerta de Asfixia';
+      const adjPct = Math.round(taxAdjustmentNeeded * 100);
+      summary = `¡Inviable hoy! Provocaría déficit crítico de -$${Math.abs(projectedNetCashflow)}/d. Subir impuestos al ${Math.round(requiredTaxRate * 100)}% (+${adjPct}%) asfixiaría al sector privado. Requiere mínimo ${minPopRequired} habitantes y ${minCommercialStores} tiendas.`;
+    }
+
+    return {
+      buildingId,
+      buildingName: def.name,
+      physicalUpkeep,
+      jobsCount,
+      estimatedSalaryPerWorker,
+      estimatedDailyPayroll,
+      totalDailyCost,
+      currentNetCashflow: stateNetCashflow,
+      projectedNetCashflow,
+      minPopRequired,
+      minWorkforce,
+      minCommercialStores,
+      minIndustrialFactories,
+      currentPop,
+      popDeficit: Math.max(0, minPopRequired - currentPop),
+      currentTaxRate: currentResTaxRate,
+      requiredTaxRate,
+      taxAdjustmentNeeded,
+      status,
+      statusText,
+      summary,
+    };
+  }
+
+  /**
    * Serialización v3 con retrocompatibilidad
    */
   serialize() {
