@@ -1,0 +1,433 @@
+/* ==========================================================================
+   PANELES RÁPIDOS DE FINANZAS Y COLUMNA DERECHA DE GESTIÓN
+   Pensado para móvil horizontal (≈873×393): zonas táctiles ≥ 44 px,
+   solo se animan transform y opacity.
+   ========================================================================== */
+
+/* Columna derecha (pulgar derecho): Empresas, Ciencia, Riesgos */
+.hud-right-management {
+  position: fixed;
+  top: 50px;
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  user-select: none;
+}
+
+.hud-right-management .mgmt-tooltip {
+  left: auto;
+  right: calc(100% + 10px);
+}
+
+.hud-right-management .mgmt-tooltip::before {
+  right: auto;
+  left: 100%;
+  border-color: transparent transparent transparent rgba(15, 23, 42, 0.95);
+}
+
+.mgmt-btn-wages {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.mgmt-icon-btn.is-open {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45), 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   Panel base (desplegable y cajón)
+   -------------------------------------------------------------------------- */
+.quick-panel {
+  position: fixed;
+  left: calc(max(10px, env(safe-area-inset-left)) + 54px);
+  top: 50px;
+  z-index: 120; /* encima del HUD y de la barra del consejero, por debajo de los modales */
+  width: min(360px, calc(100vw - 80px));
+  max-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  color: var(--text-main);
+  opacity: 0;
+  transform: translate3d(-10px, 0, 0) scale(0.97);
+  transform-origin: left top;
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.quick-panel.open {
+  opacity: 1;
+  transform: none;
+}
+
+.qp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 6px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.qp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.qp-title-icon {
+  font-size: 1.3rem;
+}
+
+.qp-title strong {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
+.qp-title small {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.qp-close {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--text-main);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.qp-close::after,
+.qp-step::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
+.qp-body {
+  padding: 6px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qp-foot {
+  padding: 6px 12px 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+/* Filas de tributos y sueldos */
+.qp-row {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+}
+
+.qp-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qp-row-icon {
+  font-size: 1.15rem;
+}
+
+.qp-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.qp-row-text strong {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
+.qp-row-text small {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qp-pill {
+  min-width: 52px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.qp-good { color: #34d399; }
+.qp-warn { color: #fbbf24; }
+.qp-danger { color: #f87171; }
+.qp-info { color: #38bdf8; }
+.qp-pos { color: #34d399; }
+.qp-neg { color: #f87171; }
+
+.qp-row-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.qp-step {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.qp-step:active,
+.qp-mini:active,
+.qp-card-btn:active {
+  transform: translateY(1px) scale(0.95);
+}
+
+.qp-step-wide {
+  width: auto;
+  min-width: 50px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+}
+
+.qp-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.qp-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  margin: 0 2px;
+}
+
+.qp-yield {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.qp-zones {
+  display: flex;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.qp-zones i:nth-child(1) { background: #15803d; }
+.qp-zones i:nth-child(2) { background: #a16207; }
+.qp-zones i:nth-child(3) { background: #b91c1c; }
+
+.qp-pin {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.qp-pin b {
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 4px;
+  height: 14px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #f8fafc;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.qp-row-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.qp-wage-status {
+  margin-top: 4px;
+  padding-left: 30px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Cajón de Finanzas con carrusel de tarjetas
+   -------------------------------------------------------------------------- */
+.quick-panel-finance {
+  width: auto;
+  right: calc(max(10px, env(safe-area-inset-right)) + 54px);
+  bottom: 74px; /* deja libre el dock inferior */
+  max-height: none;
+}
+
+.qp-carousel {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.qp-card {
+  scroll-snap-align: start;
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  min-height: 0;
+}
+
+.qp-card header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.qp-card header span {
+  font-size: 1.15rem;
+}
+
+.qp-kpi {
+  margin: 4px 0 2px;
+}
+
+.qp-kpi small {
+  display: block;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.qp-kpi b {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.qp-card ul {
+  list-style: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+.qp-card li {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.72rem;
+  padding: 2px 0;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.15);
+}
+
+.qp-card li span {
+  color: var(--text-muted);
+}
+
+.qp-card-actions {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.qp-mini {
+  flex: 1;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qp-card-btn {
+  margin-top: 4px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .hud-right-management {
+    top: 48px;
+    gap: 7px;
+  }
+}
+
+@media (max-height: 420px) {
+  .qp-row {
+    padding: 5px 8px;
+  }
+
+  .qp-row-ctrl {
+    margin-top: 4px;
+  }
+
+  .qp-card {
+    flex-basis: 184px;
+    padding: 8px;
+  }
+
+  .qp-kpi b {
+    font-size: 1.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-panel {
+    transition: none;
+  }
+}

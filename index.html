@@ -11,6 +11,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,15 85,35 50,55 15,35' fill='%2338bdf8'/><polygon points='15,35 50,55 50,90 15,70' fill='%230284c7'/><polygon points='50,55 85,35 85,70 50,90' fill='%230369a1'/></svg>">
 
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/finance-hud.css">
 </head>
 <body class="landscape-app">
 
@@ -344,16 +345,24 @@
     </div>
   </aside>
 
-  <!-- BARRA DE GESTIÓN URBANA (5 ICONOS INDEPENDIENTES EN EL LADO IZQUIERDO) -->
-  <aside class="hud-left-management" aria-label="Gestión Urbana">
-    <button class="mgmt-icon-btn mgmt-btn-finance" data-open-modal="economy" data-eco-tab-target="state" title="Finanzas & Tributos" aria-label="Finanzas y Tributos">
-      <span class="mgmt-emoji">💰</span>
-      <span class="mgmt-tooltip">Finanzas & Tributos</span>
+  <!-- COLUMNA IZQUIERDA: AJUSTES FINANCIEROS RÁPIDOS (pulgar izquierdo) -->
+  <aside class="hud-left-management" aria-label="Finanzas">
+    <button class="mgmt-icon-btn mgmt-btn-finance" data-quick-panel="taxes" title="Tributos" aria-label="Tributos">
+      <span class="mgmt-emoji">🏛️</span>
+      <span class="mgmt-tooltip">Tributos</span>
     </button>
-    <button class="mgmt-icon-btn mgmt-btn-audit" data-open-modal="economy" data-eco-tab-target="audit" title="Auditoría en Vivo" aria-label="Auditoría en Vivo">
-      <span class="mgmt-emoji">📋</span>
-      <span class="mgmt-tooltip">Auditoría en Vivo</span>
+    <button class="mgmt-icon-btn mgmt-btn-wages" data-quick-panel="wages" title="Sueldos" aria-label="Sueldos">
+      <span class="mgmt-emoji">👷</span>
+      <span class="mgmt-tooltip">Sueldos</span>
     </button>
+    <button class="mgmt-icon-btn mgmt-btn-audit" data-quick-panel="finance" title="Finanzas" aria-label="Finanzas">
+      <span class="mgmt-emoji">📊</span>
+      <span class="mgmt-tooltip">Finanzas</span>
+    </button>
+  </aside>
+
+  <!-- COLUMNA DERECHA: GESTIÓN URBANA (pulgar derecho) -->
+  <aside class="hud-right-management" aria-label="Gestión Urbana">
     <button class="mgmt-icon-btn mgmt-btn-corp" data-open-modal="corporations" title="Empresas & Decretos" aria-label="Empresas y Decretos">
       <span class="mgmt-emoji">🏭</span>
       <span class="mgmt-tooltip">Empresas & Decretos</span>

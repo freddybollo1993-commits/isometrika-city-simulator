@@ -7,6 +7,7 @@
 
 import { CONFIG } from './config.js';
 import { Calendar } from './calendar.js';
+import { FinanceHUD } from './finance-hud.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -54,6 +55,7 @@ export class UIManager {
 
     this.cacheDOMElements();
     this.bindEvents();
+    this.financeHud = new FinanceHUD(game, this);
     this.buildCarousel();
     this.updateFullscreenUI();
     this.updateAudioButtonsState();
@@ -1424,7 +1426,8 @@ export class UIManager {
       '.stats-dropdown-menu',
       '.modal-overlay',
       '.ghost-manipulator-sheet',
-      '.hud-left-management'
+      '.hud-left-management',
+      '.hud-right-management'
     ];
 
     const elements = document.querySelectorAll(interactiveSelectors.join(', '));
@@ -1497,6 +1500,7 @@ export class UIManager {
   // =========================================================================
 
   updateHUD(sim, research) {
+    if (this.financeHud) this.financeHud.refresh();
     const eco = sim.economy;
     const stateFunds = eco ? eco.stateFunds : sim.funds;
     const corpFunds = eco ? eco.corporateFunds : 0;
@@ -1855,6 +1859,7 @@ export class UIManager {
 
   openModal(modalId) {
     this.closeModals();
+    if (this.financeHud) this.financeHud.close();
     this.closeStatsDropdown();
     this.closeGameMenu();
     const modal = document.getElementById(`modal-${modalId}`);
