@@ -75,8 +75,8 @@ export class CitizenManager {
     this.nextCitizenId = 1;
 
     // Política de salarios base inicial
-    this.publicWageBase = 22; // Salario diario base ofrecido por la Alcaldía (calibrado a 22)
-    this.privateWageBase = 24; // Salario diario base ofrecido por el holding privado (calibrado a 24)
+    this.publicWageBase = 20; // Salario diario base ofrecido por la Alcaldía (calibrado a 20)
+    this.privateWageBase = 22; // Salario diario base ofrecido por el holding privado (calibrado a 22)
 
     // Métricas del mercado laboral y pugna salarial
     this.metrics = {
@@ -603,8 +603,10 @@ export class CitizenManager {
         }
       }
 
+      const utilityFee = 1.20; // Tarifa municipal de agua potable y electricidad doméstica
+
       // Ecuación del Remanente Financiero
-      const remaining = salary - (rent + food + citizen.transportCost + taxes);
+      const remaining = salary - (rent + food + utilityFee + citizen.transportCost + taxes);
       citizen.lastRemaining = remaining;
       citizen.savings = Math.max(0, citizen.savings + remaining);
 

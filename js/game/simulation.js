@@ -444,6 +444,10 @@ export class Simulation {
     let commercialJobs = 0;
     let farmFoodSupply = 0;
     let baseUpkeep = 0;
+    let roadUpkeep = 0;
+    let publicStaffedUpkeep = 0;
+    let publicUnstaffedUpkeep = 0;
+    let privateBuildingUpkeep = 0;
     let baseResTax = 0;
     let baseCommTax = 0;
     let researchGen = 0;
@@ -484,7 +488,23 @@ export class Simulation {
 
         if (tile.damage > 20) damagedCount++;
 
-        baseUpkeep += (levelData.upkeep || def.upkeep || 0);
+        const bldgUpkeep = (levelData.upkeep || def.upkeep || 0);
+        baseUpkeep += bldgUpkeep;
+
+        if (def.id === 'road') {
+          roadUpkeep += bldgUpkeep;
+        } else if (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal') {
+          if (def.id === 'service_barrier') {
+            publicUnstaffedUpkeep += bldgUpkeep;
+          } else {
+            publicStaffedUpkeep += bldgUpkeep;
+          }
+        } else if (def.category === 'nature') {
+          publicUnstaffedUpkeep += bldgUpkeep;
+        } else {
+          // residencial, comercial, industrial, granja
+          privateBuildingUpkeep += bldgUpkeep;
+        }
 
         // DEMANDA DE SERVICIOS BÁSICOS POR EDIFICIO
         totalPowerDemand += (levelData.power || def.power || 0);
@@ -748,17 +768,21 @@ export class Simulation {
         day: this.day,
         population: this.population,
         housingCapacity: this.housingCapacity,
-        baseResTaxRate: 1.8,
+        baseResTaxRate: 2.2,
         commercialJobs: this.commercialJobs,
-        baseCommRevPerJob: 3.5,
-        corpMassRevenue: corpResult.totalIndustrialRevenue * 0.55,
-        corpTechRevenue: corpResult.totalIndustrialRevenue * 0.45,
+        baseCommRevPerJob: 5.5,
+        corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
+        corpTechRevenue: (this.corporations && this.corporations.techHiring && this.corporations.techHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.45),
         foodSupply: this.foodCapacity,
         powerSupply: this.powerSupply,
         powerDemand: this.powerDemand,
         waterSupply: this.waterSupply,
         waterDemand: this.waterDemand,
         baseUpkeep: baseUpkeep,
+        roadUpkeep: roadUpkeep,
+        publicStaffedUpkeep: publicStaffedUpkeep,
+        publicUnstaffedUpkeep: publicUnstaffedUpkeep,
+        privateBuildingUpkeep: privateBuildingUpkeep,
         policyExpenses: policyExpenses,
         hydroRevenue: hydroRevenue,
         commercialMultiplier: commercialMultiplier,

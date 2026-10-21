@@ -171,9 +171,9 @@ export class EconomySystem {
       day = 1,
       population = 0,
       housingCapacity = 1,
-      baseResTaxRate = 1.8,
+      baseResTaxRate = 2.2,
       commercialJobs = 0,
-      baseCommRevPerJob = 3.5,
+      baseCommRevPerJob = 5.5,
       corpMassRevenue = 0,
       corpTechRevenue = 0,
       foodSupply = 0,
@@ -182,6 +182,10 @@ export class EconomySystem {
       waterSupply = 0,
       waterDemand = 0,
       baseUpkeep = 0,
+      roadUpkeep = null,
+      publicStaffedUpkeep = null,
+      publicUnstaffedUpkeep = null,
+      privateBuildingUpkeep = null,
       policyExpenses = 0,
       hydroRevenue = 0,
       commercialMultiplier = 1.0,
@@ -202,8 +206,8 @@ export class EconomySystem {
     // Eficiencia de suministros básicos sobre la economía
     const utilityEfficiency = Math.min(powerRatio, waterRatio);
 
-    // Sanción si el Estado está en bancarrota (los servicios fallan por falta de fondos de mantenimiento)
-    const statePenaltyFactor = this.stateFunds <= 0 ? 0.65 : 1.0;
+    // Sanción suave si el Estado acumula déficit crítico
+    const statePenaltyFactor = this.stateFunds < -1500 ? 0.70 : this.stateFunds <= 0 ? 0.85 : 1.0;
 
     // =========================================================================
     // PARTE A: INGRESOS FISCALES DEL ESTADO (ALCALDÍA)
@@ -211,11 +215,14 @@ export class EconomySystem {
 
     // 1. Recaudación Residencial (pagada por los ciudadanos autónomos)
     const macroResTax = Math.round(
-      population * baseResTaxRate * resRateRatio * Math.max(0.2, utilityEfficiency) * statePenaltyFactor
+      population * baseResTaxRate * resRateRatio * Math.max(0.25, utilityEfficiency) * statePenaltyFactor
     );
     const residentialTax = (citizenReport && citizenReport.totalCitizenTaxes > 0)
       ? citizenReport.totalCitizenTaxes
       : macroResTax;
+
+    // Tasa municipal fija por ocupación residencial (canon de conservación urbana)
+    const municipalPropertyFee = Math.round(population * 0.8 * resRateRatio);
 
     // 2. Recaudación Comercial (cobrada sobre los comercios privados)
     const effectiveCommMultiplier = commercialMultiplier * Math.max(0.35, powerRatio);
@@ -243,6 +250,22 @@ export class EconomySystem {
     }
 
     const publicUtilityDividends = hydroRevenue + exportEnergyRev + exportWaterRev;
+
+    // 5. Tarifas Municipales de Servicios Básicos (Agua y Energía prestados por el municipio)
+    const residentialTariff = Math.round(population * 1.20 * utilityEfficiency);
+    const commercialTariff = Math.round(commercialJobs * 0.80 * utilityEfficiency);
+    const industrialTariff = Math.round((corpMassRevenue + corpTechRevenue) * 0.03 * utilityEfficiency);
+    const utilityTariffs = residentialTariff + commercialTariff + industrialTariff;
+
+    // 6. Fondo de Estabilización Pionero (Alivio inicial durante la fundación)
+    const pioneerSupport = population < 30 ? Math.round((30 - population) * 0.7) : 0;
+
+    // 7. Alquileres de Vivienda Social Municipal
+    const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
+      ? citizenReport.totalPublicHousingRent
+      : 0;
+
+    const stateTotalIncome = residentialTax + municipalPropertyFee + commercialTax + industrialTax + publicUtilityDividends + utilityTariffs + pioneerSupport + publicHousingRent;
 
     // =========================================================================
     // PARTE B: COMERCIO EXTERIOR PRIVADO (GRANJAS E INDUSTRIAS)
@@ -293,22 +316,24 @@ export class EconomySystem {
       ? citizenReport.totalPublicWages
       : 0;
 
-    // Mantenimiento de infraestructura pasiva (carreteras, paradas y áreas públicas)
-    const roadUpkeep = Math.round(baseUpkeep * 0.25);
-    // Mantenimiento físico de instalaciones y repuestos (20% del upkeep para evitar duplicar nóminas de personal)
-    const buildingUpkeep = Math.round(baseUpkeep * 0.20);
-    const serviceUpkeep = roadUpkeep + buildingUpkeep;
+    // Mantenimiento físico de infraestructura pública
+    const roadExpense = typeof roadUpkeep === 'number' ? roadUpkeep : Math.round(baseUpkeep * 0.15);
+    const staffedPhysicalExpense = typeof publicStaffedUpkeep === 'number' 
+      ? Math.round(publicStaffedUpkeep * 0.35) 
+      : Math.round(baseUpkeep * 0.15);
+    const unstaffedPhysicalExpense = typeof publicUnstaffedUpkeep === 'number' ? publicUnstaffedUpkeep : 0;
+    
+    const buildingUpkeep = staffedPhysicalExpense + unstaffedPhysicalExpense;
+    const serviceUpkeep = roadExpense + buildingUpkeep;
 
-    const publicHousingRent = (citizenReport && citizenReport.totalPublicHousingRent > 0)
-      ? citizenReport.totalPublicHousingRent
-      : 0;
+    // Interés por sobregiro municipal de emergencia (si está en negativo)
+    const stateOverdraftInterest = this.stateFunds < 0 ? Math.round(Math.abs(this.stateFunds) * 0.02) : 0;
 
-    const stateTotalIncome = residentialTax + commercialTax + industrialTax + publicUtilityDividends + publicHousingRent;
-    const stateTotalExpenses = Math.round(serviceUpkeep + publicPayroll + policyExpenses + totalImportsCost);
+    const stateTotalExpenses = Math.round(serviceUpkeep + publicPayroll + policyExpenses + totalImportsCost + stateOverdraftInterest);
     const stateNetCashflow = stateTotalIncome - stateTotalExpenses;
 
     this.stateFunds += stateNetCashflow;
-    this.isStateBankruptcy = this.stateFunds <= 0;
+    this.isStateBankruptcy = this.stateFunds < -2500 || (this.stateFunds < 0 && this.consecutivePublicDeficitDays >= 8);
 
     if (stateNetCashflow < 0) {
       this.consecutivePublicDeficitDays++;
@@ -319,20 +344,24 @@ export class EconomySystem {
     this.stateBreakdown = {
       income: {
         residentialTax,
+        municipalPropertyFee,
         commercialTax,
         industrialTax,
         publicHousingRent,
+        utilityTariffs,
+        pioneerSupport,
         exportsRevenue: exportEnergyRev + exportWaterRev,
         utilityDividends: publicUtilityDividends,
         total: stateTotalIncome,
       },
       expenses: {
         publicPayroll,
-        roadUpkeep,
+        roadUpkeep: roadExpense,
         buildingUpkeep,
         serviceUpkeep,
         policyCosts: Math.round(policyExpenses),
         importsCost: totalImportsCost,
+        overdraftInterest: stateOverdraftInterest,
         total: stateTotalExpenses,
       },
       netCashflow: stateNetCashflow,
@@ -343,14 +372,14 @@ export class EconomySystem {
     // PARTE D: CUENTA DE RESULTADOS DEL SECTOR PRIVADO (EL EMPRESARIO)
     // =========================================================================
 
-    // Si la empresa está en bancarrota previa o sufre apagón, la productividad cae
-    const corpSolvencyFactor = this.corporateFunds <= 0 ? 0.55 : 1.0;
+    // Si la empresa está en bancarrota previa o sufre apagón, la productividad cae suavemente
+    const corpSolvencyFactor = this.corporateFunds < -1500 ? 0.60 : this.corporateFunds <= 0 ? 0.80 : 1.0;
     const corpProductionEfficiency = utilityEfficiency * corpSolvencyFactor;
 
     // 1. Ingresos por Ventas Privadas (Alquileres + Comercios + Alimentos + Exportaciones)
     const citizenRents = (citizenReport && citizenReport.totalCitizenRents > 0)
       ? citizenReport.totalCitizenRents
-      : Math.round(population * 8);
+      : Math.round(population * 6);
 
     const localFoodSales = (citizenReport && citizenReport.totalFoodConsumed > 0)
       ? citizenReport.totalFoodConsumed
@@ -364,15 +393,25 @@ export class EconomySystem {
     const totalPrivateRevenue = citizenRents + commercialSales + massIndustrySales + techIndustrySales + farmSales;
 
     // 2. Gastos Operativos y Salarios Privados
-    const totalPrivateJobs = commercialJobs + Math.round((corpMassRevenue + corpTechRevenue) / 4);
     const payrollCost = (citizenReport && citizenReport.totalPrivateWages > 0)
       ? citizenReport.totalPrivateWages
-      : Math.round(totalPrivateJobs * 1.65);
+      : Math.round(commercialJobs * 16 + (corpMassRevenue + corpTechRevenue) * 0.25);
 
-    const operatingCosts = Math.round(totalPrivateRevenue * 0.18); // Materias primas y maquinaria
-    const taxesPaidToState = commercialTax + industrialTax; // Impuestos corporativos transferidos al Estado
+    // Mantenimiento de instalaciones privadas (almacenes, naves e invernaderos)
+    const privateMaintenance = typeof privateBuildingUpkeep === 'number' 
+      ? Math.round(privateBuildingUpkeep * 0.45) 
+      : Math.round(totalPrivateRevenue * 0.08);
 
-    const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState;
+    // Tarifas de insumos básicos (agua/luz comercial e industrial) pagadas al municipio
+    const corporateUtilityBills = commercialTariff + industrialTariff;
+
+    const operatingCosts = Math.round(totalPrivateRevenue * 0.10) + privateMaintenance + corporateUtilityBills;
+    const taxesPaidToState = commercialTax + industrialTax;
+
+    // Sobregiro / Intereses de crédito privado de emergencia
+    const corporateInterest = this.corporateFunds < 0 ? Math.round(Math.abs(this.corporateFunds) * 0.02) : 0;
+
+    const totalPrivateExpenses = payrollCost + operatingCosts + taxesPaidToState + corporateInterest;
     const corporateNetProfit = totalPrivateRevenue - totalPrivateExpenses;
 
     this.corporateFunds += corporateNetProfit;
@@ -385,10 +424,10 @@ export class EconomySystem {
 
     // Diagnóstico de solvencia empresarial
     let solvency = 'solvente';
-    if (this.corporateFunds <= 0 || (this.taxRates.commercial > 0.14 && this.taxRates.industrial > 0.14)) {
+    if (this.corporateFunds < -2000 || (this.corporateFunds < 0 && this.consecutivePrivateLossDays >= 5)) {
       solvency = 'crisis';
       this.isCorporateCrisis = true;
-    } else if (corporateNetProfit < 0 || this.corporateFunds < 800) {
+    } else if (this.corporateFunds < 800 || corporateNetProfit < 0) {
       solvency = 'ajustado';
       this.isCorporateCrisis = false;
     } else {
@@ -413,6 +452,7 @@ export class EconomySystem {
         payroll: payrollCost,
         operatingCosts,
         taxesPaid: taxesPaidToState,
+        overdraftInterest: corporateInterest,
         total: totalPrivateExpenses,
       },
       netProfit: corporateNetProfit,
@@ -423,21 +463,21 @@ export class EconomySystem {
     // =========================================================================
     // PARTE E: ÍNDICE DE ARMONÍA ESTADO-EMPRESA (0 a 100)
     // =========================================================================
-    let harmony = 70;
+    let harmony = 75;
 
     // Si el Estado tiene superávit y la empresa beneficio: Armonía alta
     if (stateNetCashflow >= 0 && corporateNetProfit >= 0) {
       harmony += 18;
     } else if (stateNetCashflow < 0 && corporateNetProfit < 0) {
-      harmony -= 35; // Crisis generalizada
+      harmony -= 25; // Crisis generalizada
     } else if (corporateNetProfit < 0 && stateNetCashflow > 0) {
-      harmony -= 20; // Asfixia tributaria: El Estado se enriquece a costa de quebrar a sus empresas
+      harmony -= 15; // Tensión fiscal: El Estado acumula superávit mientras la empresa opera en pérdida
     } else if (stateNetCashflow < 0 && corporateNetProfit > 0) {
-      harmony -= 18; // Desidia fiscal: Empresa rica, servicios públicos en quiebra
+      harmony -= 15; // Desidia fiscal: Empresa rentable pero infraestructura municipal en déficit
     }
 
-    if (this.isCorporateCrisis) harmony -= 25;
-    if (this.isStateBankruptcy) harmony -= 30;
+    if (this.isCorporateCrisis) harmony -= 20;
+    if (this.isStateBankruptcy) harmony -= 25;
 
     this.harmonyIndex = Math.max(5, Math.min(100, harmony));
 
@@ -518,33 +558,33 @@ export class EconomySystem {
   getLafferHappinessModifier() {
     const rate = this.taxRates.residential;
     if (rate <= 0.06) {
-      return Math.round((0.06 - rate) * 100); // Bonificación hasta +5%
+      return Math.round((0.06 - rate) * 80); // Bonificación suave hasta +4%
     } else if (rate <= 0.11) {
       return 0; // Zona neutra
     } else {
       const excess = rate - 0.11;
-      return -Math.round(excess * 160); // e.g. 20% -> -14% felicidad
+      return -Math.round(excess * 120); // 15% -> -4.8% felicidad
     }
   }
 
   /**
    * Factor de contratación empresarial según la tasa corporativa y la solvencia de la empresa.
-   * Si el Estado asfixia a la empresa o si la empresa está en quiebra, despide trabajadores.
+   * Si el Estado asfixia a la empresa o si la empresa está en quiebra, modula contrataciones suavemente.
    */
   getCorporateEmploymentFactor() {
-    // Si la empresa privada está en quiebra/números rojos severos, congela vacantes (-45% empleo)
+    // Si la empresa privada está en quiebra/números rojos severos, congela vacantes (-30% empleo)
     if (this.isCorporateCrisis) {
-      return 0.55;
+      return 0.70;
     }
 
     const avgRate = (this.taxRates.commercial + this.taxRates.industrial) / 2;
     if (avgRate <= 0.08) {
-      return 1.15; // +15% puestos laborales por alivio tributario
+      return 1.10; // +10% puestos laborales por alivio tributario
     } else if (avgRate <= 0.12) {
       return 1.0;
     } else {
       const penalty = (avgRate - 0.12) * 1.5;
-      return Math.max(0.55, 1.0 - penalty);
+      return Math.max(0.65, 1.0 - penalty);
     }
   }
 

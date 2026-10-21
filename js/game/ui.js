@@ -2180,9 +2180,10 @@ export class UIManager {
           elStateCf.textContent = `${stateSign}$${stateNet}/d`;
           elStateCf.className = `kpi-val ${stateCfColor}`;
         }
-        setTxt('#eco-state-inc-res', `+$${stateInc.residentialTax || 0}/d`);
+        setTxt('#eco-state-inc-res', `+$${(stateInc.residentialTax || 0) + (stateInc.municipalPropertyFee || 0)}/d`);
         setTxt('#eco-state-inc-comm', `+$${stateInc.commercialTax || 0}/d`);
         setTxt('#eco-state-inc-ind', `+$${stateInc.industrialTax || 0}/d`);
+        setTxt('#eco-state-inc-tariff', `+$${stateInc.utilityTariffs || 0}/d`);
         setTxt('#eco-state-inc-util', `+$${stateInc.utilityDividends || 0}/d`);
         setTxt('#eco-state-inc-total', `+$${stateInc.total || 0}/d`);
 
@@ -2190,8 +2191,9 @@ export class UIManager {
         setTxt('#eco-live-tax-yield-comm', `+$${stateInc.commercialTax || 0}/d`);
         setTxt('#eco-live-tax-yield-ind', `+$${stateInc.industrialTax || 0}/d`);
 
+        setTxt('#eco-state-exp-pay', `-$${stateExp.publicPayroll || 0}/d`);
         setTxt('#eco-state-exp-road', `-$${stateExp.roadUpkeep || 0}/d`);
-        setTxt('#eco-state-exp-serv', `-$${stateExp.serviceUpkeep || 0}/d`);
+        setTxt('#eco-state-exp-serv', `-$${stateExp.buildingUpkeep || 0}/d`);
         setTxt('#eco-state-exp-policy', `-$${stateExp.policyCosts || 0}/d`);
         setTxt('#eco-state-exp-imp', `-$${stateExp.importsCost || 0}/d`);
         setTxt('#eco-state-exp-total', `-$${stateExp.total || 0}/d`);
@@ -2370,16 +2372,18 @@ export class UIManager {
           <div class="eco-ledger-grid">
             <div class="eco-ledger-col income">
               <div class="eco-col-header"><span>🟢 Recaudación Fiscal</span></div>
-              <div class="eco-ledger-row"><span>🏠 Impuesto Residencial:</span><strong id="eco-state-inc-res" class="text-positive">+$${stateInc.residentialTax || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏠 Impuesto Residencial:</span><strong id="eco-state-inc-res" class="text-positive">+$${(stateInc.residentialTax || 0) + (stateInc.municipalPropertyFee || 0)}/d</strong></div>
               <div class="eco-ledger-row"><span>🏪 Impuesto Comercial:</span><strong id="eco-state-inc-comm" class="text-positive">+$${stateInc.commercialTax || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>🏭 Impuesto Industrial:</span><strong id="eco-state-inc-ind" class="text-positive">+$${stateInc.industrialTax || 0}/d</strong></div>
-              <div class="eco-ledger-row"><span>⚡ Dividendos Red Pública:</span><strong id="eco-state-inc-util" class="text-positive">+$${stateInc.utilityDividends || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>💧 Tarifas Básicas (Agua/Luz):</span><strong id="eco-state-inc-tariff" class="text-positive">+$${stateInc.utilityTariffs || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>⚡ Excedentes Red Pública:</span><strong id="eco-state-inc-util" class="text-positive">+$${stateInc.utilityDividends || 0}/d</strong></div>
               <div class="eco-ledger-total"><span>Total Ingresos Estado:</span><strong id="eco-state-inc-total" class="text-positive">+$${stateInc.total || 0}/d</strong></div>
             </div>
             <div class="eco-ledger-col expenses">
               <div class="eco-col-header"><span>🔴 Gasto en Servicios Públicos</span></div>
+              <div class="eco-ledger-row"><span>👥 Nómina Servidores Públicos:</span><strong id="eco-state-exp-pay" class="text-danger">-$${stateExp.publicPayroll || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>🛣️ Mantenimiento Vial:</span><strong id="eco-state-exp-road" class="text-danger">-$${stateExp.roadUpkeep || 0}/d</strong></div>
-              <div class="eco-ledger-row"><span>⚙️ Edificios y Redes Públicas:</span><strong id="eco-state-exp-serv" class="text-danger">-$${stateExp.serviceUpkeep || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>⚙️ Edificios y Redes Públicas:</span><strong id="eco-state-exp-serv" class="text-danger">-$${stateExp.buildingUpkeep || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>🏛️ Políticas y Decretos:</span><strong id="eco-state-exp-policy" class="text-danger">-$${stateExp.policyCosts || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>🚢 Importaciones Emergencia:</span><strong id="eco-state-exp-imp" class="text-danger">-$${stateExp.importsCost || 0}/d</strong></div>
               <div class="eco-ledger-total"><span>Total Gasto Estado:</span><strong id="eco-state-exp-total" class="text-danger">-$${stateExp.total || 0}/d</strong></div>
