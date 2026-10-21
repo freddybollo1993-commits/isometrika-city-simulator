@@ -170,6 +170,8 @@ export class UIManager {
     this.elFocusToolName = document.getElementById('focus-tool-name');
     this.elFocusToolCost = document.getElementById('focus-tool-cost');
     this.elBtnFocusCancel = document.getElementById('btn-focus-cancel');
+    this.elBtnFocusRotate = document.getElementById('btn-focus-rotate');
+    this.elBtnFocusConfirm = document.getElementById('btn-focus-confirm');
     this.elDockButtons = document.querySelectorAll('.dock-btn');
     this.elBtnDockServices = document.getElementById('btn-dock-services');
     this.elBtnDockDemolish = document.getElementById('btn-dock-demolish');
@@ -307,6 +309,20 @@ export class UIManager {
       this.elBtnFocusCancel.addEventListener('click', (e) => {
         e.stopPropagation();
         this.clearFocusMode();
+      });
+    }
+
+    if (this.elBtnFocusRotate) {
+      this.elBtnFocusRotate.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.rotateGhost();
+      });
+    }
+
+    if (this.elBtnFocusConfirm) {
+      this.elBtnFocusConfirm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.game.confirmGhostPlacement();
       });
     }
 
