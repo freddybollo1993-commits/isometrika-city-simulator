@@ -319,6 +319,39 @@ export class Grid {
   }
 
   /**
+   * Encuentra la primera estructura raíz de un tipo específico en la cuadrícula
+   */
+  findFirstBuilding(buildingId) {
+    for (let gy = 0; gy < this.size; gy++) {
+      for (let gx = 0; gx < this.size; gx++) {
+        const b = this.tiles[gy][gx]?.building;
+        if (b && b.isRoot && b.id === buildingId) {
+          return { gx, gy, building: b };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Encuentra la estructura con mayor daño en la cuadrícula
+   */
+  findDamagedBuilding() {
+    let worst = null;
+    let maxDamage = 20;
+    for (let gy = 0; gy < this.size; gy++) {
+      for (let gx = 0; gx < this.size; gx++) {
+        const tile = this.tiles[gy][gx];
+        if (tile && tile.building && tile.building.isRoot && tile.damage > maxDamage) {
+          maxDamage = tile.damage;
+          worst = { gx, gy, building: tile.building, damage: tile.damage };
+        }
+      }
+    }
+    return worst;
+  }
+
+  /**
    * Obtiene la población actual de la ciudad
    */
   getCurrentPopulation() {

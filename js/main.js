@@ -354,6 +354,9 @@ export class Game {
         case 'Escape':
           this.cancelGhostPlacement();
           this.selectedTool = null;
+          if (this.ui && typeof this.ui.clearFocusMode === 'function') {
+            this.ui.clearFocusMode();
+          }
           this.ui.closeInspector();
           this.ui.closeStatsDropdown();
           this.ui.closeModals();
@@ -495,6 +498,9 @@ export class Game {
     this.ghostState.active = false;
     this.ghostState.buildingId = null;
     this.ui.hideGhostManipulator();
+    if (this.ui && typeof this.ui.clearFocusModeState === 'function') {
+      this.ui.clearFocusModeState();
+    }
   }
 
   selectDemolishTool() {

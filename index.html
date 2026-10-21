@@ -390,12 +390,71 @@
     </div>
   </div>
 
-  <!-- 4. BOTÓN FLOTANTE ÚNICO DE CONSTRUCCIÓN (FAB) -->
-  <div class="bottom-construction-area">
-    <button id="btn-toggle-carousel" class="fab-construct-btn" title="Abrir Menú de Construcción">
-      <span class="fab-icon">🏗️</span>
-      <span class="fab-label">Construir</span>
-    </button>
+  <!-- 4. CENTRO DE MANDO DE IMPACTO DIRECTO (NIVEL 1) & FOCUS MODE (city-builder-ui-architect) -->
+  <div id="city-dock-container" class="city-dock-container">
+    <!-- Barra Contextual de Focus Mode (Auto-colapsable) -->
+    <div id="hud-focus-bar" class="hud-focus-bar hidden">
+      <div class="focus-bar-left">
+        <span id="focus-tool-icon" class="focus-tool-icon">🏗️</span>
+        <div class="focus-tool-info">
+          <strong id="focus-tool-name" class="focus-tool-name">Herramienta</strong>
+          <small id="focus-tool-cost" class="focus-tool-cost">Coste: $0</small>
+        </div>
+      </div>
+      <div class="focus-bar-actions">
+        <button id="btn-focus-cancel" class="btn-focus-cancel" title="Cancelar herramienta (Esc)">
+          <span>✕</span>
+          <span>Cancelar [Esc]</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Dock Principal de Impacto Directo (Nivel 1: Ergonomía 48px/56px) -->
+    <nav id="hud-bottom-dock" class="hud-bottom-dock" role="toolbar" aria-label="Centro de Mando de Impacto Directo">
+      <button class="dock-btn" data-dock-tool="road" title="Trazar Calles (R)">
+        <span class="dock-btn-icon">🛣️</span>
+        <span class="dock-btn-label">Vía</span>
+      </button>
+
+      <button class="dock-btn" data-dock-tool="residential_low" title="Vivienda Unifamiliar (Z)">
+        <span class="dock-btn-icon">🏠</span>
+        <span class="dock-btn-label">Casas</span>
+      </button>
+
+      <button class="dock-btn" data-dock-tool="commercial_store" title="Tienda de Barrio (C)">
+        <span class="dock-btn-icon">🛍️</span>
+        <span class="dock-btn-label">Tienda</span>
+      </button>
+
+      <button class="dock-btn" data-dock-tool="farm_organic" title="Granja Orgánica (Alimento)">
+        <span class="dock-btn-icon">🌾</span>
+        <span class="dock-btn-label">Granja</span>
+      </button>
+
+      <button class="dock-btn" data-dock-tool="industrial_mass" title="Fábrica de Contratación Masiva (Empleo)">
+        <span class="dock-btn-icon">🏭</span>
+        <span class="dock-btn-label">Fábrica</span>
+      </button>
+
+      <button id="btn-dock-services" class="dock-btn" data-open-carousel-cat="utility" title="Redes de Luz y Agua (S)">
+        <span class="dock-btn-icon">⚡💧</span>
+        <span class="dock-btn-label">Redes</span>
+      </button>
+
+      <button id="btn-toggle-carousel" class="dock-btn dock-btn-catalog" title="Catálogo Completo de Edificios">
+        <span class="dock-btn-icon">🏗️</span>
+        <span class="dock-btn-label">Catálogo</span>
+      </button>
+
+      <!-- Divisor de Seguridad Destructiva -->
+      <span class="dock-separator-destructive" aria-hidden="true"></span>
+
+      <!-- Herramienta de Demolición Separada con Paleta de Advertencia -->
+      <button id="btn-dock-demolish" class="dock-btn dock-btn-demolish" data-dock-tool="demolish" title="Modo Demolición (D)">
+        <span class="dock-btn-icon">🚜</span>
+        <span class="dock-btn-label">Demoler</span>
+      </button>
+    </nav>
   </div>
 
   <!-- 5. MENÚ CARRUSEL HORIZONTAL DESLIZANTE -->

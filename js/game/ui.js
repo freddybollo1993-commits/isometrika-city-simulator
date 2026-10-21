@@ -162,6 +162,20 @@ export class UIManager {
     this.elAdvisorLabel = document.getElementById('advisor-label');
     this.elAdvisorText = document.getElementById('advisor-text');
 
+    // Centro de Mando Dock Nivel 1 & Focus Mode (city-builder-ui-architect)
+    this.elCityDockContainer = document.getElementById('city-dock-container');
+    this.elHudBottomDock = document.getElementById('hud-bottom-dock');
+    this.elHudFocusBar = document.getElementById('hud-focus-bar');
+    this.elFocusToolIcon = document.getElementById('focus-tool-icon');
+    this.elFocusToolName = document.getElementById('focus-tool-name');
+    this.elFocusToolCost = document.getElementById('focus-tool-cost');
+    this.elBtnFocusCancel = document.getElementById('btn-focus-cancel');
+    this.elDockButtons = document.querySelectorAll('.dock-btn');
+    this.elBtnDockServices = document.getElementById('btn-dock-services');
+    this.elBtnDockDemolish = document.getElementById('btn-dock-demolish');
+    this.currentFocusTool = null;
+    this.currentDiagnostic = null;
+
     // Modal de Dilemas y Decisiones de Gobierno
     this.elModalDilemma = document.getElementById('modal-dilemma');
     this.elDilemmaEmoji = document.getElementById('dilemma-emoji');
@@ -270,7 +284,33 @@ export class UIManager {
       });
     });
 
-    // 4. Botón FAB para abrir/cerrar el carrusel de construcción
+    // 4. Centro de Mando Dock Nivel 1 & Focus Mode (city-builder-ui-architect)
+    if (this.elDockButtons && this.elDockButtons.length > 0) {
+      this.elDockButtons.forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tool = btn.dataset.dockTool;
+          const openCat = btn.dataset.openCarouselCat;
+
+          if (tool === 'demolish') {
+            this.activateFocusTool('demolish');
+          } else if (tool) {
+            this.activateFocusTool(tool);
+          } else if (openCat) {
+            this.openCarouselCategory(openCat);
+          }
+        });
+      });
+    }
+
+    if (this.elBtnFocusCancel) {
+      this.elBtnFocusCancel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.clearFocusMode();
+      });
+    }
+
+    // 4B. Botón Catálogo para abrir/cerrar el carrusel completo de construcción
     if (this.elBtnToggleCarousel) {
       this.elBtnToggleCarousel.addEventListener('click', () => {
         this.toggleCarousel();
@@ -359,11 +399,12 @@ export class UIManager {
       el.addEventListener('click', () => this.closeModals());
     });
 
-    // 8B. Barra del Consejero Municipal y Elecciones de Dilemas
+    // 8B. Barra del Consejero Municipal y Elecciones de Dilemas (Click-to-Pan)
     if (this.elAdvisorBar) {
-      this.elAdvisorBar.addEventListener('click', () => {
+      this.elAdvisorBar.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (this.game && this.game.audio) this.game.audio.playClick();
-        this.toggleStatsDropdown();
+        this.handleAdvisorClick();
       });
     }
 
@@ -592,6 +633,9 @@ export class UIManager {
         this.showToast('💾 Partida guardada. Bienvenido al Menú Principal');
       });
     }
+
+    // 13. Protección Anti-Bleed Integral (city-builder-ui-architect)
+    this.bindAntiBleedProtection();
   }
 
   // =========================================================================
@@ -1109,6 +1153,7 @@ export class UIManager {
    */
   updateAdvisor(diag) {
     if (!diag || !this.elAdvisorPill) return;
+    this.currentDiagnostic = diag;
 
     if (this._lastDiagText !== diag.text) {
       this._lastDiagText = diag.text;
@@ -1118,6 +1163,171 @@ export class UIManager {
 
       this.elAdvisorPill.className = `advisor-pill advisor-${diag.level || 'info'}`;
     }
+  }
+
+  /**
+   * Click-to-Pan del Consejero Municipal inteligente (city-builder-ui-architect)
+   * Centra la cámara en el problema y preselecciona la solución.
+   */
+  handleAdvisorClick() {
+    if (!this.currentDiagnostic) {
+      this.toggleStatsDropdown();
+      return;
+    }
+
+    const diag = this.currentDiagnostic;
+    const grid = this.game.grid;
+    const cam = this.game.camera;
+
+    if (diag.action === 'economy') {
+      this.closeStatsDropdown();
+      this.openModal('economy');
+      return;
+    }
+
+    if (diag.action === 'focus_damaged' && diag.gx !== undefined && diag.gy !== undefined) {
+      if (cam && typeof cam.panToGrid === 'function') {
+        cam.panToGrid(diag.gx, diag.gy, 1.25);
+      }
+      this.showToast('🎯 Cámara enfocada en la estructura dañada');
+      return;
+    }
+
+    if (diag.solveTool) {
+      let target = null;
+      if (grid && typeof grid.findFirstBuilding === 'function') {
+        target = grid.findFirstBuilding(diag.solveTool);
+      }
+
+      if (target && cam && typeof cam.panToGrid === 'function') {
+        cam.panToGrid(target.gx, target.gy);
+      }
+
+      this.activateFocusTool(diag.solveTool);
+      const def = CONFIG.BUILDINGS[diag.solveTool];
+      this.showToast(`🎯 Solución sugerida: ${def ? def.name : diag.solveTool}`);
+      return;
+    }
+
+    this.toggleStatsDropdown();
+  }
+
+  /**
+   * Abre directamente el carrusel en una categoría específica
+   */
+  openCarouselCategory(catId) {
+    this.closeInspector();
+    this.closeStatsDropdown();
+    this.showCarousel();
+    if (this.elCategoryPills) {
+      this.elCategoryPills.forEach((p) => {
+        p.classList.toggle('active', p.dataset.category === catId);
+      });
+    }
+    this.filterCarouselCategory(catId);
+  }
+
+  /**
+   * Modo de Enfoque (Focus Mode - city-builder-ui-architect)
+   * Auto-colapso inmediato de inspectores, elevación de botón y barra contextual.
+   */
+  activateFocusTool(toolId) {
+    if (this.currentFocusTool === toolId) {
+      this.clearFocusMode();
+      return;
+    }
+
+    this.currentFocusTool = toolId;
+
+    // 1. Auto-colapso inmediato (< 150ms)
+    this.closeInspector();
+    this.closeStatsDropdown();
+    this.hideCarousel();
+    this.closeModals();
+
+    // 2. Feedback visual en el dock
+    if (this.elDockButtons) {
+      this.elDockButtons.forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.dockTool === toolId);
+      });
+    }
+
+    // 3. Activar barra contextual superior del dock
+    if (this.elHudFocusBar) {
+      this.elHudFocusBar.classList.remove('hidden');
+
+      if (toolId === 'demolish') {
+        this.elHudFocusBar.classList.add('focus-demolish');
+        if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = '🚜';
+        if (this.elFocusToolName) this.elFocusToolName.textContent = 'Modo Demolición';
+        if (this.elFocusToolCost) this.elFocusToolCost.textContent = 'Toca cualquier estructura para demolerla';
+        this.game.selectDemolishTool();
+      } else {
+        this.elHudFocusBar.classList.remove('focus-demolish');
+        const def = CONFIG.BUILDINGS[toolId];
+        const icon = BUILDING_ICONS[toolId] || '🏗️';
+        if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = icon;
+        if (this.elFocusToolName) this.elFocusToolName.textContent = def ? def.name : toolId;
+        if (this.elFocusToolCost) this.elFocusToolCost.textContent = `Coste: $${(def?.cost || 0).toLocaleString()}`;
+        this.game.startGhostPlacement(toolId);
+      }
+    }
+  }
+
+  clearFocusMode() {
+    this.currentFocusTool = null;
+
+    if (this.elDockButtons) {
+      this.elDockButtons.forEach((btn) => btn.classList.remove('active'));
+    }
+
+    if (this.elHudFocusBar) {
+      this.elHudFocusBar.classList.add('hidden');
+      this.elHudFocusBar.classList.remove('focus-demolish');
+    }
+
+    if (this.game) {
+      this.game.cancelGhostPlacement();
+      this.game.selectedTool = null;
+    }
+  }
+
+  clearFocusModeState() {
+    this.currentFocusTool = null;
+    if (this.elDockButtons) {
+      this.elDockButtons.forEach((btn) => btn.classList.remove('active'));
+    }
+    if (this.elHudFocusBar) {
+      this.elHudFocusBar.classList.add('hidden');
+      this.elHudFocusBar.classList.remove('focus-demolish');
+    }
+  }
+
+  /**
+   * Protección Anti-Bleed: Detiene propagación de eventos táctiles/ratón sobre el HUD
+   */
+  bindAntiBleedProtection() {
+    const interactiveSelectors = [
+      '.hud-top-bar',
+      '.advisor-bar',
+      '.city-dock-container',
+      '.inspector-bottom-sheet',
+      '.construction-carousel-drawer',
+      '.gear-menu-dropdown',
+      '.stats-dropdown-menu',
+      '.modal-overlay',
+      '.ghost-manipulator-sheet',
+      '.hud-left-management'
+    ];
+
+    const elements = document.querySelectorAll(interactiveSelectors.join(', '));
+    const stopEvents = ['pointerdown', 'mousedown', 'touchstart', 'wheel', 'contextmenu'];
+
+    elements.forEach((el) => {
+      stopEvents.forEach((evtName) => {
+        el.addEventListener(evtName, (e) => e.stopPropagation(), { passive: false });
+      });
+    });
   }
 
   /**

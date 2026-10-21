@@ -171,16 +171,31 @@ export class Simulation {
   }
 
   /**
-   * Diagnóstico inteligente de cuellos de botella para el Consejero Municipal
+   * Diagnóstico inteligente de cuellos de botella para el Consejero Municipal (Click-to-Pan)
    */
   getCityDiagnostics() {
+    // 0. Emergencia por catástrofe o daño estructural severo
+    const damaged = this.grid.findDamagedBuilding ? this.grid.findDamagedBuilding() : null;
+    if (damaged) {
+      return {
+        icon: '🚨',
+        level: 'danger',
+        label: 'Estructura Dañada',
+        text: `Edificio con ${Math.round(damaged.damage)}% de daño estructural. Toca para centrar la cámara y repararlo.`,
+        action: 'focus_damaged',
+        gx: damaged.gx,
+        gy: damaged.gy,
+      };
+    }
+
     // 1. Quiebra inminente o déficit
     if (this.economy && this.economy.stateFunds <= 0) {
       return {
         icon: '💸',
         level: 'danger',
         label: 'Quiebra Inminente',
-        text: 'Tesorería en $0. Sube impuestos o solicita inyección del sector privado.',
+        text: 'Tesorería en $0. Toca para abrir Finanzas, subir tributos o transferir fondos del holding.',
+        action: 'economy',
       };
     }
 
@@ -190,7 +205,8 @@ export class Simulation {
         icon: '⚡',
         level: 'danger',
         label: 'Apagón Eléctrico',
-        text: `Demanda (${this.powerDemand} MW) supera la generación (${this.powerSupply} MW). Amplía la red eléctrica.`,
+        text: `Demanda (${this.powerDemand} MW) supera la generación (${this.powerSupply} MW). Toca para erigir un Parque Solar.`,
+        solveTool: 'utility_power_solar',
       };
     }
     if (this.hasWaterShortage) {
@@ -198,7 +214,8 @@ export class Simulation {
         icon: '💧',
         level: 'danger',
         label: 'Corte de Agua',
-        text: `Consumo (${this.waterDemand} kL) supera el bombeo (${this.waterSupply} kL). Construye una Torre de Agua.`,
+        text: `Consumo (${this.waterDemand} kL) supera el bombeo (${this.waterSupply} kL). Toca para erigir una Torre de Agua.`,
+        solveTool: 'utility_water_tower',
       };
     }
 
@@ -208,7 +225,8 @@ export class Simulation {
         icon: '🌾',
         level: 'danger',
         label: 'Déficit Alimentario',
-        text: `Población (${this.population}) supera la cosecha (${this.foodCapacity}). Construye Granjas Orgánicas.`,
+        text: `Población (${this.population}) supera la cosecha (${this.foodCapacity}). Toca para construir Granjas Orgánicas.`,
+        solveTool: 'farm_organic',
       };
     }
 
@@ -218,7 +236,8 @@ export class Simulation {
         icon: '🚨',
         level: 'danger',
         label: 'Éxodo de Habitantes',
-        text: `Felicidad crítica (${Math.round(this.happiness)}%). La gente abandona la ciudad a un 2% diario.`,
+        text: `Felicidad crítica (${Math.round(this.happiness)}%). La gente abandona la ciudad a un 2% diario. Toca para ajustar finanzas.`,
+        action: 'economy',
       };
     }
     if (this.happiness < 50) {
@@ -226,7 +245,8 @@ export class Simulation {
         icon: '😟',
         level: 'warning',
         label: 'Inmigración Bloqueada',
-        text: `Felicidad baja (${Math.round(this.happiness)}% < 50%). Se requieren parques, salud o reducir tributos.`,
+        text: `Felicidad baja (${Math.round(this.happiness)}% < 50%). Toca para ajustar tributos en Finanzas o construir parques.`,
+        action: 'economy',
       };
     }
 
@@ -236,7 +256,8 @@ export class Simulation {
         icon: '🏠',
         level: 'warning',
         label: 'Viviendas Llenas',
-        text: `Ocupación al 100% (${this.population}/${this.housingCapacity}). Construye más casas para recibir inmigrantes.`,
+        text: `Ocupación al 100% (${this.population}/${this.housingCapacity}). Toca para zonificar más casas.`,
+        solveTool: 'residential_low',
       };
     }
 
@@ -246,7 +267,8 @@ export class Simulation {
         icon: '⚡',
         level: 'warning',
         label: 'Energía al Límite',
-        text: `Generación al ${Math.round((this.powerDemand / this.powerSupply) * 100)}%. Planifica un nuevo Parque Solar (+25 hab).`,
+        text: `Generación al ${Math.round((this.powerDemand / this.powerSupply) * 100)}%. Toca para planificar un nuevo Parque Solar.`,
+        solveTool: 'utility_power_solar',
       };
     }
     if (this.waterSupply > 0 && this.waterDemand >= this.waterSupply * 0.85) {
@@ -254,7 +276,8 @@ export class Simulation {
         icon: '💧',
         level: 'warning',
         label: 'Agua al Límite',
-        text: `Bombeo al ${Math.round((this.waterDemand / this.waterSupply) * 100)}%. Planifica una nueva Torre de Agua (+25 hab).`,
+        text: `Bombeo al ${Math.round((this.waterDemand / this.waterSupply) * 100)}%. Toca para planificar una nueva Torre de Agua.`,
+        solveTool: 'utility_water_tower',
       };
     }
     if (this.foodCapacity > 0 && this.population > 0 && this.foodCapacity <= this.population * 1.25) {
@@ -262,7 +285,8 @@ export class Simulation {
         icon: '🌾',
         level: 'warning',
         label: 'Cosechas al Límite',
-        text: `Producción de alimentos (${this.foodCapacity}) cercana a la demanda poblacional (${this.population} hab). Expande las Granjas Orgánicas.`,
+        text: `Producción de alimentos (${this.foodCapacity}) cercana a la demanda (${this.population} hab). Toca para expandir granjas.`,
+        solveTool: 'farm_organic',
       };
     }
 
@@ -272,7 +296,8 @@ export class Simulation {
         icon: '💼',
         level: 'warning',
         label: 'Desempleo Alto',
-        text: `Tasa de desempleo al ${this.unemploymentRate}%. Se necesitan vacantes en comercios o granjas.`,
+        text: `Tasa de desempleo al ${this.unemploymentRate}%. Toca para abrir vacantes comerciales o fabriles.`,
+        solveTool: 'commercial_store',
       };
     }
 
@@ -283,6 +308,7 @@ export class Simulation {
         level: 'info',
         label: 'Hito Desbloqueado',
         text: 'Población suficiente para construir la Comisaría de Seguridad y la Escuela Técnica.',
+        solveTool: 'service_police',
       };
     }
     if (this.population >= 20 && this.grid.countBuildings('service_cityhall') === 0) {
@@ -291,6 +317,7 @@ export class Simulation {
         level: 'info',
         label: 'Hito Desbloqueado',
         text: 'Población lista para erigir la Alcaldía y Palacio Municipal.',
+        solveTool: 'service_cityhall',
       };
     }
     if (this.population >= 35 && this.grid.countBuildings('service_hospital') === 0) {
@@ -299,6 +326,7 @@ export class Simulation {
         level: 'info',
         label: 'Hito Desbloqueado',
         text: 'Habilitado el Hospital Central de Alta Resolución.',
+        solveTool: 'service_hospital',
       };
     }
     if (this.population >= 60 && this.grid.countBuildings('service_university') === 0) {
@@ -307,6 +335,7 @@ export class Simulation {
         level: 'info',
         label: 'Hito Desbloqueado',
         text: 'Habilitada la Universidad Metropolitana para formar profesionales.',
+        solveTool: 'service_university',
       };
     }
 

@@ -5,6 +5,7 @@
  */
 
 import { CONFIG } from '../game/config.js';
+import { IsoMath } from './iso.js';
 
 export class Camera {
   constructor(canvas) {
@@ -244,6 +245,23 @@ export class Camera {
     this.x = centerX;
     this.y = centerY;
     this.zoom = 1.0;
+  }
+
+  /**
+   * Centra suavemente o directamente la vista en una casilla de la cuadrícula (Click-to-Pan)
+   */
+  panToGrid(gx, gy, targetZoom = null) {
+    const iso = IsoMath.gridToIso(gx, gy);
+    const rect = this.canvas.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2.2;
+
+    if (targetZoom !== null) {
+      this.zoom = Math.max(CONFIG.CANVAS.MIN_ZOOM, Math.min(CONFIG.CANVAS.MAX_ZOOM, targetZoom));
+    }
+
+    this.x = centerX - iso.x * this.zoom;
+    this.y = centerY - iso.y * this.zoom;
   }
 
   /**
