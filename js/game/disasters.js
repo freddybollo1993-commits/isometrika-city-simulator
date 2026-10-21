@@ -44,7 +44,7 @@ export class DisasterSystem {
     // 3. CÁLCULO DE PERIODICIDAD ESCALADA:
     // A mayor progreso urbano (población, edificaciones) y mayor nivel científico,
     // mayor es la periodicidad (menor el tiempo entre eventos).
-    const cityProgress = Math.min(2.5, simState.population / 400 + simState.tileCount / 60);
+    const cityProgress = Math.min(2.5, simState.population / 200 + simState.tileCount / 40);
     const researchLevel = researchManager.getResearchLevel(); // 0.0 a 1.0
     const pollutionFactor = Math.min(2.0, simState.pollution / 60);
 

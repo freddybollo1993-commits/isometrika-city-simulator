@@ -44,16 +44,16 @@ export class ResidentialBuilding {
   getRent() {
     // Alquiler escalonado por nivel y tipología
     if (this.defId === 'residential_social') {
-      const socialRents = [4, 6, 9];
-      return socialRents[this.level - 1] || 4;
+      const socialRents = [3, 5, 8];
+      return socialRents[this.level - 1] || 3;
     }
     if (this.defId === 'residential_high') {
-      const highRents = [18, 25, 34];
-      return highRents[this.level - 1] || 18;
+      const highRents = [12, 18, 25];
+      return highRents[this.level - 1] || 12;
     }
-    // residential_low: Cabaña rural ($6) -> Vivienda suburbana ($12) -> Villa urbana ($18)
-    const lowRents = [6, 12, 18];
-    return lowRents[this.level - 1] || 6;
+    // residential_low: Cabaña rural ($5) -> Vivienda suburbana ($9) -> Villa urbana ($14)
+    const lowRents = [5, 9, 14];
+    return lowRents[this.level - 1] || 5;
   }
 
   getMaxCapacity() {
@@ -75,8 +75,8 @@ export class CitizenManager {
     this.nextCitizenId = 1;
 
     // Política de salarios base inicial
-    this.publicWageBase = 30; // Salario diario base ofrecido por la Alcaldía (elevado a 30)
-    this.privateWageBase = 32; // Salario diario base ofrecido por el holding privado (elevado a 32)
+    this.publicWageBase = 22; // Salario diario base ofrecido por la Alcaldía (calibrado a 22)
+    this.privateWageBase = 24; // Salario diario base ofrecido por el holding privado (calibrado a 24)
 
     // Métricas del mercado laboral y pugna salarial
     this.metrics = {
@@ -260,58 +260,55 @@ export class CitizenManager {
 
         // === VACANTES PÚBLICAS (Alcaldía) ===
         if (def.category === 'utility' || def.category === 'service' || def.id === 'transit_bus_terminal') {
-          let jobsCount = 10;
+          // Edificios sin personal asignado (ej. diques de contención pasivos)
+          if (def.id === 'service_barrier') continue;
+
+          let jobsCount = levelData.jobs !== undefined ? levelData.jobs : (def.jobs !== undefined ? def.jobs : 2);
+          if (jobsCount <= 0) continue;
+
           let requiredEdu = 1;
           let jobTitle = 'Operario de Servicios Públicos';
 
           if (def.id === 'transit_bus_terminal') {
-            jobsCount = level * 8;
             requiredEdu = 1;
             jobTitle = 'Chófer / Operador de Tránsito';
           } else if (def.id === 'service_university') {
-            jobsCount = level * 30;
             requiredEdu = 2;
             jobTitle = 'Catedrático / Investigador Universitario';
           } else if (def.id === 'utility_solar' || def.id === 'utility_coal' || def.id === 'utility_power_plant' || def.id === 'utility_power_solar') {
-            jobsCount = level * 12;
             requiredEdu = 1;
             jobTitle = 'Técnico de Generación Eléctrica';
           } else if (def.id === 'utility_water_tower') {
-            jobsCount = level * 8;
             requiredEdu = 1;
             jobTitle = 'Operario Hidráulico';
           } else if (def.id === 'utility_water_plant') {
-            jobsCount = level * 18;
             requiredEdu = 2; // Requiere superior para química y filtrado
             jobTitle = 'Químico de Tratamiento de Aguas';
           } else if (def.id === 'service_school') {
-            jobsCount = level * 14;
             requiredEdu = 2;
             jobTitle = 'Profesor / Pedagogo';
           } else if (def.id === 'service_hospital') {
-            jobsCount = level * 25;
             requiredEdu = 2;
             jobTitle = 'Médico / Especialista de Salud';
           } else if (def.id === 'service_police') {
-            jobsCount = level * 12;
             requiredEdu = 1;
             jobTitle = 'Agente de Policía Municipal';
           } else if (def.id === 'service_fire') {
-            jobsCount = level * 10;
             requiredEdu = 1;
             jobTitle = 'Bombero de Rescate';
           } else if (def.id === 'service_cityhall') {
-            jobsCount = level * 8;
             requiredEdu = 1;
             jobTitle = 'Funcionario Administrativo';
           } else if (def.id === 'service_seismic_radar') {
-            jobsCount = level * 6;
             requiredEdu = 2;
             jobTitle = 'Sismólogo / Operador Geotécnico';
+          } else if (def.id === 'service_research') {
+            requiredEdu = 2;
+            jobTitle = 'Científico / Investigador';
           }
 
           // Multiplicador salarial según educación requerida y salario individual del edificio
-          const eduMult = requiredEdu === 2 ? 1.75 : requiredEdu === 1 ? 1.3 : 1.0;
+          const eduMult = requiredEdu === 2 ? 1.5 : requiredEdu === 1 ? 1.25 : 1.0;
           if (tile.building.customWage && tile.building.customWage < this.publicWageBase) {
             tile.building.customWage = this.publicWageBase;
           }
@@ -334,7 +331,7 @@ export class CitizenManager {
         }
         // === VACANTES PRIVADAS (El Magnate) ===
         else if (def.category === 'commercial' || def.category === 'industrial' || def.category === 'farm') {
-          const jobsCount = levelData.jobs || def.jobs || 15;
+          const jobsCount = levelData.jobs || def.jobs || 4;
           let requiredEdu = 0;
           let jobTitle = 'Empleado Comercial';
 
@@ -368,7 +365,7 @@ export class CitizenManager {
             }
           }
 
-          const eduMult = requiredEdu === 2 ? 1.9 : requiredEdu === 1 ? 1.35 : 1.0;
+          const eduMult = requiredEdu === 2 ? 1.6 : requiredEdu === 1 ? 1.25 : 1.0;
           if (tile.building.customWage && tile.building.customWage < this.privateWageBase) {
             tile.building.customWage = this.privateWageBase;
           }

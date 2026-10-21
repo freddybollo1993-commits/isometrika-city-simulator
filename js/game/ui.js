@@ -2654,19 +2654,19 @@ export class UIManager {
               <span class="housing-level-icon">🏠</span>
               <strong>Nivel 1 (Básicas)</strong>
               <div class="housing-count-val">${housing.level1 || 0} edificios</div>
-              <small>Capacidad: 12 hab. • Alquiler: $14/d</small>
+              <small>Capacidad: 4 hab. • Alquiler: $5/d</small>
             </div>
             <div class="housing-card">
               <span class="housing-level-icon">🏡</span>
               <strong>Nivel 2 (Confort)</strong>
               <div class="housing-count-val">${housing.level2 || 0} edificios</div>
-              <small>Capacidad: 24 hab. • Alquiler: $28/d</small>
+              <small>Capacidad: 8 hab. • Alquiler: $9/d</small>
             </div>
             <div class="housing-card">
               <span class="housing-level-icon">🏙️</span>
               <strong>Nivel 3 (Lujo)</strong>
               <div class="housing-count-val">${housing.level3 || 0} edificios</div>
-              <small>Capacidad: 40 hab. • Alquiler: $42/d</small>
+              <small>Capacidad: 16 hab. • Alquiler: $14/d</small>
             </div>
           </div>
 

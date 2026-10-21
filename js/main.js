@@ -139,16 +139,18 @@ export class Game {
       this.grid.placeBuilding(gx, center, 'road');
     }
 
-    // Viviendas y comercio iniciales
+    // Viviendas y comercio iniciales (4 casas unifamiliares = 16 hab., 1 tienda minorista)
     this.grid.placeBuilding(center - 1, center - 1, 'residential_low', 0);
     this.grid.placeBuilding(center + 1, center - 1, 'residential_low', 0);
+    this.grid.placeBuilding(center + 2, center - 1, 'residential_low', 0);
+    this.grid.placeBuilding(center + 1, center + 1, 'residential_low', 0);
     this.grid.placeBuilding(center, center + 1, 'commercial_store', 0);
 
-    // Servicios Básicos iniciales: 1 Parque Solar (80 MW) y 1 Torre de Agua (80 kL)
+    // Servicios Básicos iniciales: 1 Parque Solar (60 MW, 2 empleos) y 1 Torre de Agua (60 kL, 2 empleos)
     this.grid.placeBuilding(center - 3, center - 1, 'utility_power_solar', 0);
     this.grid.placeBuilding(center + 3, center - 1, 'utility_water_tower', 0);
 
-    // Granja Orgánica pionera (2x2, 100 de capacidad de comida, 25 empleos)
+    // Granja Orgánica pionera (2x2, 40 de capacidad de comida, 4 empleos)
     this.grid.placeBuilding(center - 3, center + 1, 'farm_organic', 0);
 
     // Recalcular capacidades iniciales para sincronizar el HUD

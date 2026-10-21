@@ -71,7 +71,7 @@ export class Simulation {
     let totalWaterSupply = 0;
     let totalWaterDemand = 0;
     let totalBuildings = 0;
-    const isPioneerPhase = this.population < 30;
+    const isPioneerPhase = this.population < 20;
 
     for (let gy = 0; gy < this.grid.size; gy++) {
       for (let gx = 0; gx < this.grid.size; gx++) {
@@ -101,8 +101,8 @@ export class Simulation {
         } else if (def.category === 'commercial') {
           commercialJobs += (levelData.jobs || 0);
         } else if (def.category === 'farm') {
-          farmFoodSupply += Math.round((levelData.foodCapacity || 100) * opEff);
-          commercialJobs += (levelData.jobs || 20);
+          farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff);
+          commercialJobs += (levelData.jobs || 4);
         }
       }
     }
@@ -437,7 +437,7 @@ export class Simulation {
     this.citizens.syncWithGrid(this.grid, this.population, this.education);
     this.citizens.matchJobs(this.grid, this.economy);
 
-    const isPioneerPhase = this.population < 30;
+    const isPioneerPhase = this.population < 20;
     const dilemmaMods = this.dilemmas.getActiveModifiers();
 
     let totalHousing = 0;
@@ -501,17 +501,17 @@ export class Simulation {
 
         // VIVIENDAS
         if (def.category === 'residential') {
-          const cap = (levelData.capacity || def.capacity || 10);
+          const cap = (levelData.capacity || def.capacity || 4);
           totalHousing += cap;
-          const taxRate = (levelData.tax || def.taxPerCapita || 1.8);
+          const taxRate = (levelData.tax || def.taxPerCapita || 2.2);
           const maxLevelBonus = (level === 3 && def.id === 'residential_high') ? 1.25 : 1.0;
           baseResTax += cap * taxRate * healthFactor * maxLevelBonus;
         }
         // COMERCIOS
         else if (def.category === 'commercial') {
-          const jobs = (levelData.jobs || def.jobs || 15);
+          const jobs = (levelData.jobs || def.jobs || 2);
           commercialJobs += jobs;
-          const rev = (levelData.revenue || def.revenuePerJob || 3.5);
+          const rev = (levelData.revenue || def.revenuePerJob || 5.5);
           baseCommTax += jobs * rev * opEff * dilemmaMods.commSalesMultiplier;
 
           if (def.id === 'commercial_tower' && level === 3) {
@@ -529,8 +529,8 @@ export class Simulation {
         }
         // GRANJAS
         else if (def.category === 'farm') {
-          farmFoodSupply += Math.round((levelData.foodCapacity || 100) * opEff * dilemmaMods.foodMultiplier);
-          commercialJobs += (levelData.jobs || 20);
+          farmFoodSupply += Math.round((levelData.foodCapacity || 40) * opEff * dilemmaMods.foodMultiplier);
+          commercialJobs += (levelData.jobs || 4);
           parkHappinessBonus += (levelData.happiness || 5);
         }
         // SERVICIOS PÚBLICOS
