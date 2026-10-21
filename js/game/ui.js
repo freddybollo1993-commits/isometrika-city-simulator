@@ -1473,6 +1473,11 @@ export class UIManager {
 
     const sim = this.game.simulation;
     const resultMsg = sim.dilemmas.resolve(choice.id, sim);
+    if (resultMsg && resultMsg.rejected) {
+      // Sin fondos: el dilema sigue abierto para elegir otra opción
+      this.showToast(`⚠️ ${resultMsg.message}`);
+      return;
+    }
     this.closeModals();
     this.activeDilemma = null;
 
@@ -1495,12 +1500,12 @@ export class UIManager {
     const corpProfit = eco ? eco.corporateBreakdown.netProfit : 0;
     const harmony = eco ? eco.harmonyIndex : 80;
 
-    const formattedStateFunds = `$${stateFunds.toLocaleString()}`;
+    const formattedStateFunds = `$${Math.round(stateFunds).toLocaleString()}`;
     const stateSign = stateNet >= 0 ? '+' : '';
     const formattedStateCf = `${stateSign}$${stateNet}/d`;
     const stateCfClass = stateNet >= 0 ? 'delta-positive' : 'delta-negative';
 
-    const formattedCorpFunds = `$${corpFunds.toLocaleString()}`;
+    const formattedCorpFunds = `$${Math.round(corpFunds).toLocaleString()}`;
     const corpSign = corpProfit >= 0 ? '+' : '';
     const formattedCorpCf = `${corpSign}$${corpProfit}/d`;
     const corpCfClass = corpProfit >= 0 ? 'delta-positive' : 'delta-negative';
@@ -1804,7 +1809,7 @@ export class UIManager {
       const timeStr = timeAgo ? ` • ${timeAgo}` : '';
       const sFunds = summary.stateFunds !== undefined ? summary.stateFunds : summary.funds;
       const cFunds = summary.corporateFunds !== undefined ? summary.corporateFunds : 0;
-      this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • 🏛️ $${sFunds.toLocaleString()} • 💼 $${cFunds.toLocaleString()}${timeStr}`;
+      this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • 🏛️ $${Math.round(sFunds).toLocaleString()} • 💼 $${Math.round(cFunds).toLocaleString()}${timeStr}`;
     } else {
       this.elBtnMenuContinue.classList.add('disabled');
       this.elTitleContinueDetails.textContent = 'Sin partida guardada previa';
@@ -2161,6 +2166,9 @@ export class UIManager {
           <button class="eco-tab-btn ${this.currentEcoTab === 'audit' ? 'active' : ''}" data-eco-tab="audit">
             <span>📋 Auditoría en Vivo</span>
           </button>
+          <button class="eco-tab-btn ${this.currentEcoTab === 'ledger' ? 'active' : ''}" data-eco-tab="ledger">
+            <span>📒 Libro Contable</span>
+          </button>
         </div>
 
         <!-- CONTENIDO DINÁMICO SEGÚN PESTAÑA ACTIVA -->
@@ -2264,7 +2272,7 @@ export class UIManager {
 
       // Si está en pestaña Estado
       if (this.currentEcoTab === 'state') {
-        setTxt('#eco-kpi-state-funds', `$${eco.stateFunds.toLocaleString()}`);
+        setTxt('#eco-kpi-state-funds', `$${Math.round(eco.stateFunds).toLocaleString()}`);
         const elStateCf = elContent.querySelector('#eco-kpi-state-cf');
         if (elStateCf) {
           elStateCf.textContent = `${stateSign}$${stateNet}/d`;
@@ -2285,12 +2293,12 @@ export class UIManager {
         setTxt('#eco-state-exp-road', `-$${stateExp.roadUpkeep || 0}/d`);
         setTxt('#eco-state-exp-serv', `-$${stateExp.buildingUpkeep || 0}/d`);
         setTxt('#eco-state-exp-policy', `-$${stateExp.policyCosts || 0}/d`);
-        setTxt('#eco-state-exp-imp', `-$${stateExp.importsCost || 0}/d`);
+        setTxt('#eco-state-exp-imp', `-${stateExp.overdraftInterest || 0}/d`);
         setTxt('#eco-state-exp-total', `-$${stateExp.total || 0}/d`);
       }
       // Si está en pestaña Empresa Privada
       else if (this.currentEcoTab === 'corp') {
-        setTxt('#eco-kpi-corp-funds', `$${eco.corporateFunds.toLocaleString()}`);
+        setTxt('#eco-kpi-corp-funds', `$${Math.round(eco.corporateFunds).toLocaleString()}`);
         const elCorpNet = elContent.querySelector('#eco-kpi-corp-profit');
         if (elCorpNet) {
           elCorpNet.textContent = `${corpSign}$${corpNet}/d`;
@@ -2343,6 +2351,13 @@ export class UIManager {
           this._bindAuditJumpButtons(area);
         }
       }
+      // Si está en pestaña Libro Contable
+      else if (this.currentEcoTab === 'ledger') {
+        const area = elContent.querySelector('#eco-tab-content-area');
+        if (area) {
+          area.innerHTML = this._renderEcoTabContent('ledger', eco, sim);
+        }
+      }
       // Si está en pestaña Viabilidad de Obras Públicas
       else if (this.currentEcoTab === 'public_works') {
         const area = elContent.querySelector('#eco-tab-content-area');
@@ -2351,6 +2366,59 @@ export class UIManager {
         }
       }
     }
+  }
+
+  /**
+   * Libro contable: cada flujo del último día con su origen, destino y concepto.
+   */
+  _renderLedgerTab(eco) {
+    const day = eco.ledger && eco.ledger.lastDay;
+    if (!day) {
+      return `<div class="eco-section"><p style="font-size: 0.78rem; color: #cbd5e1;">El libro contable se abre al cerrar el primer día.</p></div>`;
+    }
+
+    const icons = { state: '🏛️', corporate: '💼', households: '👥', external: '🌐' };
+    const labels = { state: 'Estado', corporate: 'Empresa', households: 'Hogares', external: 'Exterior' };
+    const fmt = (v) => `$${Math.round(v).toLocaleString()}`;
+    const b = day.balances;
+    const net = day.externalIn - day.externalOut;
+
+    const rows = day.entries.map((e) => `
+      <div class="eco-ledger-row">
+        <span>${icons[e.from]} ${labels[e.from]} → ${icons[e.to]} ${labels[e.to]} · ${e.concept}</span>
+        <strong class="${e.to === 'external' ? 'text-danger' : e.from === 'external' ? 'text-positive' : ''}">${fmt(e.amount)}</strong>
+      </div>`).join('');
+
+    return `
+      <div class="eco-section">
+        <div class="eco-section-title">
+          <span>📒 Libro Contable · Día ${day.day}</span>
+        </div>
+        <div class="eco-ledger-grid">
+          <div class="eco-ledger-col income">
+            <div class="eco-col-header"><span>Saldos al cierre</span></div>
+            <div class="eco-ledger-row"><span>🏛️ Estado:</span><strong>${fmt(b.state)}</strong></div>
+            <div class="eco-ledger-row"><span>💼 Empresa:</span><strong>${fmt(b.corporate)}</strong></div>
+            <div class="eco-ledger-row"><span>👥 Ahorros de los hogares:</span><strong>${fmt(b.households)}</strong></div>
+            <div class="eco-ledger-total"><span>Dinero total de la ciudad:</span><strong>${fmt(b.state + b.corporate + b.households)}</strong></div>
+          </div>
+          <div class="eco-ledger-col expenses">
+            <div class="eco-col-header"><span>🌐 Intercambio con el Exterior</span></div>
+            <div class="eco-ledger-row"><span>Entra desde fuera:</span><strong class="text-positive">+${fmt(day.externalIn)}</strong></div>
+            <div class="eco-ledger-row"><span>Sale hacia fuera:</span><strong class="text-danger">-${fmt(day.externalOut)}</strong></div>
+            <div class="eco-ledger-total"><span>Balance exterior del día:</span><strong class="${net >= 0 ? 'text-positive' : 'text-danger'}">${net >= 0 ? '+' : '-'}${fmt(Math.abs(net))}</strong></div>
+          </div>
+        </div>
+        <p style="font-size: 0.70rem; color: #94a3b8; margin: 6px 0 0;">
+          Todo el dinero tiene origen y destino: entre Estado, Empresa y Hogares solo cambia de manos.
+          El dinero total de la ciudad solo crece o baja por lo que entra o sale del Exterior.
+        </p>
+      </div>
+      <div class="eco-section">
+        <div class="eco-section-title"><span>🔁 Movimientos del día (de mayor a menor)</span></div>
+        ${rows}
+      </div>
+    `;
   }
 
   _renderEcoTabContent(tab, eco, sim) {
@@ -2375,6 +2443,10 @@ export class UIManager {
     const avgTax = Math.round((resPct + commPct + indPct) / 3);
 
     // 0. PESTAÑA AUDITORÍA EN VIVO Y DIAGNÓSTICO
+    if (tab === 'ledger') {
+      return this._renderLedgerTab(eco);
+    }
+
     if (tab === 'audit') {
       return this._renderAuditTabContent(eco, sim);
     }
@@ -2390,7 +2462,7 @@ export class UIManager {
         <div class="eco-kpi-grid">
           <div class="eco-kpi-card">
             <span class="kpi-label">Tesoro del Estado</span>
-            <span id="eco-kpi-state-funds" class="kpi-val">$${eco.stateFunds.toLocaleString()}</span>
+            <span id="eco-kpi-state-funds" class="kpi-val">$${Math.round(eco.stateFunds).toLocaleString()}</span>
           </div>
           <div class="eco-kpi-card">
             <span class="kpi-label">Flujo Fiscal Neto</span>
@@ -2487,7 +2559,7 @@ export class UIManager {
               <div class="eco-ledger-row"><span>🛣️ Mantenimiento Vial:</span><strong id="eco-state-exp-road" class="text-danger">-$${stateExp.roadUpkeep || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>⚙️ Edificios y Redes Públicas:</span><strong id="eco-state-exp-serv" class="text-danger">-$${stateExp.buildingUpkeep || 0}/d</strong></div>
               <div class="eco-ledger-row"><span>🏛️ Políticas y Decretos:</span><strong id="eco-state-exp-policy" class="text-danger">-$${stateExp.policyCosts || 0}/d</strong></div>
-              <div class="eco-ledger-row"><span>🚢 Importaciones Emergencia:</span><strong id="eco-state-exp-imp" class="text-danger">-$${stateExp.importsCost || 0}/d</strong></div>
+              <div class="eco-ledger-row"><span>🏦 Intereses de Deuda:</span><strong id="eco-state-exp-imp" class="text-danger">-${stateExp.overdraftInterest || 0}/d</strong></div>
               <div class="eco-ledger-total"><span>Total Gasto Estado:</span><strong id="eco-state-exp-total" class="text-danger">-$${stateExp.total || 0}/d</strong></div>
             </div>
           </div>
@@ -2504,7 +2576,7 @@ export class UIManager {
         <div class="eco-kpi-grid">
           <div class="eco-kpi-card">
             <span class="kpi-label">Capital del Holding</span>
-            <span id="eco-kpi-corp-funds" class="kpi-val">$${eco.corporateFunds.toLocaleString()}</span>
+            <span id="eco-kpi-corp-funds" class="kpi-val">$${Math.round(eco.corporateFunds).toLocaleString()}</span>
           </div>
           <div class="eco-kpi-card">
             <span class="kpi-label">Beneficio Neto Diario</span>
@@ -2925,7 +2997,7 @@ export class UIManager {
     const pop = sim.population || 0;
     const foodSupply = sim.foodCapacity || 0;
     const foodDeficit = Math.max(0, pop - foodSupply);
-    const foodImportsCost = stateExp.importsCost || 0;
+    const foodImportsCost = (eco.trade && eco.trade.imports && eco.trade.imports.totalCost) || 0;
 
     // 5. Estrés residencial
     const stressedHomes = m.inFinancialStressCount || 0;
@@ -3087,7 +3159,7 @@ export class UIManager {
           </div>
           <p>
             ${foodDeficit > 0
-              ? `La demanda poblacional (${pop} hab.) supera la cosecha de las granjas locales (${foodSupply} hab.). El Estado está pagando <strong class="text-danger">-$${foodImportsCost}/d</strong> en compras de emergencia de grano en el mercado internacional.`
+              ? `La demanda poblacional (${pop} hab.) supera la cosecha de las granjas locales (${foodSupply} hab.). Los comercios están pagando <strong class="text-danger">-$${foodImportsCost}/d</strong> en compras de emergencia de grano en el mercado internacional.`
               : `Las granjas locales producen suficiente alimento para abastecer a la población (${foodSupply} hab. disponibles para ${pop} habitantes), generando excedentes exportables.`
             }
           </p>

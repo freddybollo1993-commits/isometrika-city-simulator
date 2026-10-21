@@ -42,11 +42,10 @@ export class DilemmaManager {
           {
             id: 'buy_water',
             label: 'Comprar Caudal de Emergencia',
+            payment: { from: 'state', to: 'external', amount: 450, concept: 'Compra de agua regional de emergencia' },
             costText: 'Cuesta $450 del Estado',
             consequenceText: '🌟 100% de agua garantizada, salud y felicidad +5% (3 días).',
             apply(sim) {
-              const cost = 450;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.dilemmas.addEffect({
                 id: 'eff_drought_water',
                 name: 'Caudal Regional Comprado',
@@ -67,11 +66,10 @@ export class DilemmaManager {
           {
             id: 'subsidize_fair',
             label: 'Subvencionar el Festival ($350)',
+            payment: { from: 'state', to: 'corporate', amount: 350, concept: 'Subvención a la feria comercial' },
             costText: 'Cuesta $350 del Estado',
             consequenceText: '🛍️ Ventas comerciales +30% y Felicidad +12% durante 3 días.',
             apply(sim) {
-              const cost = 350;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.dilemmas.addEffect({
                 id: 'eff_fair_subsidized',
                 name: 'Festival Comercial Activo',
@@ -85,10 +83,10 @@ export class DilemmaManager {
           {
             id: 'charge_fee',
             label: 'Cobrar Canon Municipal Extraordinario',
+            payment: { from: 'households', to: 'state', amount: 500, concept: 'Canon ferial extraordinario' },
             costText: 'Ingreso fiscal: +$500',
             consequenceText: '💰 La Tesorería recauda $500. Felicidad ciudadana -4% (2 días).',
             apply(sim) {
-              if (sim.economy) sim.economy.stateFunds += 500;
               sim.dilemmas.addEffect({
                 id: 'eff_fair_fee',
                 name: 'Tasa Ferial Extraordinaria',
@@ -109,11 +107,10 @@ export class DilemmaManager {
           {
             id: 'public_scholarships',
             label: 'Beca Municipal de Estudios ($500)',
+            payment: { from: 'state', to: 'households', amount: 500, concept: 'Becas municipales de estudio' },
             costText: 'Cuesta $500 del Estado',
             consequenceText: '📚 +15% Educación en la ciudad y +15 Puntos de Ciencia (RP).',
             apply(sim) {
-              const cost = 500;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.education = Math.min(100, sim.education + 15);
               if (sim.research) sim.research.points += 15;
               return 'Se graduó una nueva camada de técnicos y operarios calificados con apoyo del municipio.';
@@ -122,11 +119,10 @@ export class DilemmaManager {
           {
             id: 'corp_training',
             label: 'Financiamiento Privado del Holding',
+            payment: { from: 'corporate', to: 'households', amount: 600, concept: 'Becas privadas de estudio' },
             costText: 'Cuesta $600 al Capital Privado',
             consequenceText: '💼 Sin coste para el Estado. +10% Educación calificada.',
             apply(sim) {
-              const cost = 600;
-              if (sim.economy) sim.economy.corporateFunds -= cost;
               sim.education = Math.min(100, sim.education + 10);
               return 'El Holding empresarial asumió la capacitación técnica de sus operarios sin gastar fondos públicos.';
             },
@@ -142,11 +138,10 @@ export class DilemmaManager {
           {
             id: 'reinforce',
             label: 'Blindar Infraestructuras ($400)',
+            payment: { from: 'state', to: 'external', amount: 400, concept: 'Refuerzo de infraestructuras' },
             costText: 'Cuesta $400 del Estado',
             consequenceText: '🛡️ Próximos desastres causarán un 50% menos de daño (durante 5 días).',
             apply(sim) {
-              const cost = 400;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.dilemmas.addEffect({
                 id: 'eff_seismic_shield',
                 name: 'Infraestructura Blindada',
@@ -176,11 +171,10 @@ export class DilemmaManager {
           {
             id: 'fund_health',
             label: 'Financiar Jornada de Salud ($300)',
+            payment: { from: 'state', to: 'external', amount: 300, concept: 'Jornada de salud pública' },
             costText: 'Cuesta $300 del Estado',
             consequenceText: '❤️ Salud pública +25% y Felicidad +8% por 3 días.',
             apply(sim) {
-              const cost = 300;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.dilemmas.addEffect({
                 id: 'eff_health_campaign',
                 name: 'Campaña Sanitaria Activa',
@@ -211,11 +205,10 @@ export class DilemmaManager {
           {
             id: 'subsidize_housing',
             label: 'Subsidio Municipal de Mudanza ($350)',
+            payment: { from: 'state', to: 'households', amount: 350, concept: 'Subsidio de mudanza' },
             costText: 'Cuesta $350 del Estado',
             consequenceText: '🚀 Inmigración +30% y Felicidad +10% durante 2 días.',
             apply(sim) {
-              const cost = 350;
-              if (sim.economy) sim.economy.stateFunds -= cost;
               sim.dilemmas.addEffect({
                 id: 'eff_housing_incentive',
                 name: 'Plan de Bienvenida Ciudadana',
@@ -317,6 +310,28 @@ export class DilemmaManager {
 
     const opt = this.currentDilemma.options.find((o) => o.id === choiceId);
     if (!opt) return null;
+
+    // Todo pago del dilema pasa por el libro contable y exige fondos suficientes
+    if (opt.payment && sim.economy) {
+      const { from, to, amount, concept } = opt.payment;
+      const ledger = sim.economy.ledger;
+      const citizens = Array.from(sim.citizens.citizens.values());
+      if (from === 'households') {
+        // Cobro a los vecinos: cada uno aporta según su ahorro (puede recaudarse menos)
+        ledger.chargeHouseholds(citizens, amount, to, concept, 20);
+      } else {
+        const payer = from;
+        if (ledger.balanceOf(payer) < amount) {
+          return { rejected: true, message: `Fondos insuficientes: esta opción requiere $${amount} (${payer === 'state' ? 'Tesoro Público' : 'Capital Privado'}).` };
+        }
+        if (to === 'households' && citizens.length > 0) {
+          const share = amount / citizens.length;
+          citizens.forEach((c) => ledger.transfer(payer, c, share, concept));
+        } else {
+          ledger.transfer(payer, to === 'households' ? 'external' : to, amount, concept);
+        }
+      }
+    }
 
     const message = opt.apply(sim);
     this.currentDilemma = null;

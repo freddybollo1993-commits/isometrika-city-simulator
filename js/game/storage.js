@@ -88,16 +88,13 @@ export class StorageManager {
           ecoInstance.deserialize(data.economy);
         } else if (data.simulation && typeof data.simulation.funds === 'number') {
           // Retrocompatibilidad con partidas v1 y v2
-          ecoInstance.funds = data.simulation.funds;
           ecoInstance.stateFunds = data.simulation.funds;
-          ecoInstance.corporateFunds = Math.max(2500, Math.round(data.simulation.funds * 0.85));
+          ecoInstance.corporateFunds = CONFIG.SIMULATION.INITIAL_CORPORATE_FUNDS || 12000;
         }
 
-        // Sincronizar simulation.funds si existe
-        if (this.simulation) {
-          this.simulation.funds = ecoInstance.stateFunds;
-          this.simulation.stateFunds = ecoInstance.stateFunds;
-          this.simulation.corporateFunds = ecoInstance.corporateFunds;
+        // Apertura del libro contable: los ahorros cargados no cuentan como migración
+        if (this.simulation && this.simulation.citizens) {
+          ecoInstance.ledger.householdsTotal = this.simulation.citizens.getTotalSavings();
         }
       }
 

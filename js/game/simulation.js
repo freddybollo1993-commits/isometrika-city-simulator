@@ -239,7 +239,7 @@ export class Simulation {
         icon: '🏢',
         level: 'danger',
         label: 'Holding en Deuda',
-        text: `Capital empresarial en números rojos ($${this.economy.corporateFunds.toLocaleString()}). Toca para abrir Finanzas y emitir un rescate público.`,
+        text: `Capital empresarial en números rojos ($${Math.round(this.economy.corporateFunds).toLocaleString()}). Toca para abrir Finanzas y emitir un rescate público.`,
         action: 'economy',
       };
     }
@@ -447,7 +447,7 @@ export class Simulation {
           allowed: false,
           cost,
           funding,
-          reason: `Tesoro Público insuficiente. Requiere $${cost} del Estado (disponible: $${this.stateFunds.toLocaleString()})`
+          reason: `Tesoro Público insuficiente. Requiere $${cost} del Estado (disponible: $${Math.round(this.stateFunds).toLocaleString()})`
         };
       }
     } else {
@@ -456,7 +456,7 @@ export class Simulation {
           allowed: false,
           cost,
           funding,
-          reason: `Capital Privado insuficiente. Requiere $${cost} de la Empresa (disponible: $${this.corporateFunds.toLocaleString()})`
+          reason: `Capital Privado insuficiente. Requiere $${cost} de la Empresa (disponible: $${Math.round(this.corporateFunds).toLocaleString()})`
         };
       }
     }
@@ -465,18 +465,19 @@ export class Simulation {
   }
 
   spendForBuilding(def, cost) {
-    const funding = this.getFundingType(def);
-    if (funding === 'public') {
-      this.stateFunds = Math.max(0, this.stateFunds - cost);
-    } else {
-      this.corporateFunds = Math.max(0, this.corporateFunds - cost);
-    }
+    const payer = this.getFundingType(def) === 'public' ? 'state' : 'corporate';
+    // Materiales y constructoras externas: el pago sale de la ciudad
+    return this.economy.ledger.transfer(payer, 'external', cost, 'Construcción y mejoras', { requireFunds: true }) > 0;
   }
 
   tick(camera) {
     if (this.isPaused || this.speed === 0) return;
 
     this.day++;
+
+    // Saldos al abrir el día: el flujo neto diario se mide contra ellos en el libro contable
+    const stateStartFunds = this.economy.stateFunds;
+    const corpStartFunds = this.economy.corporateFunds;
 
     // 1. SISTEMA DE CIUDADANOS AUTÓNOMOS, ESTUDIOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
     this.citizens.syncWithGrid(this.grid, this.population, this.education);
@@ -752,7 +753,10 @@ export class Simulation {
     }
 
     // 4. BUCLE DE ECONOMÍA ESPACIAL DE LOS CIUDADANOS (Fricción Manhattan, Remanente y Escalado Orgánico)
-    const citizenReport = this.citizens.processDailyTick(this.grid, this.economy);
+    const citizenReport = this.citizens.processDailyTick(this.grid, this.economy, {
+      utilityEfficiency: Math.min(this.powerRatio, this.waterRatio),
+      commercialCapacity: totalCommercialRevenue,
+    });
 
     // 5. ACTUALIZACIÓN DE EMPRESAS (RAMAS MASIVA VS CALIFICADA)
     const corpResult = this.corporations.update(
@@ -904,15 +908,12 @@ export class Simulation {
       }
     });
 
-    if (this.economy) {
+    {
       const ecoResult = this.economy.calculateTick({
         day: this.day,
         population: this.population,
-        housingCapacity: this.housingCapacity,
-        baseResTaxRate: 2.2,
         commercialJobs: this.commercialJobs,
         totalCommercialRevenue: totalCommercialRevenue,
-        baseCommRevPerJob: 44.0,
         privateActiveWorkers,
         privateCapacity,
         corpMassRevenue: (this.corporations && this.corporations.massHiring && this.corporations.massHiring.grossRevenue) || (corpResult.totalIndustrialRevenue * 0.55),
@@ -928,30 +929,20 @@ export class Simulation {
         publicUnstaffedUpkeep: publicUnstaffedUpkeep,
         privateBuildingUpkeep: privateBuildingUpkeep,
         policyExpenses: policyExpenses,
-        hydroRevenue: hydroRevenue,
         commercialMultiplier: commercialMultiplier,
         agroExportMultiplier: agroExportMultiplier,
         powerRatio: this.powerRatio,
         waterRatio: this.waterRatio,
         citizenReport: citizenReport,
-        maintenanceContractsCovered: maintenanceContractsCovered,
-        totalMaintenanceDemand: totalMaintenanceDemand,
         totalMaintenanceCapacity: totalMaintenanceCapacity,
-        periodicRoadResurfacingCost: periodicRoadResurfacingCost,
+        householdCitizens: Array.from(this.citizens.citizens.values()),
+        stateStartFunds,
+        corpStartFunds,
       });
 
       this.lastIncome = ecoResult.totalIncome;
       this.lastExpenses = ecoResult.totalExpenses;
       this.netCashflow = ecoResult.netCashflow;
-    } else {
-      const actualResTax = (this.population / Math.max(1, this.housingCapacity)) * baseResTax;
-      const finalCommTax = baseCommTax * commercialMultiplier;
-      const grossIncome = Math.round(actualResTax + finalCommTax + corpResult.totalIndustrialRevenue + hydroRevenue);
-      const grossExpenses = Math.round(baseUpkeep + policyExpenses);
-      this.lastIncome = grossIncome;
-      this.lastExpenses = grossExpenses;
-      this.netCashflow = grossIncome - grossExpenses;
-      this.funds += this.netCashflow;
     }
 
     // Fondo de contingencia
@@ -983,6 +974,9 @@ export class Simulation {
 
     this.grid.updateVehicles();
 
+    // Cierre contable del día
+    this.economy.ledger.closeDay(this.day, this.citizens.getTotalSavings());
+
     // 10. EVALUAR DILEMAS Y EVENTOS EJECUTIVOS DE ALCALDÍA
     const newDilemma = this.dilemmas.tick(this);
     if (newDilemma) {
@@ -1010,11 +1004,9 @@ export class Simulation {
       return { success: false, reason: 'No hay estructuras dañadas en el municipio' };
     }
 
-    if (this.funds < repairCost) {
-      return { success: false, reason: `Fondos insuficientes. Se requieren $${repairCost}` };
+    if (!this.economy.ledger.transfer('state', 'external', repairCost, 'Reparaciones de estructuras', { requireFunds: true })) {
+      return { success: false, reason: `Fondos insuficientes. Se requieren ${repairCost}` };
     }
-
-    this.funds -= repairCost;
     damagedTiles.forEach((d) => {
       this.grid.repairTile(d.gx, d.gy, 100);
     });

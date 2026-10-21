@@ -619,14 +619,29 @@ export class CitizenManager {
    * BUCLE CENTRAL DEL MOTOR ECONÓMICO Y ESPACIAL DE CIUDADANOS (TICK DIARIO)
    * Ejecuta con total precisión los Pasos 1, 2 y 3 del Documento Maestro.
    */
-  processDailyTick(grid, economy) {
+  getTotalSavings() {
+    let total = 0;
+    this.citizens.forEach((c) => { total += c.savings; });
+    return Math.round(total * 100) / 100;
+  }
+
+  processDailyTick(grid, economy, { utilityEfficiency = 1.0, commercialCapacity = 0 } = {}) {
     this.grid = grid;
     this.economy = economy;
+    const ledger = economy && economy.ledger;
+
+    // Los ciudadanos que llegaron o se fueron desde ayer traen o se llevan sus ahorros
+    if (ledger) ledger.reconcileHouseholds(this.getTotalSavings());
 
     let totalCitizenTaxes = 0;
     let totalCitizenRents = 0;
     let totalPublicHousingRent = 0;
     let totalFoodConsumed = 0;
+    let totalFoodPaid = 0;
+    let totalUtilityPaid = 0;
+    let totalPurchases = 0;
+    let privateResidents = 0;
+    const purchaseWishes = [];
     let totalPublicWages = 0;
     let totalPrivateWages = 0;
     let totalTransportSpent = 0;
@@ -703,37 +718,46 @@ export class CitizenManager {
       }
 
       const taxes = Math.round(salary * taxRate * 10) / 10;
+      // Tarifa municipal de agua y luz doméstica: se paga solo el servicio realmente recibido
+      const utilityFee = Math.round(1.20 * utilityEfficiency * 100) / 100;
 
       citizen.lastSalary = salary;
       citizen.lastRent = rent;
       citizen.lastFood = food;
       citizen.lastTaxes = taxes;
 
-      if (citizen.currentJob) {
-        if (citizen.currentJob.sector === 'public') {
-          totalPublicWages += salary;
-        } else {
-          totalPrivateWages += salary;
-        }
-      }
-
-      const utilityFee = 1.20; // Tarifa municipal de agua potable y electricidad doméstica
-
-      // Ecuación del Remanente Financiero
+      // Ecuación del Remanente Financiero (lo que debería quedarle tras sus gastos obligatorios)
       const remaining = salary - (rent + food + utilityFee + citizen.transportCost + taxes);
       citizen.lastRemaining = remaining;
-      citizen.savings = Math.max(0, citizen.savings + remaining);
 
-      // Flujos hacia el Alcalde y el Magnate
-      totalCitizenTaxes += taxes;
-      // El ciudadano paga alquiler y comida si dispone de ahorro
-      const rentPaid = citizen.savings >= rent ? rent : Math.max(0, citizen.savings);
-      if (resBuilding && resBuilding.defId === 'residential_social') {
-        totalPublicHousingRent += rentPaid;
-      } else {
-        totalCitizenRents += rentPaid;
+      // Flujos reales del libro contable: cobra su salario y paga lo que su ahorro le permite
+      if (citizen.currentJob) {
+        const isPublic = citizen.currentJob.sector === 'public';
+        const paid = ledger.transfer(isPublic ? 'state' : 'corporate', citizen, salary,
+          isPublic ? 'Salarios públicos' : 'Salarios privados');
+        if (isPublic) totalPublicWages += paid;
+        else totalPrivateWages += paid;
       }
+      totalCitizenTaxes += ledger.transfer(citizen, 'state', taxes, 'Impuesto sobre la renta');
+
+      const isSocialHousing = resBuilding && resBuilding.defId === 'residential_social';
+      if (isSocialHousing) {
+        totalPublicHousingRent += ledger.transfer(citizen, 'state', rent, 'Alquiler de vivienda social');
+      } else {
+        privateResidents++;
+        totalCitizenRents += ledger.transfer(citizen, 'corporate', rent, 'Alquileres de vivienda');
+      }
+      totalFoodPaid += ledger.transfer(citizen, 'corporate', food, 'Alimentación');
+      totalUtilityPaid += ledger.transfer(citizen, 'state', utilityFee, 'Tarifas domésticas de luz y agua');
+      // Combustible y desplazamientos se pagan a proveedores de fuera de la ciudad
+      ledger.transfer(citizen, 'external', citizen.transportCost, 'Combustible y transporte');
       totalFoodConsumed += food;
+
+      // Deseo de compra en comercios: parte del remanente y una fracción del ahorro por encima del colchón
+      const spend = (CONFIG.ECONOMY && CONFIG.ECONOMY.HOUSEHOLD_SPENDING) || {};
+      const wish = Math.max(0, remaining) * (spend.REMAINING_SHARE ?? 0.5)
+        + Math.max(0, citizen.savings - (spend.SAVINGS_BUFFER ?? 150)) * (spend.SAVINGS_SHARE ?? 0.01);
+      if (wish > 0) purchaseWishes.push([citizen, wish]);
 
       sumSavings += citizen.savings;
       sumRemaining += remaining;
@@ -769,6 +793,14 @@ export class CitizenManager {
         }
       }
     });
+
+    // Compras en comercios locales, limitadas por lo que los comercios pueden atender
+    const totalWish = purchaseWishes.reduce((s, [, w]) => s + w, 0);
+    const purchaseRatio = totalWish > 0 ? Math.min(1, commercialCapacity / totalWish) : 0;
+    for (const [citizen, wish] of purchaseWishes) {
+      totalPurchases += ledger.transfer(citizen, 'corporate', wish * purchaseRatio, 'Compras en comercios');
+    }
+    sumSavings = this.getTotalSavings();
 
     // =========================================================================
     // PASO 3: EVALUAR SALTO O CAÍDA DE NIVEL ORGÁNICA DE LOS EDIFICIOS
@@ -839,6 +871,10 @@ export class CitizenManager {
       totalCitizenRents: Math.round(totalCitizenRents),
       totalPublicHousingRent: Math.round(totalPublicHousingRent),
       totalFoodConsumed: Math.round(totalFoodConsumed),
+      totalFoodPaid: Math.round(totalFoodPaid),
+      totalUtilityPaid: Math.round(totalUtilityPaid),
+      totalPurchases: Math.round(totalPurchases),
+      privateResidents,
       totalPublicWages: Math.round(totalPublicWages),
       totalPrivateWages: Math.round(totalPrivateWages),
       totalTransportSpent: Math.round(totalTransportSpent),

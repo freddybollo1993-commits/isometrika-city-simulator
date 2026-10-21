@@ -904,6 +904,15 @@ export const CONFIG = {
     },
     PRICE_VOLATILITY: 0.06, // Volatilidad del mercado global
     IMPORT_SURCHARGE: 0.15, // Recargo del 15% en compras de emergencia
+    // Libro contable: parámetros de los flujos con origen y destino definidos
+    PUBLIC_STAFFED_UPKEEP_FACTOR: 0.35, // Fracción del mantenimiento nominal que pagan los edificios públicos con personal
+    REGIONAL_VISITOR_SHARE: 0.55, // Parte de la capacidad comercial no usada por vecinos que llenan visitantes de fuera
+    MAX_DAILY_PRICE_ADJUSTMENT: 0.03, // Tope diario del ajuste de precios sobre el ahorro disponible de los hogares
+    HOUSEHOLD_SPENDING: {
+      REMAINING_SHARE: 0.50, // Parte del remanente diario que cada vecino gasta en comercios
+      SAVINGS_SHARE: 0.01, // Parte del ahorro por encima del colchón que gasta cada día
+      SAVINGS_BUFFER: 150, // Colchón de ahorro que el vecino no toca para compras
+    },
     // Parámetros de la Curva de Laffer
     LAFFER: {
       OPTIMAL_MAX_RESIDENTIAL: 0.11, // Máximo antes de penalizar felicidad
