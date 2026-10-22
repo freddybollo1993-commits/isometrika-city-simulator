@@ -847,90 +847,112 @@ export class Simulation {
     this.unemployed = this.citizens.metrics.unemployedCount;
     this.unemploymentRate = this.citizens.metrics.unemploymentRate;
 
-    // 5. POLUCIÓN Y AMBIENTE
-    const rawPollution = corpResult.netIndustrialPollution + Math.round(supplierPollution) + Math.floor(this.population / 40);
+    // 5. POLUCIÓN Y AMBIENTE (con sus fuentes para la pantalla Ciudad)
+    const industrialPollution = corpResult.netIndustrialPollution;
+    const populationPollution = Math.floor(this.population / 40);
+    const rawPollution = industrialPollution + Math.round(supplierPollution) + populationPollution;
     const parkMitigation = Math.min(rawPollution * 0.5, parkHappinessBonus * 0.65);
     this.pollution = Math.max(2, Math.round(rawPollution - parkMitigation));
+    this.pollutionSources = {
+      industry: industrialPollution,
+      suppliers: Math.round(supplierPollution),
+      population: populationPollution,
+      parks: -Math.round(parkMitigation),
+      massGross: (this.corporations.massHiring && this.corporations.massHiring.pollutionGenerated) || 0,
+      techOffset: (this.corporations.techHiring && this.corporations.techHiring.pollutionReduced) || 0,
+    };
 
     // 6. DEMOGRAFÍA Y FELICIDAD CON IMPACTO DE ELECTRICIDAD, AGUA Y PRESIÓN FISCAL
+    // Cada factor queda registrado para explicar al jugador de dónde sale la felicidad
+    const happinessFactors = [];
     let calcHappiness = 55;
+    const addHappiness = (icon, label, value) => {
+      calcHappiness += value;
+      if (Math.abs(value) >= 0.05) happinessFactors.push({ icon, label, value: Math.round(value * 10) / 10 });
+    };
 
     // Empleo
     if (this.unemploymentRate > 25) {
-      calcHappiness -= (this.unemploymentRate - 25) * 0.8;
+      addHappiness('💼', 'Paro elevado', -(this.unemploymentRate - 25) * 0.8);
     } else {
-      calcHappiness += (25 - this.unemploymentRate) * 0.5;
+      addHappiness('💼', 'Empleo', (25 - this.unemploymentRate) * 0.5);
     }
 
     // Alimento y granjas
     if (this.population > 0 && this.foodCapacity < this.population) {
       const deficit = (this.population - this.foodCapacity) / this.population;
-      calcHappiness -= deficit * 20;
+      addHappiness('🌾', 'Falta de alimentos', -deficit * 20);
     } else if (this.foodCapacity >= this.population && this.population > 0) {
-      calcHappiness += 8; // Soberanía alimentaria
+      addHappiness('🌾', 'Soberanía alimentaria', 8);
     }
 
     // PENALIZACIÓN POR APAGÓN ELÉCTRICO Y ESCASEZ DE AGUA
     if (this.hasPowerOutage) {
-      const powerPenalty = (1.0 - this.powerRatio) * 28;
-      calcHappiness -= powerPenalty;
+      addHappiness('⚡', 'Apagones', -(1.0 - this.powerRatio) * 28);
     }
     if (this.hasWaterShortage) {
-      const waterPenalty = (1.0 - this.waterRatio) * 25;
-      calcHappiness -= waterPenalty;
+      addHappiness('💧', 'Cortes de agua', -(1.0 - this.waterRatio) * 25);
     }
 
     // Polución y parques
-    calcHappiness -= Math.min(35, this.pollution * 0.45);
-    calcHappiness += Math.min(28, parkHappinessBonus * 0.5);
-    calcHappiness += Math.min(15, this.education * 0.16);
+    addHappiness('🏭', 'Polución', -Math.min(35, this.pollution * 0.45));
+    addHappiness('🌳', 'Parques y ocio', Math.min(28, parkHappinessBonus * 0.5));
+    addHappiness('🎓', 'Educación', Math.min(15, this.education * 0.16));
 
     // Curva de Laffer: Modulador fiscal sobre la satisfacción de los habitantes
     if (this.economy) {
-      calcHappiness += this.economy.getLafferHappinessModifier();
+      addHappiness('🏛️', 'Impuesto ciudadano', this.economy.getLafferHappinessModifier());
 
       // Crisis Empresarial: Quiebras y despidos privados destruyen la moral ciudadana
       if (this.economy.isCorporateCrisis) {
-        calcHappiness -= 14;
+        addHappiness('💼', 'Crisis empresarial', -14);
       }
 
       // Bancarrota del Estado: Servicios públicos colapsados por falta de fondos municipales
       if (this.economy.isStateBankruptcy) {
-        calcHappiness -= 16;
+        addHappiness('💸', 'Bancarrota municipal', -16);
       }
     }
 
     // Impacto del Remanente Financiero y Bienestar de los Ciudadanos Autónomos
     if (citizenReport) {
       if (citizenReport.avgRemaining > 15) {
-        calcHappiness += 6; // Bonanza económica ciudadana
+        addHappiness('💰', 'Bonanza en los hogares', 6);
       } else if (citizenReport.avgRemaining < 0) {
-        calcHappiness -= 10; // Estrés financiero y endeudamiento
+        addHappiness('💸', 'Hogares endeudados', -10);
       }
     }
 
     if (damagedCount > 0) {
-      calcHappiness -= Math.min(30, damagedCount * 2.5);
+      addHappiness('🏚️', 'Edificios dañados', -Math.min(30, damagedCount * 2.5));
     }
 
-    calcHappiness += dilemmaMods.happinessMod;
+    addHappiness('📜', 'Eventos y dilemas', dilemmaMods.happinessMod);
     this.happiness = Math.max(5, Math.min(100, Math.round(calcHappiness)));
+    this.happinessBreakdown = { base: 55, factors: happinessFactors, raw: Math.round(calcHappiness) };
 
     // Migración demográfica
     // Suelo vital mínimo de habitantes garantizado para asegurar servicios básicos (luz, agua, policía, mercado)
     const minLifeFloor = Math.min(this.housingCapacity, 8);
+    const populationBefore = this.population;
+    let migrationStatus = 'full';
 
     if (this.population < this.housingCapacity) {
       if (this.happiness > 50) { // Crecimiento robusto con felicidad > 50%
         const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14 * dilemmaMods.immigrationMultiplier));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
+        migrationStatus = 'growing';
       } else if (this.happiness >= 35 && this.unemploymentRate < 25 && this.day % 2 === 0) {
         // Goteo de colonos pioneros: Si hay viviendas y empleo disponible, llegan familias pioneras (+1 hab cada 2 días)
         // Evita que la ciudad quede petrificada en un callejón sin salida con 40-49 habitantes
         this.population = Math.min(this.housingCapacity, this.population + 1);
+        migrationStatus = 'trickle';
       } else if (this.happiness < 20 && this.population > minLifeFloor) { // Margen de pérdida menor al 20%
         const departures = Math.max(1, Math.floor(this.population * 0.02)); // Los habitantes se van al 2% por cada tick
         this.population = Math.max(minLifeFloor, this.population - departures);
+        migrationStatus = 'exodus';
+      } else {
+        migrationStatus = this.happiness >= 35 && this.unemploymentRate < 25 ? 'trickle' : 'blocked';
       }
     } else if (this.population > this.housingCapacity) {
       this.population = Math.max(minLifeFloor, this.housingCapacity);
@@ -939,21 +961,29 @@ export class Simulation {
     if (this.housingCapacity > 0 && this.population < minLifeFloor) {
       this.population = minLifeFloor;
     }
+    this.migration = { status: migrationStatus, change: this.population - populationBefore };
 
-    // 7. SEGURIDAD CIUDADANA Y SALUD
+    // 7. SEGURIDAD CIUDADANA Y SALUD (con sus factores para la pantalla Ciudad)
+    const securityFactors = [];
     let calcSecurity = 50;
-    calcSecurity += Math.min(45, policeCoverageCount);
-    calcSecurity -= this.unemploymentRate * 0.5;
-    calcSecurity += Math.min(15, this.education * 0.18);
-    calcSecurity += Math.min(15, hospitalCoverage * 0.35);
-    calcSecurity += dilemmaMods.healthMod;
+    const addSecurity = (icon, label, value) => {
+      calcSecurity += value;
+      if (Math.abs(value) >= 0.05) securityFactors.push({ icon, label, value: Math.round(value * 10) / 10 });
+    };
+    addSecurity('👮', 'Cobertura policial', Math.min(45, policeCoverageCount));
+    addSecurity('💼', 'Paro', -this.unemploymentRate * 0.5);
+    addSecurity('🎓', 'Educación', Math.min(15, this.education * 0.18));
+    addSecurity('🏥', 'Hospitales', Math.min(15, hospitalCoverage * 0.35));
+    addSecurity('📜', 'Eventos y dilemas', dilemmaMods.healthMod);
 
     // Sin agua potable los hidrantes pierden presión y la seguridad decae
     if (this.hasWaterShortage) {
-      calcSecurity -= Math.round((1.0 - this.waterRatio) * 22);
+      addSecurity('💧', 'Hidrantes sin presión', -Math.round((1.0 - this.waterRatio) * 22));
     }
 
     this.security = Math.max(5, Math.min(100, Math.round(calcSecurity)));
+    this.securityBreakdown = { base: 50, factors: securityFactors };
+    this.serviceCoverage = { police: policeCoverageCount, hospital: hospitalCoverage, stations: policeStations.length };
 
     // 8. FINANZAS, FISCALIDAD Y COMERCIO GLOBAL
     let policyExpenses = 0;

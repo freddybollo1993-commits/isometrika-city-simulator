@@ -37,6 +37,7 @@ export class FullscreenHub {
     if (this.ui.financeHud) this.ui.financeHud.close();
     if (this.ui.managementHub && this.ui.managementHub !== this) this.ui.managementHub.close();
     if (this.ui.financeHub && this.ui.financeHub !== this) this.ui.financeHub.close();
+    if (this.ui.cityHub && this.ui.cityHub !== this) this.ui.cityHub.close();
 
     // Pausa mientras el jugador lee; al salir se recupera la velocidad que tenía
     const sim = this.game.simulation;

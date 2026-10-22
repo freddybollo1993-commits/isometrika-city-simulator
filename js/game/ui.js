@@ -10,6 +10,7 @@ import { Calendar } from './calendar.js';
 import { FinanceHUD } from './finance-hud.js';
 import { ManagementHub } from './management-hub.js';
 import { FinanceHub } from './finance-hub.js';
+import { CityHub } from './city-hub.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -60,6 +61,7 @@ export class UIManager {
     this.financeHud = new FinanceHUD(game, this);
     this.managementHub = new ManagementHub(game, this);
     this.financeHub = new FinanceHub(game, this);
+    this.cityHub = new CityHub(game, this);
     document.querySelectorAll('[data-open-finance-hub]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (this.game.audio) this.game.audio.playClick();
@@ -231,11 +233,15 @@ export class UIManager {
   }
 
   bindEvents() {
-    // 1. Botón único desplegable de estadísticas
+    // 1. Barra superior: cada cifra abre su sección en Finanzas o en Ciudad
     if (this.elBtnStatsDropdown) {
       this.elBtnStatsDropdown.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.toggleStatsDropdown();
+        const target = e.target.closest('[data-hub]');
+        const [hub, section] = (target ? target.dataset.hub : 'city:summary').split(':');
+        if (this.game.audio) this.game.audio.playClick();
+        if (hub === 'finance') this.financeHub.open(section);
+        else this.cityHub.open(section);
       });
     }
 
@@ -682,14 +688,11 @@ export class UIManager {
   // GESTIÓN DEL BOTÓN DESPLEGABLE CENTRALIZADO DE ESTADÍSTICAS
   // =========================================================================
 
+  // El antiguo desplegable de estadísticas se sustituye por la pantalla Ciudad
   toggleStatsDropdown() {
-    if (!this.elStatsDropdownMenu) return;
-    const isHidden = this.elStatsDropdownMenu.classList.contains('hidden');
-    if (isHidden) {
-      this.openStatsDropdown();
-    } else {
-      this.closeStatsDropdown();
-    }
+    if (!this.cityHub) return;
+    if (this.cityHub.isOpen) this.cityHub.close();
+    else this.cityHub.open('summary');
   }
 
   openStatsDropdown() {
