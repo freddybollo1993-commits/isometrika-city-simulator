@@ -40,7 +40,7 @@
 }
 
 /* Pantalla */
-#mgmt-hub {
+.fs-hub {
   position: fixed;
   inset: 0;
   z-index: 200; /* por encima del HUD, paneles rápidos (120) y modales (90) */
@@ -56,12 +56,12 @@
   transition: opacity 0.18s ease, transform 0.2s ease;
 }
 
-#mgmt-hub.open {
+.fs-hub.open {
   opacity: 1;
   transform: none;
 }
 
-#mgmt-hub::before {
+.fs-hub::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -183,9 +183,9 @@
   overflow: hidden;
 }
 
-.hub-sec-corp .hub-feat { background: linear-gradient(160deg, #f59e0b 0%, #92400e 55%, #2a1405 100%); }
-.hub-sec-science .hub-feat { background: linear-gradient(160deg, #a78bfa 0%, #5b21b6 55%, #1e1046 100%); }
-.hub-sec-risk .hub-feat { background: linear-gradient(160deg, #f87171 0%, #991b1b 55%, #2a0808 100%); }
+.hub-feat {
+  background: var(--feat, linear-gradient(160deg, #38bdf8 0%, #0369a1 55%, #071a2e 100%));
+}
 
 .hub-feat::before {
   content: '';
@@ -251,8 +251,16 @@
 
 .hub-meter i {
   flex: 1;
-  background: linear-gradient(90deg, #fbbf24, #ef4444);
+  background: linear-gradient(90deg, #4ade80, #22c55e);
   transform-origin: left;
+}
+
+.hub-meter.warm i {
+  background: linear-gradient(90deg, #fbbf24, #ef4444);
+}
+
+.hub-tip {
+  color: #fbbf24;
 }
 
 /* Tarjetas de la cuadrícula */
@@ -442,12 +450,19 @@
   align-items: center;
   justify-content: space-around;
   padding: 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: linear-gradient(#1e293b, #0b1220);
   border-top: 3px solid #020617;
 }
 
+.hub-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .hub-tab {
   position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -494,7 +509,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #mgmt-hub {
+  .fs-hub {
     transition: none;
   }
 }

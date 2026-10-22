@@ -9,6 +9,7 @@ import { CONFIG } from './config.js';
 import { Calendar } from './calendar.js';
 import { FinanceHUD } from './finance-hud.js';
 import { ManagementHub } from './management-hub.js';
+import { FinanceHub } from './finance-hub.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -58,6 +59,13 @@ export class UIManager {
     this.bindEvents();
     this.financeHud = new FinanceHUD(game, this);
     this.managementHub = new ManagementHub(game, this);
+    this.financeHub = new FinanceHub(game, this);
+    document.querySelectorAll('[data-open-finance-hub]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (this.game.audio) this.game.audio.playClick();
+        this.financeHub.open(btn.dataset.openFinanceHub);
+      });
+    });
     this.buildCarousel();
     this.updateFullscreenUI();
     this.updateAudioButtonsState();
@@ -1860,6 +1868,12 @@ export class UIManager {
   // =========================================================================
 
   openModal(modalId) {
+    // La antigua ventana de Finanzas se sustituye por la pantalla completa
+    if (modalId === 'economy' && this.financeHub) {
+      const tabMap = { public_works: 'works' };
+      this.financeHub.open(tabMap[this.currentEcoTab] || this.currentEcoTab || 'state');
+      return;
+    }
     this.closeModals();
     if (this.financeHud) this.financeHud.close();
     this.closeStatsDropdown();

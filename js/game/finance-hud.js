@@ -2,14 +2,11 @@
  * PANELES RÁPIDOS DE FINANZAS (columna izquierda)
  * - 🏛️ Tributos: desplegable pequeño con los 3 impuestos y botones −/+.
  * - 👷 Sueldos: desplegable con el salario base público y privado.
- * - 📊 Finanzas: cajón lateral con un carrusel de tarjetas de estados financieros;
- *   cada tarjeta abre el detalle completo en la ventana de Finanzas.
+ * (📊 Finanzas abre la pantalla completa de FinanceHub.)
  *
  * Un solo panel abierto a la vez. Se cierra tocando fuera, con × o con Escape.
  * Solo se anima transform y opacity; los eventos se delegan en el propio panel.
  */
-
-import { Calendar } from './calendar.js';
 
 const TAXES = [
   { key: 'residential', icon: '🏠', label: 'Impuesto ciudadano', hint: 'Pagan los vecinos', green: 6, yellow: 11, income: 'residentialTax' },
@@ -68,11 +65,9 @@ export class FinanceHUD {
     this.render();
 
     // Posición: a la derecha de la columna, alineado con el botón que lo abre
-    if (id !== 'finance') {
-      const r = anchor.getBoundingClientRect();
-      const maxTop = window.innerHeight - root.offsetHeight - 8;
-      root.style.top = `${Math.max(8, Math.min(r.top - 6, maxTop))}px`;
-    }
+    const r = anchor.getBoundingClientRect();
+    const maxTop = window.innerHeight - root.offsetHeight - 8;
+    root.style.top = `${Math.max(8, Math.min(r.top - 6, maxTop))}px`;
     requestAnimationFrame(() => root.classList.add('open'));
 
     document.addEventListener('pointerdown', this._onOutside, true);
@@ -102,13 +97,6 @@ export class FinanceHUD {
     if (!sim || !sim.economy || !this.root) return;
     if (this.openId === 'taxes') this.root.innerHTML = this._renderTaxes(sim);
     else if (this.openId === 'wages') this.root.innerHTML = this._renderWages(sim);
-    else if (this.openId === 'finance') {
-      const track = this.root.querySelector('.qp-carousel');
-      const scroll = track ? track.scrollLeft : 0;
-      this.root.innerHTML = this._renderFinance(sim);
-      const newTrack = this.root.querySelector('.qp-carousel');
-      if (newTrack) newTrack.scrollLeft = scroll;
-    }
   }
 
   _onClick(e) {
@@ -132,14 +120,6 @@ export class FinanceHUD {
       const delta = Number(btn.dataset.delta);
       if (btn.dataset.sector === 'public') cMgr.setPublicWage(cMgr.publicWageBase + delta);
       else cMgr.setPrivateWage(cMgr.privateWageBase + delta);
-    } else if (action === 'detail') {
-      this.close();
-      this.ui.currentEcoTab = btn.dataset.tab;
-      this.ui.openModal('economy');
-      return;
-    } else if (action === 'transfer') {
-      const res = eco.transferFunds(btn.dataset.type, 500);
-      this.ui.showToast(res.success ? res.message : `⚠️ ${res.reason}`);
     }
     this.ui.updateHUD(sim, this.game.research);
     this.render();
@@ -209,79 +189,5 @@ export class FinanceHUD {
         ${row('private', '💼', 'Sueldo privado', 'Empleados privados', cMgr.privateWageBase, `${m.privateWorkersCount || 0} empleados`)}
       </div>
       <div class="qp-foot">Poder adquisitivo: <strong class="${realWage < 98 ? 'qp-neg' : 'qp-pos'}">${realWage}%</strong> · Paro ${Math.round(sim.unemploymentRate || 0)}%</div>`;
-  }
-
-  _card(icon, title, tab, kpiLabel, kpiValue, kpiClass, rows, extra = '') {
-    return `
-      <article class="qp-card">
-        <header><span>${icon}</span><strong>${title}</strong></header>
-        <div class="qp-kpi"><small>${kpiLabel}</small><b class="${kpiClass || ''}">${kpiValue}</b></div>
-        <ul>${rows.map(([k, v, c]) => `<li><span>${k}</span><strong class="${c || ''}">${v}</strong></li>`).join('')}</ul>
-        ${extra}
-        <button class="qp-card-btn" data-action="detail" data-tab="${tab}">Ver detalle ›</button>
-      </article>`;
-  }
-
-  _renderFinance(sim) {
-    const eco = sim.economy;
-    const st = eco.stateBreakdown || {};
-    const cb = eco.corporateBreakdown || {};
-    const m = sim.citizens.metrics || {};
-    const region = sim.region;
-    const season = sim.season || Calendar.seasonForDay(sim.day);
-    const net = st.netCashflow || 0;
-    const profit = cb.netProfit || 0;
-    const tone = (v) => (v >= 0 ? 'qp-pos' : 'qp-neg');
-    const ledgerDay = eco.ledger && eco.ledger.lastDay;
-    const market = eco.supplyMarket;
-    const harmony = eco.harmonyIndex || 0;
-
-    const supplyRows = market
-      ? Object.values(market.items).map((it) => [`${it.icon} ${it.name}`, it.demand > 0 ? `${Math.round(it.localShare * 100)}% local` : '—', it.localShare >= 0.8 ? 'qp-pos' : it.localShare >= 0.4 ? 'qp-warn' : 'qp-neg'])
-      : [['Sin datos todavía', '—']];
-
-    const cards = [
-      this._card('🏛️', 'Estado', 'state', 'Tesoro público', money(eco.stateFunds), '', [
-        ['Flujo diario', `${signed(net)}/d`, tone(net)],
-        ['Ingresos', `+${money(st.income && st.income.total)}/d`, 'qp-pos'],
-        ['Gastos', `−${money(st.expenses && st.expenses.total)}/d`, 'qp-neg'],
-      ]),
-      this._card('💼', 'Empresa', 'corp', 'Capital privado', money(eco.corporateFunds), '', [
-        ['Beneficio', `${signed(profit)}/d`, tone(profit)],
-        ['Margen', `${cb.margin || 0}% (meta ${cb.targetMargin || 0}%)`],
-        ['Solvencia', cb.solvency || 'solvente', cb.solvency === 'crisis' ? 'qp-neg' : cb.solvency === 'ajustado' ? 'qp-warn' : 'qp-pos'],
-      ]),
-      this._card('👥', 'Ciudadanos', 'citizens', 'Ahorro medio', money(m.avgSavings), '', [
-        ['Remanente', `${(m.avgRemaining || 0) >= 0 ? '+' : ''}$${m.avgRemaining || 0}/d`, tone(m.avgRemaining || 0)],
-        ['Felicidad', `${m.avgHappiness || 0}%`],
-        ['Paro', `${Math.round(sim.unemploymentRate || 0)}%`, (sim.unemploymentRate || 0) > 12 ? 'qp-neg' : ''],
-      ]),
-      this._card('⚖️', 'Equilibrio', 'balance', 'Armonía Estado-Empresa', `${harmony}%`, harmony >= 75 ? 'qp-pos' : harmony >= 50 ? 'qp-warn' : 'qp-neg', [
-        ['Estado', net >= 0 ? 'Superávit' : 'Déficit', tone(net)],
-        ['Empresa', profit >= 0 ? 'Beneficio' : 'Pérdida', tone(profit)],
-      ], `<div class="qp-card-actions">
-          <button class="qp-mini" data-action="transfer" data-type="bailout">🏛️→💼 $500</button>
-          <button class="qp-mini" data-action="transfer" data-type="donation">💼→🏛️ $500</button>
-        </div>`),
-      this._card(season.icon, 'Coyuntura', 'outlook', `${season.name} · ${region.phase.name}`, `${region.annualInflation > 0 ? '+' : ''}${region.annualInflation}%`, region.annualInflation > 12 ? 'qp-neg' : '', [
-        ['Inflación anual', `${region.annualInflation}%`],
-        ['Precios', `${Math.round(region.priceIndex * 100)}`],
-        ['Ciclo', `${region.phase.icon} ${region.daysLeft(sim.day)} días`],
-      ]),
-      this._card('🏭', 'Suministros', 'supply', 'Compra local', market ? `${Math.round((market.logisticsUsed / Math.max(1, market.logisticsCapacity)) * 100)}% logística` : '—', '', supplyRows),
-      this._card('📒', 'Libro contable', 'ledger', 'Dinero de la ciudad', ledgerDay ? money(ledgerDay.balances.state + ledgerDay.balances.corporate + ledgerDay.balances.households) : '—', '', ledgerDay ? [
-        ['Entra de fuera', `+${money(ledgerDay.externalIn)}/d`, 'qp-pos'],
-        ['Sale hacia fuera', `−${money(ledgerDay.externalOut)}/d`, 'qp-neg'],
-      ] : [['Sin datos todavía', '—']]),
-      this._card('🏗️', 'Obras públicas', 'public_works', 'Margen para obras', `${signed(net)}/d`, tone(net), [
-        ['Viabilidad', 'Consulta antes de construir'],
-      ]),
-      this._card('📋', 'Auditoría', 'audit', 'Diagnóstico', sim.economy.isStateBankruptcy || eco.isCorporateCrisis ? 'Alerta' : 'Estable', sim.economy.isStateBankruptcy || eco.isCorporateCrisis ? 'qp-neg' : 'qp-pos', [
-        ['Revisión completa', 'Cuellos de botella'],
-      ]),
-    ].join('');
-
-    return `${this._header('📊', 'Finanzas', 'Desliza las tarjetas · toca para ver el detalle')}
-      <div class="qp-carousel">${cards}</div>`;
   }
 }
