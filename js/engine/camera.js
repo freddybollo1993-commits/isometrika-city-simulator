@@ -238,13 +238,11 @@ export class Camera {
   }
 
   centerOnGrid(gridSize = CONFIG.CANVAS.GRID_SIZE) {
-    const rect = this.canvas.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 3.4;
-
-    this.x = centerX;
-    this.y = centerY;
+    // Centra la casilla central del mapa (donde se funda la ciudad), no la esquina superior:
+    // en pantallas bajas (móvil horizontal, ~393 px) la esquina dejaba la ciudad fuera de la vista
     this.zoom = 1.0;
+    const mid = Math.floor(gridSize / 2);
+    this.panToGrid(mid, mid);
   }
 
   /**
