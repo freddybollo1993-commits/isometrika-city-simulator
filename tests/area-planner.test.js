@@ -64,6 +64,22 @@ test('las obras del Estado no se construyen por área', () => {
   }
 });
 
+test('una carretera que cruza el área se conserva y se construye a sus lados', () => {
+  const { sim, grid } = createCity();
+  sim.population = 120;
+  const rect = clearRect(grid, 8, 5);
+  const roadY = rect.gy0 + 2;
+  for (let x = rect.gx0; x <= rect.gx1; x++) grid.placeBuilding(x, roadY, 'road');
+  const plan = planArea({ grid, sim, buildingId: 'residential_low', rect, budget: 1e9 });
+
+  for (const it of plan.items) {
+    assert.ok(roadY < it.gy || roadY > it.gy + it.size - 1, `${it.id} en ${it.gx},${it.gy} pisa la carretera`);
+    assert.ok(grid.placeBuilding(it.gx, it.gy, it.id));
+  }
+  for (let x = rect.gx0; x <= rect.gx1; x++) assert.equal(grid.getTile(x, roadY).building.id, 'road');
+  assert.equal(plan.items.reduce((s, i) => s + i.size * i.size, 0), 8 * 4, 'llena las 4 filas libres');
+});
+
 test('el plan respeta casillas ocupadas y se puede colocar tal cual', () => {
   const { sim, grid } = createCity();
   sim.population = 120;

@@ -157,6 +157,8 @@ export class Renderer {
       ctx.save();
       for (let y = Math.min(gy0, gy1); y <= Math.max(gy0, gy1); y++) {
         for (let x = Math.min(gx0, gx1); x <= Math.max(gx0, gx1); x++) {
+          const t = grid.getTile(x, y);
+          if (t && t.building) continue; // carreteras y edificios existentes se quedan tal cual
           const iso = IsoMath.gridToIso(x, y);
           const ok = covered.has(`${x},${y}`);
           IsoMath.drawIsoDiamond(ctx, iso.x, iso.y, tw, th,
