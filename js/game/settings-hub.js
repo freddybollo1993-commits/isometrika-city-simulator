@@ -1,124 +1,134 @@
 /**
- * AJUSTES a pantalla completa (mismo esquema que Finanzas, Ciudad y Gestión).
- * Secciones: Juego (modo inteligente, sonido), Pantalla y Partida (guardar, copias, reinicio).
+ * AJUSTES (distribución minimalista de Ramen Mania)
+ * Barra superior con ◀ y título; a la izquierda los ajustes con interruptores SÍ / NO y a la
+ * derecha los botones de acción. Pausa el juego mientras está abierta.
  */
 
-import { FullscreenHub } from './fullscreen-hub.js';
 import { Preferences } from './preferences.js';
 
-export class SettingsHub extends FullscreenHub {
+export class SettingsHub {
   constructor(game, ui) {
-    super(game, ui, {
-      title: 'AJUSTES',
-      sections: [
-        { id: 'game', icon: '🎮', name: 'Juego', feat: 'linear-gradient(160deg, #34d399 0%, #047857 55%, #052e1f 100%)' },
-        { id: 'screen', icon: '📱', name: 'Pantalla', feat: 'linear-gradient(160deg, #60a5fa 0%, #1d4ed8 55%, #0b1440 100%)' },
-        { id: 'save', icon: '💾', name: 'Partida', feat: 'linear-gradient(160deg, #fbbf24 0%, #b45309 55%, #2a1405 100%)' },
-      ],
+    this.game = game;
+    this.ui = ui;
+    this.root = null;
+    this.resumeSpeed = null;
+    this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
+  }
+
+  get isOpen() {
+    return !!this.root;
+  }
+
+  open() {
+    if (this.root) return;
+    this.ui.closeModals();
+    if (this.ui.financeHud) this.ui.financeHud.close();
+    if (this.ui.catalog) this.ui.catalog.close();
+    this.ui.closeInspector();
+    [this.ui.financeHub, this.ui.cityHub, this.ui.managementHub].forEach((h) => h && h.close());
+
+    const sim = this.game.simulation;
+    this.resumeSpeed = sim.isPaused ? 0 : sim.speed;
+    this._setSpeed(0);
+
+    const root = document.createElement('div');
+    root.className = 'settings-screen';
+    root.setAttribute('role', 'dialog');
+    ['pointerdown', 'mousedown', 'touchstart', 'wheel'].forEach((evt) => {
+      root.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
+    });
+    root.addEventListener('click', (e) => this._onClick(e));
+    document.body.appendChild(root);
+    this.root = root;
+    this.render();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (this.root === root) root.classList.add('open');
+    }));
+    document.addEventListener('keydown', this._onKey);
+  }
+
+  close() {
+    if (!this.root) return;
+    document.removeEventListener('keydown', this._onKey);
+    const root = this.root;
+    this.root = null;
+    root.classList.remove('open');
+    setTimeout(() => root.remove(), 180);
+    this._setSpeed(this.resumeSpeed === null ? 1 : this.resumeSpeed);
+    this.ui.updateHUD(this.game.simulation, this.game.research);
+  }
+
+  _setSpeed(speed) {
+    this.game.setSpeed(speed);
+    document.querySelectorAll('[data-speed]').forEach((b) => {
+      b.classList.toggle('active', parseInt(b.dataset.speed, 10) === speed);
     });
   }
 
-  renderSection(s) {
-    if (s.id === 'game') return this._game(s);
-    if (s.id === 'screen') return this._screen(s);
-    return this._save(s);
+  _toggle(label, key, on) {
+    return `
+      <div class="st-row">
+        <div class="st-lab">${label}</div>
+        <div class="st-tg">
+          <button data-action="${key}" data-v="1" class="${on ? 'on' : ''}">SÍ</button>
+          <button data-action="${key}" data-v="0" class="${on ? '' : 'on no'}">NO</button>
+        </div>
+      </div>`;
   }
 
-  _toggle(on, action) {
-    return `<button class="hub-btn ${on ? 'is-on' : ''}" data-action="${action}">${on ? '✔ Activado' : 'Activar'}</button>`;
-  }
-
-  _game(s) {
+  render() {
+    if (!this.root) return;
     const smart = !!Preferences.get('smartDock');
-    const muted = !!(this.game.audio && this.game.audio.muted);
-    const sim = this.game.simulation;
-    const feat = this.feat(`Día ${sim.day}`, `${sim.season ? `${sim.season.icon} ${sim.season.name}` : ''}`, [
-      smart ? '💡 Modo inteligente activado' : '🛣️ Menú inferior simple',
-      muted ? '🔇 Sonido silenciado' : '🔊 Sonido activado',
-    ]);
-    const cards = [
-      this.card({
-        icon: '💡', title: 'Modo inteligente', sub: 'Botón Sugerido en el menú', color: smart ? '#16a34a' : '#475569', state: smart ? 'on' : '',
-        desc: 'Añade al menú inferior un botón que propone el edificio que más necesita tu ciudad: comida, luz, viviendas, empleo…',
-        footer: `<div class="hub-card-foot"><span></span>${this._toggle(smart, 'smart')}</div>`,
-      }),
-      this.card({
-        icon: muted ? '🔇' : '🔊', title: 'Sonido', sub: 'Efectos del juego', color: muted ? '#475569' : '#0369a1', state: muted ? '' : 'on',
-        desc: 'Efectos generados en tiempo real al construir, en alertas y en desastres.',
-        footer: `<div class="hub-card-foot"><span></span>${this._toggle(!muted, 'sound')}</div>`,
-      }),
-    ];
-    return this.section(s, feat, cards);
-  }
-
-  _screen(s) {
+    const sound = !(this.game.audio && this.game.audio.muted);
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
     const gpu = this.game.renderer && this.game.renderer.constructor.name === 'PixiRenderer';
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    const fs = !!document.fullscreenElement;
-    const feat = this.feat(gpu ? 'GPU' : 'Canvas', 'Motor de dibujo', [
-      gpu ? '⚡ PixiJS acelerado por la tarjeta gráfica' : '🖌️ Modo compatible (sin WebGL)',
-      `Resolución ×${dpr.toFixed(1)} · ${window.innerWidth}×${window.innerHeight}`,
-    ]);
-    const cards = [
-      this.card({
-        icon: '⛶', title: 'Pantalla completa', sub: 'Oculta la barra del navegador', color: '#1d4ed8', state: fs ? 'on' : '',
-        desc: 'Recomendado en el celular en horizontal.',
-        footer: `<div class="hub-card-foot"><span></span><button class="hub-btn ${fs ? 'is-on' : ''}" data-action="fullscreen">${fs ? '✔ Activa' : 'Activar'}</button></div>`,
-      }),
-      this.card({
-        icon: '🎯', title: 'Centrar la vista', sub: 'Vuelve al centro de la ciudad', color: '#0f766e',
-        desc: 'Útil si te alejaste del mapa al desplazarte o hacer zoom.',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="center">Centrar</button></div>',
-      }),
-    ];
-    return this.section(s, feat, cards);
+
+    this.root.innerHTML = `
+      <div class="st-top">
+        <button class="st-nav" data-action="close" aria-label="Volver">◀</button>
+        <h2>AJUSTES</h2>
+        <span class="st-nav-space"></span>
+      </div>
+      <div class="st-body">
+        <div class="st-col">
+          ${this._toggle('Modo inteligente', 'smart', smart)}
+          ${this._toggle('Sonido', 'sound', sound)}
+          ${this._toggle('Pantalla completa', 'fullscreen', full)}
+          <p class="st-note">Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
+        </div>
+        <div class="st-col st-actions">
+          <button class="st-btn" data-action="center">🎯 Centrar vista</button>
+          <button class="st-btn" data-action="save">💾 Guardar ahora</button>
+          <div class="st-pair">
+            <button class="st-btn" data-action="export">📤 Exportar</button>
+            <button class="st-btn" data-action="import">📥 Importar</button>
+          </div>
+          <button class="st-btn" data-action="title">🏠 Menú principal</button>
+          <button class="st-btn st-danger" data-action="reset">⚠️ Nueva ciudad</button>
+        </div>
+      </div>`;
   }
 
-  _save(s) {
-    const last = this.game.storage && this.game.storage.lastSavedAt;
-    const ago = last ? Math.max(0, Math.round((Date.now() - new Date(last).getTime()) / 1000)) : null;
-    const feat = this.feat('Autoguardado', 'Cada 30 segundos en este dispositivo', [
-      ago === null ? 'Aún no se ha guardado' : ago < 60 ? `Último guardado hace ${ago} s` : `Último guardado hace ${Math.round(ago / 60)} min`,
-      'Exporta una copia para pasarla a otro dispositivo',
-    ]);
-    const cards = [
-      this.card({
-        icon: '💾', title: 'Guardar ahora', sub: 'En este navegador', color: '#b45309',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="save">Guardar</button></div>',
-      }),
-      this.card({
-        icon: '📤', title: 'Exportar ciudad', sub: 'Archivo .json', color: '#0369a1',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="export">Exportar</button></div>',
-      }),
-      this.card({
-        icon: '📥', title: 'Importar ciudad', sub: 'Desde un archivo .json', color: '#0f766e',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="import">Importar</button></div>',
-      }),
-      this.card({
-        icon: '🏠', title: 'Menú principal', sub: 'Guarda y sale al inicio', color: '#334155',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="title">Salir</button></div>',
-      }),
-      this.card({
-        icon: '⚠️', title: 'Nueva ciudad', sub: 'Borra la ciudad actual', color: '#b91c1c',
-        footer: '<div class="hub-card-foot"><span></span><button class="hub-btn hub-btn-danger" data-action="reset">Reiniciar</button></div>',
-      }),
-    ];
-    return this.section(s, feat, cards);
-  }
-
-  onAction(action) {
+  _onClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
     const game = this.game;
     const ui = this.ui;
-    if (action === 'smart') {
-      Preferences.set('smartDock', !Preferences.get('smartDock'));
+    const action = btn.dataset.action;
+    const yes = btn.dataset.v === '1';
+    if (game.audio) game.audio.playClick();
+
+    if (action === 'close') {
+      this.close();
+    } else if (action === 'smart') {
+      Preferences.set('smartDock', yes);
       ui.updateSmartDock();
-      ui.showToast(Preferences.get('smartDock') ? '💡 Modo inteligente activado' : '🛣️ Menú inferior simple');
     } else if (action === 'sound') {
-      const muted = game.audio.toggleMute();
-      ui.showToast(muted ? '🔇 Sonido silenciado' : '🔊 Sonido activado');
+      if (yes === !!game.audio.muted) game.audio.toggleMute();
     } else if (action === 'fullscreen') {
-      ui.toggleFullscreen();
-      setTimeout(() => this.render(), 300);
+      const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (yes !== full) ui.toggleFullscreen();
+      setTimeout(() => this.render(), 350);
       return;
     } else if (action === 'center') {
       game.camera.centerOnGrid();
@@ -142,7 +152,6 @@ export class SettingsHub extends FullscreenHub {
         }, (err) => ui.showToast(`❌ Error: ${err.message}`));
       });
       input.click();
-      return;
     } else if (action === 'title') {
       game.storage.save();
       this.close();

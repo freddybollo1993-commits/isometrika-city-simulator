@@ -467,13 +467,6 @@
   background: rgba(127, 29, 29, 0.7);
 }
 
-/* Botón de peligro de las pantallas completas (Ajustes → Nueva ciudad) */
-.hub-btn.hub-btn-danger {
-  border-color: #fca5a5;
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  box-shadow: 0 2px 0 #7f1d1d;
-}
-
 @media (max-height: 420px) {
   .bc-track {
     min-height: 138px;
@@ -488,5 +481,191 @@
   .build-catalog,
   .building-card {
     transition: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Ajustes (distribución minimalista de Ramen Mania)
+   -------------------------------------------------------------------------- */
+.settings-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* sobre el HUD y la pantalla de inicio (100) */
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  background: radial-gradient(circle at 18% 0%, #1e3a5f 0%, #0f172a 55%, #070b14 100%);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.settings-screen.open {
+  opacity: 1;
+}
+
+.settings-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #fff 0 16%, transparent 17%);
+  background-size: 44px 44px;
+}
+
+.st-top {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 46px;
+  flex: none;
+  background: #020617;
+}
+
+.st-nav,
+.st-nav-space {
+  width: 66px;
+  flex: none;
+}
+
+.st-nav {
+  border: 0;
+  border-bottom: 4px solid #000;
+  border-radius: 0 0 16px 0;
+  background: #1e293b;
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.st-nav:active {
+  background: #334155;
+}
+
+.st-top h2 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  -webkit-text-stroke: 4px #000;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #000;
+}
+
+.st-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 40px;
+  align-content: center;
+  padding: 10px max(28px, env(safe-area-inset-right)) 10px max(28px, env(safe-area-inset-left));
+}
+
+.st-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.st-lab {
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
+}
+
+.st-tg {
+  display: flex;
+  border: 3px solid #020617;
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.st-tg button {
+  flex: 1;
+  height: 40px;
+  border: 0;
+  background: none;
+  color: #94a3b8;
+  font-size: 1.05rem;
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+.st-tg button.on {
+  color: #fff;
+  background: linear-gradient(#4ade80, #16a34a);
+}
+
+.st-tg button.on.no {
+  background: linear-gradient(#8a8f98, #545861);
+}
+
+.st-note {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.st-actions {
+  gap: 8px;
+}
+
+.st-pair {
+  display: flex;
+  gap: 8px;
+}
+
+.st-pair .st-btn {
+  flex: 1;
+}
+
+.st-btn {
+  min-height: 42px;
+  padding: 6px 12px;
+  border: 3px solid #020617;
+  border-bottom-width: 6px;
+  border-radius: 10px;
+  background: linear-gradient(#3b82f6, #1d4ed8);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+.st-btn:active {
+  transform: translateY(2px);
+  border-bottom-width: 4px;
+}
+
+.st-danger {
+  background: linear-gradient(#ef4444, #b91c1c);
+}
+
+@media (max-height: 360px) {
+  .st-top {
+    height: 40px;
+  }
+
+  .st-tg button,
+  .st-btn {
+    height: auto;
+    min-height: 36px;
   }
 }
