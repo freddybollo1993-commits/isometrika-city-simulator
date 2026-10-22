@@ -93,7 +93,8 @@ export function growCity(sim, grid, c, day) {
  * Jugador automático: traza una cuadrícula de calles y cada 3 días construye lo que
  * la ciudad pide (vivienda si está llena, empleo si hay paro, servicios cuando se permiten).
  */
-export function autoPlayer(sim, grid, c, { useSuppliers = true } = {}) {
+export function autoPlayer(sim, grid, c, { useSuppliers = true, maintain = true } = {}) {
+  if (maintain) maintainCity(sim, grid);
   if (sim.day === 2) {
     for (const gy of [c - 4, c + 4]) for (let gx = c - 8; gx <= c + 8; gx++) build(sim, grid, gx, gy, 'road');
     for (const gx of [c - 8, c + 8]) for (let gy = c - 4; gy <= c + 4; gy++) build(sim, grid, gx, gy, 'road');
@@ -101,13 +102,24 @@ export function autoPlayer(sim, grid, c, { useSuppliers = true } = {}) {
   if (sim.day % 3 !== 0) return;
 
   const wants = [];
+  // Lo esencial primero: comida, luz y agua
+  if (sim.foodCapacity < sim.population * 1.2) wants.push('farm_organic');
+  if (sim.powerRatio < 1 || sim.powerDemand > sim.powerSupply * 0.85) wants.push('utility_power_solar');
+  if (sim.waterRatio < 1 || sim.waterDemand > sim.waterSupply * 0.85) wants.push('utility_water_tower');
+  // Exigencias ciudadanas, solo si queda colchón de dinero (desde el centro hacia fuera)
+  if (sim.demands) {
+    for (const d of sim.demands.status) {
+      if (!d.problem) continue;
+      const id = d.buildings[0];
+      const def = CONFIG.BUILDINGS[id];
+      const funds = sim.getFundingType(def) === 'public' ? sim.economy.stateFunds : sim.economy.corporateFunds;
+      if (funds >= sim.getBuildingCost(def) + 1500) buildNearCenter(sim, grid, c, id);
+    }
+  }
   if (sim.population >= sim.housingCapacity - 2) wants.push('residential_low', 'residential_social', 'residential_high');
   if (sim.unemploymentRate > 8 || sim.population > sim.housingCapacity * 0.8) {
     wants.push('commercial_store', 'industrial_mass', 'commercial_market', 'commercial_gastronomy', 'industrial_tech', 'commercial_maintenance');
   }
-  if (sim.foodCapacity < sim.population * 1.2) wants.push('farm_organic');
-  if (sim.powerRatio < 1 || sim.powerDemand > sim.powerSupply * 0.85) wants.push('utility_power_solar');
-  if (sim.waterRatio < 1 || sim.waterDemand > sim.waterSupply * 0.85) wants.push('utility_water_tower');
   wants.push('service_police', 'service_fire', 'service_school', 'service_cityhall', 'transit_bus_terminal', 'service_hospital');
 
   // Cadena de suministro: construir proveedores locales cuando se importa mucho
@@ -124,6 +136,36 @@ export function autoPlayer(sim, grid, c, { useSuppliers = true } = {}) {
       for (let gx = c - 7; gx <= c + 7 && !placed; gx++) {
         if (grid.canBuild(gx, gy, id).allowed) placed = build(sim, grid, gx, gy, id);
       }
+    }
+  }
+}
+
+/** Construye en la primera casilla libre recorriendo anillos desde el centro. */
+function buildNearCenter(sim, grid, c, id) {
+  for (let r = 1; r <= 9; r++) {
+    for (let gy = c - r; gy <= c + r; gy++) {
+      for (let gx = c - r; gx <= c + r; gx++) {
+        if (Math.max(Math.abs(gx - c), Math.abs(gy - c)) !== r) continue;
+        if (grid.canBuild(gx, gy, id).allowed && build(sim, grid, gx, gy, id)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Mantenimiento como lo haría un jugador atento: preventivo al vencer el plazo y correctivo
+ * cuando el edificio se deteriora o lo clausuran.
+ */
+export function maintainCity(sim, grid) {
+  const m = sim.maintenance;
+  for (let gy = 0; gy < grid.size; gy++) {
+    for (let gx = 0; gx < grid.size; gx++) {
+      const b = grid.tiles[gy][gx].building;
+      if (!b || !b.isRoot) continue;
+      const cond = m.condition(b);
+      if ((b.closed || cond.wear >= 50) && cond.canCorrective) m.corrective(gx, gy);
+      else if (cond.canPreventive && cond.dueIn <= 1) m.preventive(gx, gy);
     }
   }
 }

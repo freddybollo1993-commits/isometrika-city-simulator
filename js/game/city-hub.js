@@ -5,6 +5,7 @@
  */
 
 import { FullscreenHub } from './fullscreen-hub.js';
+import { CONFIG } from './config.js';
 
 const toneOf = (good, warn) => (good ? 'pos' : warn ? '' : 'neg');
 const colorOf = { good: '#15803d', warn: '#a16207', danger: '#b91c1c' };
@@ -14,6 +15,7 @@ const MIGRATION_TEXT = {
   trickle: ['🟡 Llegan familias poco a poco', 'Sube la felicidad por encima del 50 % para crecer más rápido'],
   blocked: ['🔴 Inmigración bloqueada', 'Hace falta más felicidad o menos paro'],
   exodus: ['🔴 Los vecinos se marchan', 'Felicidad por debajo del 20 %'],
+  demands: ['🔴 Se marchan por exigencias sin atender', 'Revisa la sección Exigencias'],
   full: ['🏠 Viviendas llenas', 'Construye más casas para seguir creciendo'],
   stable: ['⚖️ Población estable', ''],
 };
@@ -24,6 +26,7 @@ export class CityHub extends FullscreenHub {
       title: 'CIUDAD',
       sections: [
         { id: 'summary', icon: '🏙️', name: 'Resumen', feat: 'linear-gradient(160deg, #60a5fa 0%, #1d4ed8 55%, #0b1440 100%)' },
+        { id: 'demands', icon: '📢', name: 'Exigencias', feat: 'linear-gradient(160deg, #f472b6 0%, #9d174d 55%, #2a0716 100%)' },
         { id: 'happiness', icon: '😊', name: 'Felicidad', feat: 'linear-gradient(160deg, #facc15 0%, #ca8a04 55%, #2a1d03 100%)' },
         { id: 'population', icon: '👥', name: 'Población', feat: 'linear-gradient(160deg, #34d399 0%, #047857 55%, #052e1f 100%)' },
         { id: 'jobs', icon: '💼', name: 'Empleo', feat: 'linear-gradient(160deg, #fb923c 0%, #c2410c 55%, #2c0f04 100%)' },
@@ -36,7 +39,7 @@ export class CityHub extends FullscreenHub {
 
   renderSection(s) {
     const fn = {
-      summary: this._summary, happiness: this._happiness, population: this._population, jobs: this._jobs,
+      summary: this._summary, demands: this._demands, happiness: this._happiness, population: this._population, jobs: this._jobs,
       safety: this._safety, services: this._services, environment: this._environment,
     }[s.id];
     return fn.call(this, s, this.game.simulation);
@@ -44,6 +47,50 @@ export class CityHub extends FullscreenHub {
 
   onAction(action, btn) {
     if (action === 'goto') this.goTo(btn.dataset.id);
+    else if (action === 'build') {
+      // Cierra la pantalla y deja el edificio listo para colocar
+      this.close();
+      this.ui.activateFocusTool(btn.dataset.id);
+    }
+  }
+
+  _demands(s, sim) {
+    const list = sim.demands.status || [];
+    const active = list.filter((d) => d.problem);
+    const overdue = active.filter((d) => d.overdue);
+    const urgent = active.filter((d) => !d.overdue).sort((a, b) => a.daysLeft - b.daysLeft)[0];
+    const grace = sim.difficulty.demandGrace;
+
+    const feat = this.feat(active.length ? `${active.length}` : '✅', active.length ? 'exigencias sin atender' : 'Todas las exigencias atendidas', [
+      overdue.length ? `🔴 ${overdue.length} vencidas: baja la felicidad y la gente se marcha` : `⏳ Tienes ${grace} días para atender cada exigencia nueva`,
+      urgent ? `Más urgente: ${urgent.icon} ${urgent.name} (${urgent.daysLeft} días)` : 'Cada servicio atiende a un número de vecinos según su nivel',
+    ]);
+
+    const problemText = {
+      missing: 'No hay ninguno',
+      coverage: 'Muchos vecinos lo tienen lejos',
+      overloaded: 'Saturado: amplíalo o construye otro',
+    };
+    const cards = list.map((d) => {
+      let chip = ['💤 Aún no lo piden', ''];
+      if (d.required && !d.problem) chip = ['✅ Atendida', 'pos'];
+      else if (d.overdue) chip = [`🔴 Vencida hace ${-d.daysLeft} d`, 'neg'];
+      else if (d.problem) chip = [`⏳ ${d.daysLeft} días`, 'warn'];
+      const def = CONFIG.BUILDINGS[d.buildings[0]];
+      return this.card({
+        icon: d.icon, title: d.name, sub: `Lo exigen desde ${d.threshold} hab`,
+        color: d.overdue ? '#b91c1c' : d.problem ? '#b45309' : d.required ? '#15803d' : '#475569',
+        chips: [chip],
+        desc: d.problem ? problemText[d.problem] : '',
+        rows: [
+          [`${d.providers} edif. · capacidad`, `${d.capacity}/${sim.population}`, d.capacity >= sim.population ? 'pos' : 'warn'],
+          ['Vecinos cubiertos', `${Math.round(Math.min(1, d.coverage) * 100)}%`, d.coverage >= 0.6 ? 'pos' : 'warn'],
+          ...d.overloaded.slice(0, 1).map((o) => [`⚠️ Saturado (N${o.level})`, `${o.served}/${o.cap}`, 'neg']),
+        ],
+        footer: `<div class="hub-card-foot"><span></span><button class="hub-btn" data-action="build" data-id="${d.buildings[0]}" title="${def ? def.name : ''}">Construir</button></div>`,
+      });
+    });
+    return this.section(s, feat, cards);
   }
 
   _count(id) {

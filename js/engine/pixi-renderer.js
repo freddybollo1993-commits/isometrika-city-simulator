@@ -205,7 +205,7 @@ export class PixiRenderer {
     const frame = animated ? Math.floor(this.animationTick / ANIM_STEP) % ANIM_FRAMES : 0;
     return [
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,
-      Math.round((building.damage || 0) / 5), building.suspended ? 1 : 0,
+      Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : 0,
       building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, frame,
     ].join('|');
   }
@@ -234,7 +234,7 @@ export class PixiRenderer {
     p.particles = { push: (q) => emitters.push({ x: q.x, y: q.y, color: q.color }) };
     Math.random = () => 0;
     try {
-      if (building.suspended) {
+      if (building.suspended || building.closed) {
         ctx.save();
         ctx.globalAlpha = 0.65;
         p.renderBuildingInstance(ctx, building, 0, 0);

@@ -39,6 +39,50 @@
   text-transform: uppercase;
 }
 
+.hub-access-inspection {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #bae6fd;
+}
+
+/* Contador de días para el inspector / misiones por reclamar */
+.hub-access-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+
+.hub-access-badge.alert {
+  background: #dc2626;
+}
+
+.hub-access-badge[hidden] {
+  display: none;
+}
+
+.insp-foot {
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.insp-foot .hub-btn {
+  min-width: 44px;
+  padding-inline: 8px;
+}
+
+.insp-cta {
+  margin-top: 10px;
+}
+
 /* Pantalla */
 .fs-hub {
   position: fixed;

@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { CONDITION_LABELS } from './maintenance.js';
 
 const CATEGORY_COLOR = {
   residential: '#ca8a04',
@@ -88,7 +89,10 @@ export class BuildingCard {
 
     // Etiquetas de estado
     const chips = [`<i>${isPublic ? '🏛️ Estado' : '💼 Empresa'}</i>`];
-    if (building.suspended) chips.push('<i class="warn">⏸ En ahorro</i>');
+    const maint = sim.maintenance;
+    const cond = maint.condition(building, def);
+    if (building.closed) chips.push(`<i class="neg">${building.closed.kind === 'permanent' ? '🚫 Clausura definitiva' : '🔒 Clausurado'}</i>`);
+    else if (building.suspended) chips.push('<i class="warn">⏸ En ahorro</i>');
     else chips.push('<i class="pos">▶ Operando</i>');
     if (building.damage > 0) chips.push(`<i class="neg">🏚️ Daño ${Math.round(building.damage)}%</i>`);
     if (def.category !== 'utility' && (ld.power || ld.water)) {
@@ -132,6 +136,13 @@ export class BuildingCard {
       if (ld.logisticsCapacity) tiles.push(this._tile('🚚', 'Logística', `${money(ld.logisticsCapacity)}/d`, 'pos'));
       if (ld.coverageCapacity) tiles.push(this._tile('🛠️', 'Mantiene', `${ld.coverageCapacity} edif.`, 'pos'));
       if (ld.radius) tiles.push(this._tile('📡', 'Radio', `${ld.radius} casillas`));
+      // Vecinos que atiende frente a su capacidad (si se satura, reparte menos felicidad)
+      if (building.serviceLoad) {
+        const { served, cap } = building.serviceLoad;
+        const over = served > cap;
+        tiles.push(this._tile('👥', 'Atiende', `${served}/${cap}`, over ? 'neg' : 'pos',
+          over ? `<span class="bk-sub">Saturado: ${level < 3 ? 'súbelo de nivel' : 'construye otro'}</span>` : ''));
+      }
       if (ld.researchPoints || ld.research) tiles.push(this._tile('🔬', 'Ciencia', `+${ld.researchPoints || ld.research} RP/d`, 'info'));
       if (building.supplyChainStatus && building.supplyChainStatus.status !== 'n/a') {
         const ok = building.supplyChainStatus.supplied;
@@ -140,13 +151,27 @@ export class BuildingCard {
     }
     tiles.push(this._tile('🧾', 'Mantenimiento', `−${money(upkeep)}/d`, 'neg'));
 
+    // Conservación: desgaste y plazo del preventivo (fiscalización)
+    const label = CONDITION_LABELS[cond.level];
+    tiles.push(this._tile('🔧', 'Desgaste', `${cond.wear}%`, cond.wear >= 50 ? 'neg' : cond.wear >= 25 ? 'warn' : 'pos',
+      `<span class="bk-bar"><span style="transform:scaleX(${cond.wear / 100})"></span></span>`));
+    let dueTxt = cond.dueIn < 0 ? `Vencido ${-cond.dueIn} d` : cond.dueIn === 0 ? 'Vence hoy' : `En ${cond.dueIn} d`;
+    if (building.closed) dueTxt = building.closed.kind === 'permanent' ? 'Solo demoler' : 'Requiere correctivo';
+    tiles.push(this._tile('🧰', 'Preventivo', dueTxt, cond.dueIn < 0 || building.closed ? 'neg' : cond.canPreventive ? 'warn' : ''));
+    tiles.push(this._tile(label.icon, 'Estado', label.name, label.tone, cond.old ? '<span class="bk-sub">Edificio antiguo</span>' : ''));
+
+    const costs = maint.costs(building, def);
+    const maintActions = building.closed && building.closed.kind === 'permanent' ? '' : `
+      <button class="bk-act" data-action="preventive" ${cond.canPreventive ? '' : 'disabled'} title="Mantenimiento preventivo">🧰 ${money(costs.preventive)}</button>
+      ${cond.canCorrective ? `<button class="bk-act bk-warn" data-action="corrective" title="Mantenimiento correctivo">🔧 ${money(costs.corrective)}</button>` : ''}`;
+
     // Acción de mejora
     let upgrade = '';
     if (def.category === 'residential') {
       upgrade = `<button class="bk-act" disabled>🌱 ${level < 3 ? 'Crece con el ahorro' : 'Nivel máximo'}</button>`;
     } else if (def.levels && level < 3) {
       const cost = sim.getBuildingCost(def, level + 1);
-      upgrade = `<button class="bk-act bk-primary" data-action="upgrade">⬆ Nivel ${level + 1} · ${money(cost)}</button>`;
+      upgrade = `<button class="bk-act bk-primary" data-action="upgrade" title="Subir a nivel ${level + 1}">⬆ N${level + 1} · ${money(cost)}</button>`;
     } else {
       upgrade = '<button class="bk-act" disabled>★ Nivel máximo</button>';
     }
@@ -163,8 +188,9 @@ export class BuildingCard {
       <p class="bk-desc">${def.description || ''}</p>
       <div class="bk-grid">${tiles.join('')}</div>
       <footer class="bk-actions">
-        ${upgrade}
-        <button class="bk-act" data-action="suspend" title="${building.suspended ? 'Reanudar' : 'Modo ahorro: sin luz ni agua, 10 % de mantenimiento'}">${building.suspended ? '▶' : '⏸'}</button>
+        ${building.closed ? '' : upgrade}
+        ${maintActions}
+        <button class="bk-act" data-action="suspend" ${building.closed ? 'disabled' : ''} title="${building.suspended ? 'Reanudar' : 'Modo ahorro: sin luz ni agua, 10 % de mantenimiento'}">${building.suspended ? '▶' : '⏸'}</button>
         ${canRotate ? '<button class="bk-act" data-action="rotate" title="Rotar">🔄</button>' : ''}
         <button class="bk-act bk-danger" data-action="demolish" title="Demoler">🚜</button>
       </footer>`;
@@ -180,6 +206,20 @@ export class BuildingCard {
     if (action === 'suspend') return this.game.toggleSuspendInspectedBuilding();
     if (action === 'rotate') return this.game.rotateInspectedBuilding();
     if (action === 'demolish') return this.game.demolishInspectedBuilding();
+    if (action === 'preventive' || action === 'corrective') {
+      const { gx, gy } = this.target;
+      const m = this.game.simulation.maintenance;
+      const res = action === 'preventive' ? m.preventive(gx, gy) : m.corrective(gx, gy);
+      if (res.ok) {
+        if (this.game.audio) this.game.audio.playBuild();
+        this.ui.showToast(`${action === 'preventive' ? '🧰 Preventivo' : '🔧 Correctivo'}: ${res.name} (−${money(res.cost)})${res.reopened ? ' · reabierto' : ''}`);
+        this.ui.updateHUD(this.game.simulation, this.game.research);
+      } else {
+        this.ui.showToast(`⚠️ ${res.reason}`);
+      }
+      this.render();
+      return undefined;
+    }
     if (action === 'wage') {
       const { building } = this.target;
       const def = CONFIG.BUILDINGS[building.id];

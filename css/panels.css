@@ -467,6 +467,26 @@
   background: rgba(127, 29, 29, 0.7);
 }
 
+/* Mantenimiento: con más botones la fila pasa a dos líneas */
+.bk-actions {
+  flex-wrap: wrap;
+}
+
+.bk-actions .bk-act {
+  white-space: nowrap;
+}
+
+.bk-warn {
+  border-color: rgba(251, 146, 60, 0.7);
+  background: rgba(124, 45, 18, 0.75);
+}
+
+.bk-sub {
+  display: block;
+  font-size: 0.6rem;
+  color: #fdba74;
+}
+
 @media (max-height: 420px) {
   .bc-track {
     min-height: 138px;

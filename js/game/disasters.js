@@ -54,7 +54,8 @@ export class DisasterSystem {
     // Con progreso y ciencia altos, se acumula hasta 3.5x más rápido.
     const pressureDelta =
       (100 / CONFIG.SIMULATION.BASE_DISASTER_INTERVAL_TICKS) *
-      (0.6 + cityProgress * 0.45 + researchLevel * 0.65 + pollutionFactor * 0.4);
+      (0.6 + cityProgress * 0.45 + researchLevel * 0.65 + pollutionFactor * 0.4) *
+      (simState.disasterMult || 1); // nivel de dificultad
 
     this.pressure += pressureDelta;
 

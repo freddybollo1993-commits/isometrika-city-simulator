@@ -277,7 +277,7 @@ export class Grid {
       for (let x = 0; x < this.size; x++) {
         const t = this.tiles[y][x];
         if (t && t.building && t.building.isRoot && (t.building.id === 'farm_organic' || t.building.id === 'industrial_agro')) {
-          if (t.building.suspended) continue;
+          if (t.building.suspended || t.building.closed) continue;
           const dist = Math.abs(gx - x) + Math.abs(gy - y);
           if (dist < minDist) {
             minDist = dist;
@@ -369,7 +369,7 @@ export class Grid {
       for (let x = 0; x < this.size; x++) {
         const t = this.tiles[y][x];
         if (t && t.building && t.building.isRoot && foodBuildingIds.includes(t.building.id)) {
-          if (t.building.suspended) continue;
+          if (t.building.suspended || t.building.closed) continue;
           const dist = Math.abs(gx - x) + Math.abs(gy - y);
           if (dist < minDist) {
             minDist = dist;
@@ -570,6 +570,9 @@ export class Grid {
     } else {
       requiredPop = Math.max(threshold.minPop || 0, existingCount * (threshold.popPerUnit || 10));
     }
+    // El nivel de dificultad sube o baja la población exigida
+    const densityMult = (this.simulation && this.simulation.difficulty && this.simulation.difficulty.density) || 1;
+    requiredPop = Math.round(requiredPop * densityMult);
 
     if (currentPop < requiredPop) {
       return {
@@ -604,6 +607,10 @@ export class Grid {
       size: bSize,
       isRoot: true,
       placedAt: Date.now(),
+      // Desgaste y mantenimiento (maintenance.js)
+      builtDay: this.simulation ? this.simulation.day : 1,
+      lastServiceDay: this.simulation ? this.simulation.day : 1,
+      wear: 0,
     };
     rootTile.deco = null;
 
@@ -681,6 +688,9 @@ export class Grid {
     b.level = nextLevel;
     b.health = 100;
     rootTile.damage = 0;
+    // La ampliación renueva el edificio (no su antigüedad)
+    b.wear = 0;
+    if (this.simulation) b.lastServiceDay = this.simulation.day;
 
     return {
       success: true,
@@ -724,6 +734,7 @@ export class Grid {
 
     if (rootTile && rootTile.building) {
       const b = rootTile.building;
+      if (b.closed) return null; // un clausurado solo se reabre con mantenimiento correctivo
       b.suspended = !b.suspended;
       return b.suspended;
     }

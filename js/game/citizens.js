@@ -120,6 +120,8 @@ export class CitizenManager {
 
         const def = CONFIG.BUILDINGS[tile.building.id];
         if (!def || def.category !== 'residential') continue;
+        // Una vivienda clausurada queda vacía: sus vecinos se marchan
+        if (tile.building.closed) continue;
 
         const bldgKey = `bldg_${gx}_${gy}`;
         currentResKeys.add(bldgKey);
@@ -155,6 +157,8 @@ export class CitizenManager {
         resObj.residents.forEach((cId) => {
           this.citizens.delete(cId);
         });
+        // Vaciar en el sitio: la vivienda clausurada sigue en el mapa con esta misma lista
+        resObj.residents.length = 0;
         this.residentialBuildings.delete(key);
       }
     }
@@ -279,7 +283,7 @@ export class CitizenManager {
         if (!def) continue;
 
         // Si el edificio está en modo ahorro / suspendido, no genera puestos de trabajo
-        if (tile.building.suspended) {
+        if (tile.building.suspended || tile.building.closed) {
           tile.building.assignedWorkers = 0;
           continue;
         }

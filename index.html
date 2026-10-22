@@ -102,6 +102,11 @@
       <span class="mgmt-emoji">📊</span>
       <span class="mgmt-tooltip">Finanzas</span>
     </button>
+    <button id="btn-open-missions" class="mgmt-icon-btn mgmt-btn-missions" title="Misiones" aria-label="Misiones">
+      <span class="mgmt-emoji">🎯</span>
+      <span class="mgmt-tooltip">Misiones</span>
+      <span id="missions-badge" class="hub-access-badge alert" hidden></span>
+    </button>
   </aside>
 
   <!-- COLUMNA DERECHA: ACCESO ÚNICO AL CENTRO DE GESTIÓN (pulgar derecho) -->
@@ -109,6 +114,11 @@
     <button class="hub-access-btn" data-open-hub="corp" title="Centro de Gestión: Empresas, Ciencia y Riesgos" aria-label="Centro de Gestión">
       <span class="hub-access-icons">🏭🔬🌋</span>
       <small>Gestión</small>
+    </button>
+    <button id="btn-open-inspection" class="hub-access-btn hub-access-inspection" title="Fiscalización: mantenimiento e inspector" aria-label="Fiscalización">
+      <span class="hub-access-icons">🕵️</span>
+      <small>Fiscaliz.</small>
+      <span id="inspection-badge" class="hub-access-badge" hidden></span>
     </button>
   </aside>
 
@@ -247,6 +257,9 @@
           <div class="title-btn-arrow">➔</div>
         </button>
       </div>
+
+      <!-- Elección de dificultad al fundar una ciudad (la rellena ui.js) -->
+      <div id="title-difficulty" class="title-menu-actions title-difficulty" hidden></div>
 
       <!-- Pie de Pantalla de Inicio -->
       <div class="title-footer">

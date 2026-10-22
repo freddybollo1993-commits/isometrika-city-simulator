@@ -10,6 +10,10 @@ import { EconomySystem } from './economy.js';
 import { CitizenManager } from './citizens.js';
 import { Calendar } from './calendar.js';
 import { RegionalEconomy } from './regional-economy.js';
+import { difficultyOf } from './difficulty.js';
+import { MaintenanceSystem, wearFactor } from './maintenance.js';
+import { DemandSystem, SERVICE_DEMANDS } from './demands.js';
+import { MissionSystem } from './missions.js';
 
 export class Simulation {
   constructor(grid, corporations, research, disasters, audio, economy = null) {
@@ -61,6 +65,26 @@ export class Simulation {
     this.policies = JSON.parse(JSON.stringify(CONFIG.POLICIES));
     this.speed = 1;
     this.isPaused = false;
+    this.difficultyId = 'normal';
+    this.maintenance = new MaintenanceSystem(this);
+    this.demands = new DemandSystem(this);
+    this.missions = new MissionSystem(this);
+  }
+
+  /** Parámetros del nivel de dificultad elegido al fundar la ciudad. */
+  get difficulty() {
+    return difficultyOf(this.difficultyId);
+  }
+
+  /**
+   * Fija la dificultad de una ciudad recién fundada y ajusta el capital inicial.
+   * Solo se usa al crear la partida, antes del primer día (es la apertura del libro contable).
+   */
+  setStartingDifficulty(id) {
+    this.difficultyId = difficultyOf(id).id;
+    const mult = this.difficulty.startFunds;
+    this.economy.stateFunds = Math.round(this.economy.stateFunds * mult);
+    this.economy.corporateFunds = Math.round(this.economy.corporateFunds * mult);
   }
 
   /**
@@ -93,7 +117,7 @@ export class Simulation {
 
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
-        const isSuspended = !!b.suspended;
+        const isSuspended = !!(b.suspended || b.closed);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         // Punto 1: Ocupación Real Proporcional (Gastos modulados al personal e inquilinos reales)
@@ -126,7 +150,7 @@ export class Simulation {
             totalWaterSupply += (levelData.waterSupply || 0) * opEff;
           }
         } else if (def.category === 'residential') {
-          totalHousing += (levelData.capacity || 0);
+          if (!b.closed) totalHousing += (levelData.capacity || 0);
         } else if (def.category === 'commercial') {
           if (!isSuspended) commercialJobs += (levelData.jobs || 0);
         } else if (def.category === 'farm') {
@@ -163,8 +187,8 @@ export class Simulation {
     if (!tile || !tile.building) return 1.0;
     const b = tile.building;
 
-    // Si el edificio está suspendido / modo ahorro, eficiencia = 0
-    if (b.suspended) {
+    // Si el edificio está suspendido / modo ahorro o clausurado, eficiencia = 0
+    if (b.suspended || b.closed) {
       b.operationalEfficiency = 0;
       return 0;
     }
@@ -176,7 +200,8 @@ export class Simulation {
 
     const level = b.level || 1;
     const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
-    const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100);
+    // Daño de catástrofes y desgaste por falta de mantenimiento
+    const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100) * wearFactor(b);
 
     // Modo pionero fundacional (menos de 30 hab): servicios automatizados básicos
     if (isPioneerPhase) {
@@ -496,6 +521,9 @@ export class Simulation {
 
     // Estación del año y fase del ciclo regional
     this.events = [];
+
+    // Desgaste diario y visita del inspector (las clausuras se aplican ya hoy)
+    this.events.push(...this.maintenance.daily(this.day));
     const previousSeason = this.season;
     this.season = Calendar.seasonForDay(this.day);
     if (previousSeason && previousSeason.id !== this.season.id) {
@@ -516,6 +544,9 @@ export class Simulation {
     // 1. SISTEMA DE CIUDADANOS AUTÓNOMOS, ESTUDIOS Y PUGNA SALARIAL (PÚBLICO VS PRIVADO)
     this.citizens.syncWithGrid(this.grid, this.population, this.education);
     this.citizens.matchJobs(this.grid, this.economy);
+
+    // Cobertura de servicios por vivienda y exigencias ciudadanas
+    this.events.push(...this.demands.update(this.day));
 
     const isPioneerPhase = this.population < 20;
 
@@ -539,6 +570,8 @@ export class Simulation {
     let hospitalCoverage = 0;
     let educationBoost = 0;
     let damagedCount = 0;
+    let wornBuildings = 0;
+    let badRoads = 0;
     let hydroRevenue = 0;
     let commercialMultiplier = 1.0;
     let agroExportMultiplier = 1.0;
@@ -571,11 +604,15 @@ export class Simulation {
 
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
-        const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100);
-        const isSuspended = !!b.suspended;
+        const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100) * wearFactor(b);
+        const isSuspended = !!(b.suspended || b.closed);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         if (tile.damage > 20) damagedCount++;
+        if ((b.wear || 0) >= 60) {
+          if (def.id === 'road') badRoads++;
+          else wornBuildings++;
+        }
 
         // Punto 1: Ocupación Real Proporcional (Gastos modulados al personal e inquilinos reales)
         let occRatio = 1.0;
@@ -600,7 +637,7 @@ export class Simulation {
 
         // Modo Ahorro / Suspendido: Reduce el mantenimiento físico al 10%
         // Ocupación Parcial: En la vida real, edificios con baja dotación espacian sus revisiones y pagan costos menores
-        const nominalUpkeep = (levelData.upkeep || def.upkeep || 0) * priceIndex;
+        const nominalUpkeep = (levelData.upkeep || def.upkeep || 0) * priceIndex * this.difficulty.upkeep;
         const bldgUpkeep = isSuspended 
           ? Math.max(1, Math.round(nominalUpkeep * 0.10)) 
           : Math.max(1, Math.round(nominalUpkeep * occRatio));
@@ -640,8 +677,8 @@ export class Simulation {
           }
         }
 
-        // VIVIENDAS
-        if (def.category === 'residential') {
+        // VIVIENDAS (una clausurada no aloja a nadie)
+        if (def.category === 'residential' && !b.closed) {
           const cap = (levelData.capacity || def.capacity || 4);
           totalHousing += cap;
           const taxRate = (levelData.tax || def.taxPerCapita || 2.2);
@@ -756,18 +793,14 @@ export class Simulation {
         }
         // NATURALEZA Y PLAZAS
         else if (def.category === 'nature') {
-          parkHappinessBonus += (levelData.happiness || 8);
+          // Un parque saturado (más vecinos que su capacidad) reparte menos felicidad
+          parkHappinessBonus += (levelData.happiness || 8) * (b.serviceLoad ? b.serviceLoad.ratio : 1);
           if (levelData.research) researchGen += levelData.research;
         }
       }
     }
 
-    // Punto 5: Mantenimiento Periódico de Carreteras (Bacheo cada 20 días)
-    let periodicRoadResurfacingCost = 0;
-    if (this.day % 20 === 0 && roadCount > 0) {
-      periodicRoadResurfacingCost = Math.round(roadCount * 1.20);
-      roadUpkeep += periodicRoadResurfacingCost;
-    }
+    // El bacheo de carreteras ya no es automático: se hace desde Fiscalización (maintenance.js)
 
     // Punto 4: Contratos de Mantenimiento Capturados por la Empresa Privada
     const totalMaintenanceDemand = baseUpkeep;
@@ -862,7 +895,8 @@ export class Simulation {
     // 6. DEMOGRAFÍA Y FELICIDAD CON IMPACTO DE ELECTRICIDAD, AGUA Y PRESIÓN FISCAL
     // Cada factor queda registrado para explicar al jugador de dónde sale la felicidad
     const happinessFactors = [];
-    let calcHappiness = 55;
+    const HAPPINESS_BASE = 47; // los servicios cercanos suman aparte (demands.js)
+    let calcHappiness = HAPPINESS_BASE;
     const addHappiness = (icon, label, value) => {
       calcHappiness += value;
       if (Math.abs(value) >= 0.05) happinessFactors.push({ icon, label, value: Math.round(value * 10) / 10 });
@@ -923,9 +957,23 @@ export class Simulation {
     if (damagedCount > 0) {
       addHappiness('🏚️', 'Edificios dañados', -Math.min(30, damagedCount * 2.5));
     }
+    // Servicios cercanos (menos si están saturados) y exigencias vencidas
+    for (const [id, value] of Object.entries(this.demands.happiness)) {
+      if (id !== 'leisure') addHappiness(SERVICE_DEMANDS[id].icon, SERVICE_DEMANDS[id].name, value);
+    }
+    const demandPenalty = this.demands.overduePenalty();
+    if (demandPenalty > 0) addHappiness('📢', 'Exigencias sin atender', -demandPenalty);
+
+    // Falta de mantenimiento: edificios deteriorados y calles con baches
+    if (wornBuildings > 0) {
+      addHappiness('🔧', 'Edificios deteriorados', -Math.min(15, wornBuildings * 1.5));
+    }
+    if (badRoads > 0 && roadCount > 0) {
+      addHappiness('🕳️', 'Calles en mal estado', -Math.min(10, (badRoads / roadCount) * 20));
+    }
 
     this.happiness = Math.max(5, Math.min(100, Math.round(calcHappiness)));
-    this.happinessBreakdown = { base: 55, factors: happinessFactors, raw: Math.round(calcHappiness) };
+    this.happinessBreakdown = { base: HAPPINESS_BASE, factors: happinessFactors, raw: Math.round(calcHappiness) };
 
     // Migración demográfica
     // Suelo vital mínimo de habitantes garantizado para asegurar servicios básicos (luz, agua, policía, mercado)
@@ -933,7 +981,14 @@ export class Simulation {
     const populationBefore = this.population;
     let migrationStatus = 'full';
 
-    if (this.population < this.housingCapacity) {
+    if (this.demands.overdueCount > 0 && this.population > minLifeFloor) {
+      // Exigencias vencidas: no llega nadie y cada dos días se marcha un 0,5 % por exigencia (máx. 1,5 %)
+      if (this.day % 2 === 0) {
+        const departures = Math.max(1, Math.floor(this.population * 0.005 * Math.min(3, this.demands.overdueCount)));
+        this.population = Math.max(minLifeFloor, this.population - departures);
+      }
+      migrationStatus = 'demands';
+    } else if (this.population < this.housingCapacity) {
       if (this.happiness > 50) { // Crecimiento robusto con felicidad > 50%
         const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
@@ -1053,6 +1108,7 @@ export class Simulation {
         pollution: this.pollution,
         happiness: this.happiness,
         seasonId: this.season.id,
+        disasterMult: this.difficulty.disasters,
       },
       this.research,
       this.audio,
@@ -1074,6 +1130,8 @@ export class Simulation {
       money: this.economy.stateFunds + this.economy.corporateFunds + householdsTotal,
       output: (corpRev.total || 0) + publicPay,
     });
+
+    this.events.push(...this.missions.update());
 
     if (this.events.length && typeof window !== 'undefined' && window.gameInstance && window.gameInstance.ui) {
       this.events.forEach((ev) => window.gameInstance.ui.showToast(ev.text));
@@ -1134,6 +1192,10 @@ export class Simulation {
       isPaused: this.isPaused,
       citizens: this.citizens ? this.citizens.serialize() : null,
       region: this.region.serialize(),
+      difficultyId: this.difficultyId,
+      maintenance: this.maintenance.serialize(),
+      demands: this.demands.serialize(),
+      missions: this.missions.serialize(),
     };
   }
 
@@ -1162,6 +1224,10 @@ export class Simulation {
     if (data.region) {
       this.region.deserialize(data.region);
     }
+    this.difficultyId = difficultyOf(data.difficultyId).id;
+    this.maintenance.deserialize(data.maintenance);
+    this.demands.deserialize(data.demands);
+    this.missions.deserialize(data.missions);
     this.season = Calendar.seasonForDay(this.day);
     this.citizens.priceIndex = this.region.priceIndex;
     this.citizens.wageIndex = this.region.wageIndex;

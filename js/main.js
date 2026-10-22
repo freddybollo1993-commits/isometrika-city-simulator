@@ -92,6 +92,8 @@ export class Game {
     } else {
       this.setupInitialTown();
     }
+    // Exigencias y cobertura ya visibles antes del primer día
+    this.simulation.demands.update(this.simulation.day);
 
     // Iniciar ciclo de autoguardado en LocalStorage
     this.storage.startAutosave(CONFIG.SIMULATION.AUTOSAVE_INTERVAL_MS, () => {
@@ -796,7 +798,9 @@ export class Game {
     }
   }
 
-  resetGame() {
+  resetGame(difficultyId = null) {
+    // "Nueva ciudad" desde Ajustes mantiene la dificultad de la partida actual
+    const difficulty = difficultyId || this.simulation.difficultyId;
     this.storage.clear();
     this.cancelGhostPlacement();
     this.ui.closeInspector();
@@ -820,7 +824,9 @@ export class Game {
     this.storage.research = this.research;
     this.storage.economy = this.simulation.economy;
 
+    this.simulation.setStartingDifficulty(difficulty);
     this.setupInitialTown();
+    this.simulation.demands.update(this.simulation.day);
     this.camera.centerOnGrid();
     if (this.ui) {
       this.ui.updateHUD(this.simulation, this.research);

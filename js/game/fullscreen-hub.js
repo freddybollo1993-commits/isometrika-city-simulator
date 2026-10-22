@@ -35,10 +35,7 @@ export class FullscreenHub {
     this.ui.closeModals();
     if (this.ui.closeStatsDropdown) this.ui.closeStatsDropdown();
     if (this.ui.financeHud) this.ui.financeHud.close();
-    if (this.ui.managementHub && this.ui.managementHub !== this) this.ui.managementHub.close();
-    if (this.ui.financeHub && this.ui.financeHub !== this) this.ui.financeHub.close();
-    if (this.ui.cityHub && this.ui.cityHub !== this) this.ui.cityHub.close();
-    if (this.ui.settingsHub && this.ui.settingsHub !== this) this.ui.settingsHub.close();
+    this.ui.allHubs().forEach((hub) => { if (hub !== this) hub.close(); });
     if (this.ui.catalog) this.ui.catalog.close();
     if (this.ui.buildingCard) this.ui.closeInspector();
 

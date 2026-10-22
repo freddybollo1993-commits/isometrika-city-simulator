@@ -15,6 +15,9 @@ import { SettingsHub } from './settings-hub.js';
 import { BuildCatalog } from './build-catalog.js';
 import { BuildingCard } from './building-card.js';
 import { Preferences } from './preferences.js';
+import { DIFFICULTIES } from './difficulty.js';
+import { InspectionHub } from './inspection-hub.js';
+import { MissionsHub } from './missions-hub.js';
 
 export const BUILDING_ICONS = {
   road: '🛣️',
@@ -69,6 +72,8 @@ export class UIManager {
     this.settingsHub = new SettingsHub(game, this);
     this.catalog = new BuildCatalog(game, this, BUILDING_ICONS);
     this.buildingCard = new BuildingCard(game, this, BUILDING_ICONS);
+    this.inspectionHub = new InspectionHub(game, this, BUILDING_ICONS);
+    this.missionsHub = new MissionsHub(game, this);
     this.updateSmartDock();
     document.querySelectorAll('[data-open-finance-hub]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -366,19 +371,39 @@ export class UIManager {
 
     if (this.elBtnMenuNew) {
       this.elBtnMenuNew.addEventListener('click', () => {
-        if (this.game.storage.hasSavedGame()) {
-          if (confirm('¿Deseas fundar una nueva ciudad? La partida guardada anterior será reemplazada.')) {
-            this.game.resetGame();
-            this.hideTitleScreen();
-            if (this.game.audio) this.game.audio.playBuild();
-            this.showToast('🌱 ¡Nueva ciudad fundada con éxito!');
-          }
-        } else {
-          this.game.resetGame();
-          this.hideTitleScreen();
-          if (this.game.audio) this.game.audio.playBuild();
-          this.showToast('🌱 ¡Nueva ciudad fundada con éxito!');
+        if (this.game.audio) this.game.audio.playClick();
+        this.showDifficultyPicker(true);
+      });
+    }
+
+    // Elección de dificultad: cada opción funda la ciudad con ese nivel
+    const picker = document.getElementById('title-difficulty');
+    if (picker) {
+      picker.innerHTML = `${Object.values(DIFFICULTIES).map((d) => `
+        <button class="title-btn title-btn-diff title-diff-${d.id}" data-difficulty="${d.id}">
+          <div class="title-btn-icon">${d.icon}</div>
+          <div class="title-btn-text">
+            <span class="t-btn-title">${d.name}</span>
+            <span class="t-btn-subtitle">${d.summary}</span>
+          </div>
+          <div class="title-btn-arrow">➔</div>
+        </button>`).join('')}
+        <button class="title-diff-back" data-difficulty="back">◀ Volver</button>`;
+      picker.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-difficulty]');
+        if (!btn) return;
+        if (btn.dataset.difficulty === 'back') {
+          this.showDifficultyPicker(false);
+          return;
         }
+        if (this.game.storage.hasSavedGame()
+          && !confirm('¿Deseas fundar una nueva ciudad? La partida guardada anterior será reemplazada.')) return;
+        const diff = DIFFICULTIES[btn.dataset.difficulty];
+        this.game.resetGame(diff.id);
+        this.showDifficultyPicker(false);
+        this.hideTitleScreen();
+        if (this.game.audio) this.game.audio.playBuild();
+        this.showToast(`🌱 ¡Nueva ciudad fundada! Dificultad: ${diff.icon} ${diff.name}`);
       });
     }
 
@@ -812,6 +837,8 @@ export class UIManager {
     if (this.catalog) this.catalog.refresh();
     if (this.buildingCard) this.buildingCard.refresh();
     this.updateSmartDock();
+    this.updateInspectionBadge();
+    if (this.updateMissionsBadge) this.updateMissionsBadge();
     const eco = sim.economy;
     const stateFunds = eco ? eco.stateFunds : sim.funds;
     const corpFunds = eco ? eco.corporateFunds : 0;
@@ -966,6 +993,15 @@ export class UIManager {
     this.game.simulation.isPaused = true;
   }
 
+  /** Cambia el menú de inicio por las tres dificultades (o lo restaura). */
+  showDifficultyPicker(show) {
+    const picker = document.getElementById('title-difficulty');
+    const actions = this.elTitleScreen && this.elTitleScreen.querySelector('.title-menu-actions:not(.title-difficulty)');
+    if (!picker || !actions) return;
+    picker.hidden = !show;
+    actions.hidden = show;
+  }
+
   hideTitleScreen() {
     if (!this.elTitleScreen) return;
     this.elTitleScreen.classList.add('hidden');
@@ -1030,9 +1066,41 @@ export class UIManager {
     }
   }
 
-  /** Hay una pantalla completa (Finanzas, Ciudad o Gestión) tapando el mapa. */
+  /** Días hasta el inspector sobre el botón Fiscalización (en rojo los últimos 3). */
+  updateInspectionBadge() {
+    const badge = document.getElementById('inspection-badge');
+    const sim = this.game.simulation;
+    if (!badge || !sim.maintenance) return;
+    const next = sim.maintenance.nextInspectionDay;
+    if (next === null) {
+      badge.hidden = true;
+      return;
+    }
+    const left = Math.max(0, next - sim.day);
+    badge.hidden = false;
+    badge.textContent = `${left}d`;
+    badge.classList.toggle('alert', left <= 3);
+  }
+
+  /** Premios de misiones por reclamar sobre el botón Misiones. */
+  updateMissionsBadge() {
+    const badge = document.getElementById('missions-badge');
+    const ms = this.game.simulation.missions;
+    if (!badge || !ms) return;
+    const n = ms.claimable().length;
+    badge.hidden = n === 0;
+    badge.textContent = `${n}`;
+  }
+
+  /** Todas las pantallas completas (solo puede haber una abierta a la vez). */
+  allHubs() {
+    return [this.financeHub, this.cityHub, this.managementHub, this.settingsHub, this.inspectionHub, this.missionsHub]
+      .filter(Boolean);
+  }
+
+  /** Hay una pantalla completa tapando el mapa. */
   isFullscreenOpen() {
-    return [this.financeHub, this.cityHub, this.managementHub, this.settingsHub].some((hub) => hub && hub.isOpen);
+    return this.allHubs().some((hub) => hub.isOpen);
   }
 
   closeModals() {

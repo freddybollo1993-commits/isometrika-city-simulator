@@ -25,7 +25,7 @@ export class SettingsHub {
     if (this.ui.financeHud) this.ui.financeHud.close();
     if (this.ui.catalog) this.ui.catalog.close();
     this.ui.closeInspector();
-    [this.ui.financeHub, this.ui.cityHub, this.ui.managementHub].forEach((h) => h && h.close());
+    this.ui.allHubs().forEach((h) => { if (h !== this) h.close(); });
 
     const sim = this.game.simulation;
     this.resumeSpeed = sim.isPaused ? 0 : sim.speed;
@@ -94,7 +94,7 @@ export class SettingsHub {
           ${this._toggle('Modo inteligente', 'smart', smart)}
           ${this._toggle('Sonido', 'sound', sound)}
           ${this._toggle('Pantalla completa', 'fullscreen', full)}
-          <p class="st-note">Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
+          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
         </div>
         <div class="st-col st-actions">
           <button class="st-btn" data-action="center">🎯 Centrar vista</button>

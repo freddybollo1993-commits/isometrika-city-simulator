@@ -31,6 +31,11 @@
   border-color: rgba(16, 185, 129, 0.4);
 }
 
+.mgmt-btn-missions {
+  position: relative;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
 .mgmt-icon-btn.is-open {
   border-color: #fbbf24;
   box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45), 0 4px 14px rgba(0, 0, 0, 0.4);

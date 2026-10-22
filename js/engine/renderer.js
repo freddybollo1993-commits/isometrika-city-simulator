@@ -59,7 +59,7 @@ export class Renderer {
 
         // Si hay edificio y es celda raíz, dibujarlo
         if (tile.building && tile.building.isRoot) {
-          if (tile.building.suspended) {
+          if (tile.building.suspended || tile.building.closed) {
             ctx.save();
             ctx.globalAlpha = 0.65;
             this.renderBuildingInstance(ctx, tile.building, gx, gy);
