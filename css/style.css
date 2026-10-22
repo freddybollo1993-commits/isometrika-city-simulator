@@ -850,6 +850,24 @@ html, body {
   font-weight: 700;
 }
 
+.focus-tool-limit {
+  font-size: 0.66rem;
+  color: #fcd34d;
+  font-weight: 700;
+}
+
+/* Construcción por área: textos en una línea cada uno */
+.hud-focus-bar.focus-area .focus-tool-info {
+  min-width: 230px;
+  max-width: 300px;
+}
+
+.hud-focus-bar.focus-area .focus-tool-info > * {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hud-focus-bar.focus-demolish .focus-tool-cost {
   color: #fca5a5;
 }

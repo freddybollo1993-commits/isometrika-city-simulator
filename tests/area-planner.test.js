@@ -29,6 +29,8 @@ test('área de vivienda: prioriza el edificio más grande si la población y el 
 
   assert.equal(plan.counts.residential_high, 3);
   assert.equal(plan.counts.residential_low, 4); // los 4 huecos restantes
+  assert.equal(plan.limits[0].requiredPop, 150, 'el 4º edificio alto pide 150 hab');
+  assert.equal(plan.limits[0].built, 3);
   assert.ok(!plan.counts.residential_social, 'la vivienda social es del Estado y no entra en el área');
   assert.equal(plan.items.reduce((s, i) => s + i.size * i.size, 0), 16, 'cubre todo el área');
 });
@@ -41,6 +43,8 @@ test('área de vivienda: sin población suficiente solo planifica casas', () => 
   assert.deepEqual(Object.keys(plan.counts), ['residential_low']);
   assert.equal(plan.counts.residential_low, 16);
   assert.ok(plan.skipped.density > 0);
+  // Explica qué edificio grande quedó fuera y cuánta población pide
+  assert.deepEqual(plan.limits[0], { id: 'residential_high', requiredPop: 35, population: 10, built: 0, maxReached: false });
 });
 
 test('el presupuesto limita el plan y el coste total no lo supera', () => {

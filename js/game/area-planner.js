@@ -53,7 +53,8 @@ export function isAreaBuildable(def, sim) {
  */
 export function planArea({ grid, sim, buildingId, rect, budget = null }) {
   const chosen = CONFIG.BUILDINGS[buildingId];
-  const result = { items: [], totalCost: 0, capacity: 0, counts: {}, skipped: { money: 0, density: 0 }, area: 0 };
+  // limits: por cada edificio que la población no permitió (de mayor a menor), lo que pide
+  const result = { items: [], totalCost: 0, capacity: 0, counts: {}, skipped: { money: 0, density: 0 }, limits: [], area: 0 };
   if (!isAreaBuildable(chosen, sim)) return result;
 
   const x0 = Math.max(0, Math.min(rect.gx0, rect.gx1));
@@ -93,9 +94,15 @@ export function planArea({ grid, sim, buildingId, rect, budget = null }) {
         // Población mínima contando los edificios de este tipo ya planificados
         if (th) {
           const n = existing + (result.counts[def.id] || 0);
-          if (th.maxTotal && n >= th.maxTotal) { result.skipped.density++; continue; }
+          const maxReached = !!(th.maxTotal && n >= th.maxTotal);
           const required = n === 0 ? (th.minPop || 0) : Math.max(th.minPop || 0, n * (th.popPerUnit || 10));
-          if (population < required) { result.skipped.density++; continue; }
+          if (maxReached || population < required) {
+            result.skipped.density++;
+            if (!result.limits.some((l) => l.id === def.id)) {
+              result.limits.push({ id: def.id, requiredPop: required, population, built: result.counts[def.id] || 0, maxReached });
+            }
+            continue;
+          }
         }
         if (cost > money) { result.skipped.money++; continue; }
 

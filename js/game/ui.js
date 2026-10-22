@@ -699,6 +699,9 @@ export class UIManager {
     const def = CONFIG.BUILDINGS[id];
     if (!def || !this.elFocusToolName || !this.elFocusToolCost) return;
     if (this.elHudFocusBar) this.elHudFocusBar.classList.toggle('focus-area', !!plan);
+    if (!plan) this._setFocusLimit('');
+    // Las flechas de ajuste mueven un solo edificio: en modo área sobran y tapan la barra
+    if (this.elGhostManipulator && this.game.ghostState.active) this.elGhostManipulator.classList.toggle('hidden', !!plan);
     if (this.elGhostConfirmText) {
       this.elGhostConfirmText.textContent = plan
         ? `Construir ${plan.items.length} · ${Math.round(plan.totalCost).toLocaleString()}`
@@ -715,12 +718,29 @@ export class UIManager {
     const parts = Object.entries(plan.counts).map(([bid, n]) => `${n}× ${BUILDING_ICONS[bid] || ''} ${CONFIG.BUILDINGS[bid].name}`);
     this.elFocusToolName.textContent = parts.length ? parts.join(' · ') : 'Área sin edificios posibles';
     const gives = def.category === 'residential' ? `+${plan.capacity} plazas` : `${plan.items.length} edificios`;
-    let note = '';
-    if (plan.skipped.money) note = ' · capital insuficiente para más';
-    else if (plan.skipped.density) note = plan.items.length ? ' · más requiere población' : ' · falta población';
     this.elFocusToolCost.textContent = plan.items.length
-      ? `Total $${Math.round(plan.totalCost).toLocaleString()} · ${gives}${note}`
-      : `Marca casillas libres${note}`;
+      ? `Total $${Math.round(plan.totalCost).toLocaleString()} · ${gives}`
+      : 'Marca casillas libres';
+
+    // Motivo concreto: el edificio más grande que la población no permitió y cuánta le falta
+    let note = '';
+    const limit = plan.limits && plan.limits[0];
+    if (limit) {
+      const name = CONFIG.BUILDINGS[limit.id].name;
+      note = limit.maxReached
+        ? `🔒 ${name}: máximo alcanzado`
+        : `🔒 ${name}${limit.built ? ` #${limit.built + 1}` : ''}: requiere ${limit.requiredPop} hab (tienes ${limit.population})`;
+    } else if (plan.skipped.money) {
+      note = '💸 Capital insuficiente para más';
+    }
+    this._setFocusLimit(note);
+  }
+
+  _setFocusLimit(text) {
+    const el = document.getElementById('focus-tool-limit');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = !text;
   }
 
   clearFocusMode() {
