@@ -17,9 +17,13 @@ import { Simulation } from './game/simulation.js';
 import { AudioManager } from './game/audio.js';
 import { StorageManager } from './game/storage.js';
 import { UIManager } from './game/ui.js';
+import { planArea, isAreaBuildable } from './game/area-planner.js';
 
 // Densidad de píxeles máxima del lienzo (ver viewportSize)
 const MAX_RENDER_DPR = 1.5;
+// Pulsación larga sobre el fantasma para pasar a construcción por área
+const AREA_PRESS_MS = 450;
+const AREA_PRESS_SLOP_PX = 10;
 
 function webglSupported() {
   try {
@@ -45,9 +49,14 @@ export class Game {
       gx: Math.floor(CONFIG.CANVAS.GRID_SIZE / 2),
       gy: Math.floor(CONFIG.CANVAS.GRID_SIZE / 2),
       rotation: 0, // 0: SE, 1: SW, 2: NW, 3: NE
+      area: null, // { gx0, gy0, gx1, gy1 } en construcción por área
+      plan: null, // resultado de planArea
     };
     this.isDraggingGhost = false;
     this.ghostDragOffset = { gx: 0, gy: 0 };
+    this.ghostPress = null; // { x, y, timer } mientras se mantiene pulsado el fantasma
+    this.isDraggingArea = false;
+    this.suppressNextClick = false;
 
     // Inicializar subsistemas
     this.audio = new AudioManager();
@@ -243,6 +252,7 @@ export class Game {
           gx: g.gx - this.ghostState.gx,
           gy: g.gy - this.ghostState.gy,
         };
+        this.startAreaPress(clientX, clientY);
         return false; // Intercepta el toque: arrastra el fantasma en vez de la cámara
       }
 
@@ -261,6 +271,19 @@ export class Game {
         this.hoverTile = null;
       }
 
+      // Construcción por área: el dedo marca la esquina opuesta del rectángulo
+      if (this.isDraggingArea && this.ghostState.area) {
+        const max = this.grid.size - 1;
+        const gx1 = Math.max(0, Math.min(max, Math.floor(gridCoords.gx)));
+        const gy1 = Math.max(0, Math.min(max, Math.floor(gridCoords.gy)));
+        if (gx1 !== this.ghostState.area.gx1 || gy1 !== this.ghostState.area.gy1) {
+          this.ghostState.area.gx1 = gx1;
+          this.ghostState.area.gy1 = gy1;
+          this.replanArea();
+        }
+        return;
+      }
+
       // Si se está arrastrando el fantasma directamente sobre el canvas
       if (this.isDraggingGhost && this.ghostState.active && this.ghostState.buildingId) {
         const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
@@ -276,29 +299,36 @@ export class Game {
     };
 
     this.canvas.addEventListener('mousemove', (e) => {
+      this.checkAreaPressMove(e.clientX, e.clientY);
       updateHoverTile(e.clientX, e.clientY);
     });
 
-    window.addEventListener('mouseup', () => {
-      this.isDraggingGhost = false;
-    });
+    window.addEventListener('mouseup', () => this.endGhostPointer());
 
     this.canvas.addEventListener(
       'touchmove',
       (e) => {
         if (e.touches.length === 1) {
+          this.checkAreaPressMove(e.touches[0].clientX, e.touches[0].clientY);
           updateHoverTile(e.touches[0].clientX, e.touches[0].clientY);
+        } else {
+          this.cancelAreaPress();
         }
       },
       { passive: true }
     );
 
-    window.addEventListener('touchend', () => {
-      this.isDraggingGhost = false;
-    });
+    window.addEventListener('touchend', () => this.endGhostPointer());
+
+    // La pulsación larga no debe abrir el menú contextual del navegador
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // Clic / Toque sobre el canvas
     this.canvas.addEventListener('click', (e) => {
+      if (this.suppressNextClick) {
+        this.suppressNextClick = false;
+        return;
+      }
       if (this.camera.wasDragging || this.camera.isDragging) {
         this.camera.wasDragging = false;
         return;
@@ -330,6 +360,7 @@ export class Game {
         const bSize = def ? (def.size || 1) : 1;
         const maxG = this.grid.size - bSize;
 
+        if (this.ghostState.area) this.clearArea();
         this.ghostState.gx = Math.max(0, Math.min(maxG, gx));
         this.ghostState.gy = Math.max(0, Math.min(maxG, gy));
         this.audio.playClick();
@@ -497,8 +528,107 @@ export class Game {
     this.audio.playClick();
   }
 
+  // =========================================================================
+  // CONSTRUCCIÓN POR ÁREA (pulsación larga sobre el fantasma y arrastre)
+  // =========================================================================
+
+  startAreaPress(clientX, clientY) {
+    this.cancelAreaPress();
+    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+    if (!isAreaBuildable(def, this.simulation)) return; // las obras del Estado van una a una
+    const timer = setTimeout(() => this.beginAreaSelection(), AREA_PRESS_MS);
+    this.ghostPress = { x: clientX, y: clientY, timer };
+  }
+
+  /** Si el dedo se mueve antes de tiempo, es un arrastre normal del fantasma. */
+  checkAreaPressMove(clientX, clientY) {
+    if (!this.ghostPress) return;
+    if (Math.hypot(clientX - this.ghostPress.x, clientY - this.ghostPress.y) > AREA_PRESS_SLOP_PX) {
+      this.cancelAreaPress();
+    }
+  }
+
+  cancelAreaPress() {
+    if (this.ghostPress) clearTimeout(this.ghostPress.timer);
+    this.ghostPress = null;
+  }
+
+  beginAreaSelection() {
+    this.ghostPress = null;
+    if (!this.isDraggingGhost || !this.ghostState.active) return;
+    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+    const size = def.size || 1;
+    const { gx, gy } = this.ghostState;
+    this.isDraggingGhost = false;
+    this.isDraggingArea = true;
+    this.ghostState.area = { gx0: gx, gy0: gy, gx1: gx + size - 1, gy1: gy + size - 1 };
+    this.replanArea();
+    if (navigator.vibrate) navigator.vibrate(25);
+    this.audio.playClick();
+    this.ui.showToast('📐 Arrastra para marcar el área a construir');
+  }
+
+  replanArea() {
+    const { area, buildingId } = this.ghostState;
+    if (!area) return;
+    this.ghostState.plan = planArea({ grid: this.grid, sim: this.simulation, buildingId, rect: area });
+    this.ui.showAreaPlan(this.ghostState.plan);
+  }
+
+  /** Fin del toque: suelta el fantasma o deja el área marcada para confirmar. */
+  endGhostPointer() {
+    this.cancelAreaPress();
+    this.isDraggingGhost = false;
+    if (this.isDraggingArea) {
+      this.isDraggingArea = false;
+      this.suppressNextClick = true;
+      setTimeout(() => { this.suppressNextClick = false; }, 400);
+    }
+  }
+
+  clearArea() {
+    this.ghostState.area = null;
+    this.ghostState.plan = null;
+    this.isDraggingArea = false;
+    if (this.ghostState.active) this.ui.showAreaPlan(null);
+  }
+
+  confirmAreaPlacement() {
+    this.replanArea(); // el dinero o la población pueden haber cambiado desde que se marcó
+    const plan = this.ghostState.plan;
+    if (!plan || !plan.items.length) {
+      this.ui.showToast(plan && plan.skipped.money ? '💸 No alcanza el capital para ningún edificio' : '⚠️ No cabe ningún edificio en el área');
+      return;
+    }
+    const built = {};
+    let spent = 0;
+    for (const it of plan.items) {
+      const def = CONFIG.BUILDINGS[it.id];
+      const afford = this.simulation.canAffordBuilding(def);
+      if (!afford.allowed) break;
+      if (!this.grid.placeBuilding(it.gx, it.gy, it.id, this.ghostState.rotation)) continue;
+      this.simulation.spendForBuilding(def, afford.cost);
+      spent += afford.cost;
+      built[it.id] = (built[it.id] || 0) + 1;
+    }
+    const total = Object.values(built).reduce((s, n) => s + n, 0);
+    if (!total) {
+      this.ui.showToast('⚠️ No se pudo construir en el área');
+      return;
+    }
+    this.audio.playBuild();
+    const list = Object.entries(built).map(([id, n]) => `${n} ${CONFIG.BUILDINGS[id].name}`).join(', ');
+    this.ui.showToast(`🏗️ ${total} edificios: ${list} (-$${Math.round(spent).toLocaleString()})`);
+    this.ui.updateHUD(this.simulation, this.research);
+    this.clearArea();
+  }
+
   confirmGhostPlacement() {
     if (!this.ghostState.active || !this.ghostState.buildingId) return;
+    if (this.ghostState.area) {
+      this.confirmAreaPlacement();
+      return;
+    }
 
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
     if (!def) return;
@@ -543,6 +673,8 @@ export class Game {
   }
 
   cancelGhostPlacement() {
+    this.cancelAreaPress();
+    this.clearArea();
     this.ghostState.active = false;
     this.ghostState.buildingId = null;
     this.ui.hideGhostManipulator();

@@ -494,6 +494,51 @@ export class PixiRenderer {
     const tw = CONFIG.CANVAS.TILE_WIDTH;
     const th = CONFIG.CANVAS.TILE_HEIGHT;
     const bSize = def.size || 1;
+    this.planSprites = this.planSprites || [];
+
+    // Construcción por área: casillas marcadas y los edificios planificados
+    if (ghost.area) {
+      this.ghostSprite.visible = false;
+      const plan = ghost.plan || { items: [] };
+      const covered = new Set();
+      for (const it of plan.items) {
+        for (let dy = 0; dy < it.size; dy++) for (let dx = 0; dx < it.size; dx++) covered.add(`${it.gx + dx},${it.gy + dy}`);
+      }
+      const { gx0, gy0, gx1, gy1 } = ghost.area;
+      for (let y = Math.min(gy0, gy1); y <= Math.max(gy0, gy1); y++) {
+        for (let x = Math.min(gx0, gx1); x <= Math.max(gx0, gx1); x++) {
+          const { x: px, y: py } = IsoMath.gridToIso(x, y);
+          const ok = covered.has(`${x},${y}`);
+          g.poly([px, py, px + tw / 2, py + th / 2, px, py + th, px - tw / 2, py + th / 2])
+            .fill({ color: ok ? 0x4ade80 : 0xfacc15, alpha: ok ? 0.4 : 0.18 })
+            .stroke({ color: ok ? 0x22c55e : 0xfacc15, alpha: 0.7, width: 1.5 });
+        }
+      }
+      const items = [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+      while (this.planSprites.length < items.length) {
+        const s = new Sprite(Texture.EMPTY);
+        s.alpha = 0.6;
+        s.scale.set(1 / BAKE_SCALE);
+        this.ghostLayer.addChild(s);
+        this.planSprites.push(s);
+      }
+      this.planSprites.forEach((s, i) => {
+        const it = items[i];
+        s.visible = !!it;
+        if (!it) return;
+        // Reordena según profundidad para que los de delante tapen a los de atrás
+        this.ghostLayer.setChildIndex(s, Math.min(this.ghostLayer.children.length - 1, i + 2));
+        const d = CONFIG.BUILDINGS[it.id];
+        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0 };
+        const { entry } = this._entryFor(mock, d, 0.4, null);
+        const iso = IsoMath.gridToIso(it.gx, it.gy);
+        s.texture = entry.texture;
+        s.position.set(iso.x + entry.offX, iso.y + entry.offY);
+      });
+      return;
+    }
+    this.ghostSprite.visible = true;
+    for (const s of this.planSprites) s.visible = false;
     const valid = grid.canBuild(ghost.gx, ghost.gy, ghost.buildingId).allowed;
     const fill = valid ? 0x4ade80 : 0xef4444;
 

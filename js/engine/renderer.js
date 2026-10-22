@@ -146,6 +146,32 @@ export class Renderer {
     const tw = CONFIG.CANVAS.TILE_WIDTH;
     const th = CONFIG.CANVAS.TILE_HEIGHT;
 
+    // Construcción por área: casillas marcadas y los edificios planificados
+    if (ghost.area) {
+      const plan = ghost.plan || { items: [] };
+      const covered = new Set();
+      for (const it of plan.items) {
+        for (let dy = 0; dy < it.size; dy++) for (let dx = 0; dx < it.size; dx++) covered.add(`${it.gx + dx},${it.gy + dy}`);
+      }
+      const { gx0, gy0, gx1, gy1 } = ghost.area;
+      ctx.save();
+      for (let y = Math.min(gy0, gy1); y <= Math.max(gy0, gy1); y++) {
+        for (let x = Math.min(gx0, gx1); x <= Math.max(gx0, gx1); x++) {
+          const iso = IsoMath.gridToIso(x, y);
+          const ok = covered.has(`${x},${y}`);
+          IsoMath.drawIsoDiamond(ctx, iso.x, iso.y, tw, th,
+            ok ? 'rgba(74, 222, 128, 0.4)' : 'rgba(250, 204, 21, 0.18)', ok ? '#22c55e' : '#facc15', 1.5);
+        }
+      }
+      ctx.globalAlpha = 0.6;
+      [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach((it) => {
+        const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0 };
+        this.renderBuildingInstance(ctx, mock, it.gx, it.gy);
+      });
+      ctx.restore();
+      return;
+    }
+
     // Verificar si el área es apta para construir
     const check = grid.canBuild(gx, gy, buildingId);
     const valid = check.allowed;

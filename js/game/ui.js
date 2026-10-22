@@ -686,8 +686,41 @@ export class UIManager {
         if (this.elFocusToolName) this.elFocusToolName.textContent = def ? def.name : toolId;
         if (this.elFocusToolCost) this.elFocusToolCost.textContent = `Coste: ${this.game.simulation.getBuildingCost(def).toLocaleString()}`;
         this.game.startGhostPlacement(toolId);
+        this.showAreaPlan(null);
       }
     }
+  }
+
+  /**
+   * Resumen de la construcción por área en la barra de enfoque (null vuelve al edificio suelto).
+   */
+  showAreaPlan(plan) {
+    const id = this.game.ghostState.buildingId;
+    const def = CONFIG.BUILDINGS[id];
+    if (!def || !this.elFocusToolName || !this.elFocusToolCost) return;
+    if (this.elHudFocusBar) this.elHudFocusBar.classList.toggle('focus-area', !!plan);
+    if (this.elGhostConfirmText) {
+      this.elGhostConfirmText.textContent = plan
+        ? `Construir ${plan.items.length} · ${Math.round(plan.totalCost).toLocaleString()}`
+        : `Construir ${this.game.simulation.getBuildingCost(def).toLocaleString()}`;
+    }
+    if (!plan) {
+      if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = BUILDING_ICONS[id] || '🏗️';
+      this.elFocusToolName.textContent = def.name;
+      const hint = this.game.simulation.getFundingType(def) === 'private' ? ' · mantén pulsado para área' : '';
+      this.elFocusToolCost.textContent = `Coste: ${this.game.simulation.getBuildingCost(def).toLocaleString()}${hint}`;
+      return;
+    }
+    if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = '📐';
+    const parts = Object.entries(plan.counts).map(([bid, n]) => `${n}× ${BUILDING_ICONS[bid] || ''} ${CONFIG.BUILDINGS[bid].name}`);
+    this.elFocusToolName.textContent = parts.length ? parts.join(' · ') : 'Área sin edificios posibles';
+    const gives = def.category === 'residential' ? `+${plan.capacity} plazas` : `${plan.items.length} edificios`;
+    let note = '';
+    if (plan.skipped.money) note = ' · capital insuficiente para más';
+    else if (plan.skipped.density) note = plan.items.length ? ' · más requiere población' : ' · falta población';
+    this.elFocusToolCost.textContent = plan.items.length
+      ? `Total $${Math.round(plan.totalCost).toLocaleString()} · ${gives}${note}`
+      : `Marca casillas libres${note}`;
   }
 
   clearFocusMode() {
