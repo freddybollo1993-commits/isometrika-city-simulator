@@ -699,7 +699,7 @@ export class Simulation {
           } else if (!isSuspended) {
             // Punto 2: Cadena de Suministro Real (Granja -> Carretera -> Comercio)
             let supplyMod = 1.0;
-            const isFoodRetail = ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
+            const isFoodRetail = ['commercial_stall', 'commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
             if (isFoodRetail && this.grid.checkStoreSupplyChain) {
               const chain = this.grid.checkStoreSupplyChain(gx, gy);
               b.supplyChainStatus = chain;

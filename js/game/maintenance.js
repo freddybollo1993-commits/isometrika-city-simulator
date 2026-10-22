@@ -72,7 +72,8 @@ export class MaintenanceSystem {
   }
 
   periodOf(def) {
-    return def.id === 'road' ? MAINTENANCE.ROAD_PERIOD : MAINTENANCE.PERIOD;
+    if (def.id === 'road') return MAINTENANCE.ROAD_PERIOD;
+    return def.maintenancePeriod || MAINTENANCE.PERIOD;
   }
 
   /** Las partidas anteriores a este sistema empiezan con los edificios recién revisados. */

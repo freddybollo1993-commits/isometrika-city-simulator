@@ -4,7 +4,7 @@
  * esquema de 3 niveles con mejoras, río serpenteante y salud estructural.
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG, variantAt } from './config.js';
 import { IsoMath } from '../engine/iso.js';
 
 /**
@@ -142,6 +142,10 @@ export class Grid {
         if (b.id === 'residential_social') {
           const socialRents = [4, 6, 9];
           return socialRents[lvl - 1] || 4;
+        }
+        if (b.id === 'residential_tiny') {
+          const tinyRents = [5, 9, 13];
+          return tinyRents[lvl - 1] || 5;
         }
         if (b.id === 'residential_high') {
           const highRents = [18, 25, 34];
@@ -304,7 +308,7 @@ export class Grid {
     if (!tile || !tile.building) return { supplied: true, status: 'ok' };
 
     const def = CONFIG.BUILDINGS[tile.building.id];
-    const isFoodRetail = def && ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
+    const isFoodRetail = def && ['commercial_stall', 'commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy'].includes(def.id);
     if (!isFoodRetail) return { supplied: true, status: 'n/a' };
 
     const hasRoad = this.hasAdjacentRoad(gx, gy, def.size || 1);
@@ -366,7 +370,7 @@ export class Grid {
    * Encuentra el local de venta de comida más cercano a una vivienda (Punto 3)
    */
   findNearestFoodVenue(gx, gy) {
-    const best = this._nearestOf(['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy', 'farm_organic'], gx, gy);
+    const best = this._nearestOf(['commercial_stall', 'commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy', 'farm_organic'], gx, gy);
     return best ? { gx: best.gx, gy: best.gy, building: best.building, tile: best.tile, distance: best.dist, id: best.building.id } : null;
   }
 
@@ -671,6 +675,8 @@ export class Grid {
       builtDay: this.simulation ? this.simulation.day : 1,
       lastServiceDay: this.simulation ? this.simulation.day : 1,
       wear: 0,
+      // Diseño visual (puestos de comida: 4 diseños repartidos al azar)
+      ...(def.variants ? { variant: variantAt(def, gx, gy) } : {}),
     };
     rootTile.deco = null;
 

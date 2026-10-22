@@ -18,6 +18,7 @@ export const SERVICE_DEMANDS = {
   commerce: {
     icon: '🛒', name: 'Comercio', fromPop: 20, coverage: 0.5,
     buildings: {
+      commercial_stall: { serves: [12, 22, 35], happiness: [1, 2, 3] },
       commercial_store: { serves: [25, 45, 70], happiness: [2, 3, 4] },
       commercial_market: { serves: [40, 70, 110], happiness: [2, 3, 4] },
       commercial_super: { serves: [120, 220, 380], happiness: [3, 4, 5] },

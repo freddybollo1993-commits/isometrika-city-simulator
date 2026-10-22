@@ -5,7 +5,7 @@
  * props arquitectónicos procedurales y partículas.
  */
 
-import { CONFIG } from '../game/config.js';
+import { CONFIG, variantAt } from '../game/config.js';
 import { IsoMath } from './iso.js';
 
 export class Renderer {
@@ -182,7 +182,7 @@ export class Renderer {
       }
       ctx.globalAlpha = 0.6;
       [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach((it) => {
-        const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0 };
+        const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0, variant: variantAt(CONFIG.BUILDINGS[it.id], it.gx, it.gy) };
         this.renderBuildingInstance(ctx, mock, it.gx, it.gy);
       });
       ctx.restore();
@@ -245,6 +245,7 @@ export class Renderer {
       size: bSize,
       isRoot: true,
       damage: 0,
+      variant: variantAt(def, gx, gy),
     };
     this.renderBuildingInstance(ctx, mockBuilding, gx, gy);
 
@@ -358,6 +359,106 @@ export class Renderer {
         const s = 0.32 + i * 0.1;
         quad(s, SW * 0.2, s + 0.05, SW * 0.9, 'rgba(255, 255, 255, 0.7)');
       }
+    }
+  }
+
+  /**
+   * Puesto popular de comida (1x1). Cuatro diseños: 0 taquería (toldo a rayas rojas y blancas),
+   * 1 fideos (toldo azul y farolillo con vapor), 2 parrilla (techo de chapa y humo), 3 frutas y
+   * jugos (toldo verde y naranja con cajas de fruta). (x, y) es el vértice superior de la casilla.
+   */
+  renderFoodStall(ctx, x, y, tw, th, variant, level = 1) {
+    const P = (u, v, lift = 0) => [x + (u - v) * (tw / 2), y + (u + v) * (th / 2) - lift];
+    const poly = (pts, fill) => {
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    const flat = (u0, v0, u1, v1, lift, fill) => poly([P(u0, v0, lift), P(u1, v0, lift), P(u1, v1, lift), P(u0, v1, lift)], fill);
+
+    const DESIGNS = [
+      { base: ['#fde68a', '#f59e0b', '#d97706'], stripes: ['#dc2626', '#fef2f2'] },
+      { base: ['#bae6fd', '#38bdf8', '#0284c7'], stripes: ['#1d4ed8', '#1d4ed8'] },
+      { base: ['#d6d3d1', '#78716c', '#57534e'], stripes: ['#64748b', '#94a3b8'] },
+      { base: ['#fef3c7', '#fbbf24', '#d97706'], stripes: ['#16a34a', '#f97316'] },
+    ];
+    const v4 = ((variant % 4) + 4) % 4;
+    const d = DESIGNS[v4];
+    const H = 8 + (level - 1) * 2; // altura del mostrador
+    const roof = H + 9; // altura del toldo
+
+    // Plazoleta de piedra y sombra
+    flat(0.04, 0.04, 0.96, 0.96, 0, '#cbd5e1');
+    flat(0.18, 0.18, 0.82, 0.82, 0, 'rgba(15, 23, 42, 0.18)');
+
+    // Mostrador (bloque pequeño centrado en la casilla)
+    IsoMath.drawIsoBlock(ctx, x, y + th * 0.2, tw * 0.6, th * 0.6, H, d.base[0], d.base[1], d.base[2]);
+
+    // Postes del toldo
+    ctx.strokeStyle = '#57534e';
+    ctx.lineWidth = 1;
+    [[0.18, 0.18], [0.82, 0.18], [0.82, 0.82], [0.18, 0.82]].forEach(([u, v]) => {
+      const [bx, by] = P(u, v, H * 0.4);
+      const [tx, ty] = P(u, v, roof);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+    });
+
+    // Toldo de franjas alternas
+    const strips = 5;
+    for (let i = 0; i < strips; i++) {
+      const u0 = 0.1 + (0.8 * i) / strips;
+      const u1 = 0.1 + (0.8 * (i + 1)) / strips;
+      flat(u0, 0.1, u1, 0.9, roof, d.stripes[i % 2]);
+    }
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    [P(0.1, 0.1, roof), P(0.9, 0.1, roof), P(0.9, 0.9, roof), P(0.1, 0.9, roof)].forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.closePath();
+    ctx.stroke();
+
+    const [cx, cy] = P(0.5, 0.5, H);
+    if (v4 === 0) {
+      // Taquería: cartel con el nombre
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fillRect(cx - 5, cy - 1, 10, 3);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(cx - 3, cy, 6, 1);
+    } else if (v4 === 1) {
+      // Fideos: farolillo rojo colgando y vapor
+      const [lx, ly] = P(0.88, 0.5, roof - 1);
+      ctx.strokeStyle = '#57534e';
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx, ly + 3);
+      ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.ellipse(lx, ly + 6, 2.2, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(lx - 1.5, ly + 3, 3, 1);
+      this.particles.push({ x: cx, y: cy - 3, vx: 0.05, vy: -0.4, size: 1.4, alpha: 0.45, color: '255, 255, 255', small: true });
+    } else if (v4 === 2) {
+      // Parrilla: brasas y humo
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(cx - 5, cy - 1, 10, 3);
+      ctx.fillStyle = '#f97316';
+      for (let i = 0; i < 3; i++) ctx.fillRect(cx - 4 + i * 3, cy, 2, 1);
+      this.particles.push({ x: cx, y: cy - 2, vx: 0.2, vy: -0.6, size: 1.6, alpha: 0.5, color: '120, 113, 108', small: true });
+    } else {
+      // Frutas y jugos: cajas con fruta de colores
+      ['#ef4444', '#facc15', '#f97316', '#22c55e'].forEach((c, i) => {
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(cx - 6 + i * 4, cy + 1, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
   }
 
@@ -803,12 +904,47 @@ export class Renderer {
       return;
     }
 
+    // Puesto popular de comida: 4 diseños según su variante
+    if (def.id === 'commercial_stall') {
+      const variant = building.variant !== undefined ? building.variant : variantAt(def, gx, gy);
+      this.renderFoodStall(ctx, x, y, tw, th, variant, level);
+      return;
+    }
+
     // === EDIFICIOS ESTÁNDAR Y PRISMAS ===
     const h = (def.height || 30) + (level - 1) * 6;
     IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, def.colorTop, def.colorLeft, def.colorRight);
     const topY = y - h;
 
     // DETALLES ESPECÍFICOS SEGÚN ARQUITECTURA Y ROTACIÓN:
+
+    // Casita Mínima (1x1): tejado a cuatro aguas, chimenea, puerta y ventana a escala de la casilla
+    if (def.id === 'residential_tiny') {
+      ctx.beginPath();
+      ctx.moveTo(x, topY - 7);
+      ctx.lineTo(x + tw / 2.2, topY + th / 2);
+      ctx.lineTo(x, topY + th);
+      ctx.lineTo(x - tw / 2.2, topY + th / 2);
+      ctx.closePath();
+      ctx.fillStyle = level === 3 ? '#0284c7' : (level === 2 ? '#fb923c' : def.roofColor);
+      ctx.fill();
+      if (level < 3) {
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(x + 4, topY - 8, 2, 5);
+      } else {
+        ctx.fillStyle = '#1e3a8a'; // panel solar del huerto
+        ctx.fillRect(x - 3, topY - 3, 6, 3);
+      }
+      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#78350f');
+      ctx.fillStyle = this.currentDayProgress >= 0.78 ? '#fef08a' : 'rgba(255, 255, 255, 0.5)';
+      ctx.fillRect(x + (rotation % 2 === 0 ? -9 : 6), y - 8, 3, 3);
+      if (level >= 2) {
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(x - 8, y + 1, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     // Casa y Residencia Baja (Evolución de Cabaña Rural a Villa Solar)
     if (def.id === 'residential_low') {

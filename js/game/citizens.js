@@ -47,6 +47,10 @@ export class ResidentialBuilding {
       const socialRents = [3, 5, 8];
       return socialRents[this.level - 1] || 3;
     }
+    if (this.defId === 'residential_tiny') {
+      const tinyRents = [4, 7, 10];
+      return tinyRents[this.level - 1] || 4;
+    }
     if (this.defId === 'residential_high') {
       const highRents = [12, 18, 25];
       return highRents[this.level - 1] || 12;
@@ -404,6 +408,9 @@ export class CitizenManager {
             } else if (def.id === 'commercial_gastronomy') {
               requiredEdu = 0;
               jobTitle = 'Chef / Barista / Servicio Gastronómico';
+            } else if (def.id === 'commercial_stall') {
+              requiredEdu = 0;
+              jobTitle = 'Cocinero de Puesto Popular';
             } else {
               requiredEdu = 0;
               jobTitle = 'Dependiente de Comercio';

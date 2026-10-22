@@ -12,7 +12,7 @@
  */
 
 import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pixi.min.mjs';
-import { CONFIG } from '../game/config.js';
+import { CONFIG, variantAt } from '../game/config.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 
@@ -208,7 +208,7 @@ export class PixiRenderer {
     return [
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,
       Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : building.construction ? 'obra' : 0,
-      building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, building.roadMask || 0, frame,
+      building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, building.roadMask || 0, building.variant || 0, frame,
     ].join('|');
   }
 
@@ -233,7 +233,7 @@ export class PixiRenderer {
     const savedRandom = Math.random;
     p.animationTick = frame * ANIM_STEP;
     p.currentDayProgress = dayProgress >= 0.78 ? 0.9 : 0.4;
-    p.particles = { push: (q) => emitters.push({ x: q.x, y: q.y, color: q.color }) };
+    p.particles = { push: (q) => emitters.push({ x: q.x, y: q.y, color: q.color, size: q.small ? q.size : 0 }) };
     Math.random = () => 0;
     try {
       if (building.suspended || building.closed) {
@@ -351,7 +351,7 @@ export class PixiRenderer {
           if (!entry) {
             // Sin presupuesto este fotograma: se mantiene la imagen actual y se reintenta luego
             seen.add(key);
-            existing.entry.emitters.forEach((e) => emitters.push({ x: existing.sprite.x - existing.entry.offX + e.x, y: existing.sprite.y - existing.entry.offY + e.y, color: e.color }));
+            existing.entry.emitters.forEach((e) => emitters.push({ x: existing.sprite.x - existing.entry.offX + e.x, y: existing.sprite.y - existing.entry.offY + e.y, color: e.color, size: e.size }));
             continue;
           }
           texture = entry.texture;
@@ -382,7 +382,7 @@ export class PixiRenderer {
         obj.entry = entry;
         if (entry) {
           obj.sprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
-          entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color }));
+          entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
         } else {
           obj.sprite.position.set(iso.x - 14, iso.y - 4);
         }
@@ -459,7 +459,7 @@ export class PixiRenderer {
       if (Math.random() < 0.28) {
         const [r, gr, b] = String(e.color || '120, 113, 108').split(',').map((n) => parseInt(n, 10));
         this._spawnParticle(e.x, e.y, (Math.random() - 0.5) * 0.3 + 0.5, -0.7 - Math.random() * 0.5,
-          4 + Math.random() * 4, 0.65, (r << 16) | (gr << 8) | b);
+          e.size ? e.size * (1 + Math.random() * 0.6) : 4 + Math.random() * 4, e.size ? 0.45 : 0.65, (r << 16) | (gr << 8) | b);
       }
     }
     this._particlePool = this._particlePool || [];
@@ -546,7 +546,7 @@ export class PixiRenderer {
         // Reordena según profundidad para que los de delante tapen a los de atrás
         this.ghostLayer.setChildIndex(s, Math.min(this.ghostLayer.children.length - 1, i + 2));
         const d = CONFIG.BUILDINGS[it.id];
-        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0 };
+        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, variant: variantAt(d, it.gx, it.gy) };
         const { entry } = this._entryFor(mock, d, 0.4, null);
         const iso = IsoMath.gridToIso(it.gx, it.gy);
         s.texture = entry.texture;
@@ -580,7 +580,7 @@ export class PixiRenderer {
         .stroke({ color: 0x38bdf8, alpha: 0.5, width: 1.5 });
     }
 
-    const mock = { id: ghost.buildingId, level: 1, rotation: ghost.rotation || 0, size: bSize, isRoot: true, damage: 0 };
+    const mock = { id: ghost.buildingId, level: 1, rotation: ghost.rotation || 0, size: bSize, isRoot: true, damage: 0, variant: variantAt(def, ghost.gx, ghost.gy) };
     const { entry } = this._entryFor(mock, def, 0.4, null);
     const iso = IsoMath.gridToIso(ghost.gx, ghost.gy);
     this.ghostSprite.texture = entry.texture;

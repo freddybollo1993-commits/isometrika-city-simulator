@@ -38,6 +38,7 @@ export const CONFIG = {
 
     // Comercio
     commercial_store: { minPop: 0, popPerUnit: 10 }, // 1ª libre en la fundación, luego 1 cada 10 hab
+    commercial_stall: { minPop: 6, popPerUnit: 8 }, // puestos callejeros: muchos, pero según la gente que hay
     commercial_gastronomy: { minPop: 16, popPerUnit: 20 },
     commercial_market: { minPop: 20, popPerUnit: 25 },
     commercial_maintenance: { minPop: 15, popPerUnit: 30 }, // Empresa de mantenimiento
@@ -251,6 +252,26 @@ export const CONFIG = {
       colorRight: '#eab308',
       roofColor: '#fb923c',
     },
+    residential_tiny: {
+      id: 'residential_tiny',
+      name: 'Casita Mínima',
+      category: 'residential',
+      height: 16,
+      cost: 250,
+      upkeep: 2,
+      maintenancePeriod: 45, // edificio pequeño: preventivo menos frecuente
+      levels: {
+        1: { cost: 250, upkeep: 2, capacity: 2, tax: 2.2, pollution: 0, power: 1, water: 1, description: 'Casita de una planta para una pareja o dos personas (2 hab).' },
+        2: { cost: 450, upkeep: 4, capacity: 4, tax: 2.5, pollution: 0, power: 1, water: 2, description: 'Casita ampliada con buhardilla (4 hab).' },
+        3: { cost: 800, upkeep: 7, capacity: 6, tax: 2.9, pollution: 0, power: 2, water: 3, description: 'Casita con altillo y huerto (6 hab).' },
+      },
+      maxBonus: 'Huerto Familiar: reduce la polución en 1 ppm y aporta algo de felicidad.',
+      description: 'Vivienda mínima de una sola casilla para rellenar huecos: 2 habitantes que pueden crecer hasta 6.',
+      colorTop: '#fef3c7',
+      colorLeft: '#fcd34d',
+      colorRight: '#f59e0b',
+      roofColor: '#ef4444',
+    },
     residential_high: {
       id: 'residential_high',
       name: 'Torre de Departamentos',
@@ -311,6 +332,27 @@ export const CONFIG = {
       colorTop: '#93c5fd',
       colorLeft: '#60a5fa',
       colorRight: '#3b82f6',
+    },
+    commercial_stall: {
+      id: 'commercial_stall',
+      name: 'Puesto Popular de Comida',
+      category: 'commercial',
+      height: 14,
+      cost: 300,
+      upkeep: 4,
+      jobs: 1,
+      variants: 4, // taquería, fideos, parrilla y frutas: cada puesto sale con uno al azar
+      maintenancePeriod: 45, // edificio pequeño: preventivo menos frecuente
+      levels: {
+        1: { cost: 300, upkeep: 4, jobs: 1, revenue: 40.0, pollution: 0, power: 1, water: 1 },
+        2: { cost: 550, upkeep: 7, jobs: 2, revenue: 46.0, pollution: 0, power: 1, water: 2 },
+        3: { cost: 900, upkeep: 11, jobs: 3, revenue: 52.0, pollution: 1, power: 2, water: 3 },
+      },
+      maxBonus: 'Esquina de Culto: una cola de clientes fieles que atrae visitantes a todo el barrio.',
+      description: 'Puesto callejero de comida popular (1 a 3 cocineros). Cada uno tiene su propio diseño.',
+      colorTop: '#fde68a',
+      colorLeft: '#f59e0b',
+      colorRight: '#d97706',
     },
     commercial_gastronomy: {
       id: 'commercial_gastronomy',
@@ -1005,8 +1047,8 @@ CONFIG.MAP = {
 const BUILDING_SIZES = {
   road: 2, transit_bus_terminal: 3,
   utility_power_solar: 3, utility_power_plant: 5, utility_water_tower: 2, utility_water_plant: 4,
-  residential_low: 2, residential_high: 4, residential_social: 4,
-  commercial_store: 2, commercial_gastronomy: 3, commercial_market: 3, commercial_super: 4,
+  residential_tiny: 1, residential_low: 2, residential_high: 4, residential_social: 4,
+  commercial_stall: 1, commercial_store: 2, commercial_gastronomy: 3, commercial_market: 3, commercial_super: 4,
   commercial_tower: 4, commercial_maintenance: 3, commercial_distribution: 5,
   farm_organic: 6, industrial_mass: 5, industrial_tech: 4, industrial_agro: 5,
   supply_quarry: 5, supply_components: 3,
@@ -1028,4 +1070,17 @@ for (const [id, def] of Object.entries(CONFIG.BUILDINGS)) {
 }
 for (const id of Object.keys(CONFIG.MIN_PUBLIC_SPACING)) {
   CONFIG.MIN_PUBLIC_SPACING[id] *= MAP_SCALE;
+}
+
+/**
+ * Diseño (0 … variants − 1) de un edificio que tiene varios. Sale de la posición, así que es
+ * estable (no cambia al recargar ni altera la semilla aleatoria) pero se ve al azar en el mapa.
+ */
+export function variantAt(def, gx, gy) {
+  const n = def && def.variants;
+  if (!n) return 0;
+  // Mezcla de bits: sin ella, los vecinos de una misma fila repetirían el ciclo 0, 1, 2, 3
+  let h = Math.imul(gx + 1, 374761393) + Math.imul(gy + 1, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) % n;
 }
