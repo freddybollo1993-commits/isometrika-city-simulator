@@ -17,7 +17,7 @@ import { Simulation } from './game/simulation.js';
 import { AudioManager } from './game/audio.js';
 import { StorageManager } from './game/storage.js';
 import { UIManager } from './game/ui.js';
-import { planArea, isAreaBuildable } from './game/area-planner.js';
+import { planArea, planRoadLine, isAreaBuildable } from './game/area-planner.js';
 
 // Densidad de píxeles máxima del lienzo (ver viewportSize)
 const MAX_RENDER_DPR = 1.5;
@@ -535,7 +535,8 @@ export class Game {
   startAreaPress(clientX, clientY) {
     this.cancelAreaPress();
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-    if (!isAreaBuildable(def, this.simulation)) return; // las obras del Estado van una a una
+    // Las obras del Estado van una a una, salvo la carretera, que se traza en línea recta
+    if (def.id !== 'road' && !isAreaBuildable(def, this.simulation)) return;
     const timer = setTimeout(() => this.beginAreaSelection(), AREA_PRESS_MS);
     this.ghostPress = { x: clientX, y: clientY, timer };
   }
@@ -565,13 +566,17 @@ export class Game {
     this.replanArea();
     if (navigator.vibrate) navigator.vibrate(25);
     this.audio.playClick();
-    this.ui.showToast('📐 Arrastra para marcar el área a construir');
+    this.ui.showToast(def.id === 'road'
+      ? '🛣️ Arrastra en línea recta para trazar la carretera'
+      : '📐 Arrastra para marcar el área a construir');
   }
 
   replanArea() {
     const { area, buildingId } = this.ghostState;
     if (!area) return;
-    this.ghostState.plan = planArea({ grid: this.grid, sim: this.simulation, buildingId, rect: area });
+    this.ghostState.plan = buildingId === 'road'
+      ? planRoadLine({ grid: this.grid, sim: this.simulation, anchor: { gx: area.gx0, gy: area.gy0 }, target: { gx: area.gx1, gy: area.gy1 } })
+      : planArea({ grid: this.grid, sim: this.simulation, buildingId, rect: area });
     this.ui.showAreaPlan(this.ghostState.plan);
   }
 
@@ -618,7 +623,9 @@ export class Game {
     }
     this.audio.playBuild();
     const list = Object.entries(built).map(([id, n]) => `${n} ${CONFIG.BUILDINGS[id].name}`).join(', ');
-    this.ui.showToast(`🏗️ ${total} edificios: ${list} (-$${Math.round(spent).toLocaleString()})`);
+    this.ui.showToast(built.road
+      ? `🛣️ ${total} tramos de carretera (-$${Math.round(spent).toLocaleString()})`
+      : `🏗️ ${total} edificios: ${list} (-$${Math.round(spent).toLocaleString()})`);
     this.ui.updateHUD(this.simulation, this.research);
     this.clearArea();
   }

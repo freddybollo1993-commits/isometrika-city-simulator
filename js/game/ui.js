@@ -710,17 +710,20 @@ export class UIManager {
     if (!plan) {
       if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = BUILDING_ICONS[id] || '🏗️';
       this.elFocusToolName.textContent = def.name;
-      const hint = this.game.simulation.getFundingType(def) === 'private' ? ' · mantén pulsado para área' : '';
+      let hint = this.game.simulation.getFundingType(def) === 'private' ? ' · mantén pulsado para área' : '';
+      if (id === 'road') hint = ' · mantén pulsado para trazar';
       this.elFocusToolCost.textContent = `Coste: ${this.game.simulation.getBuildingCost(def).toLocaleString()}${hint}`;
       return;
     }
-    if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = '📐';
+    const isRoad = id === 'road';
+    if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = isRoad ? '🛣️' : '📐';
     const parts = Object.entries(plan.counts).map(([bid, n]) => `${n}× ${BUILDING_ICONS[bid] || ''} ${CONFIG.BUILDINGS[bid].name}`);
     this.elFocusToolName.textContent = parts.length ? parts.join(' · ') : 'Área sin edificios posibles';
-    const gives = def.category === 'residential' ? `+${plan.capacity} plazas` : `${plan.items.length} edificios`;
+    let gives = def.category === 'residential' ? `+${plan.capacity} plazas` : `${plan.items.length} edificios`;
+    if (isRoad) gives = `${plan.items.length} tramos 🏛️ Estado`;
     this.elFocusToolCost.textContent = plan.items.length
       ? `Total $${Math.round(plan.totalCost).toLocaleString()} · ${gives}`
-      : 'Marca casillas libres';
+      : (isRoad ? 'El tramo ya tiene carretera' : 'Marca casillas libres');
 
     // Motivo concreto: el edificio más grande que la población no permitió y cuánta le falta
     let note = '';
@@ -731,7 +734,7 @@ export class UIManager {
         ? `🔒 ${name}: máximo alcanzado`
         : `🔒 ${name}${limit.built ? ` #${limit.built + 1}` : ''}: requiere ${limit.requiredPop} hab (tienes ${limit.population})`;
     } else if (plan.skipped.money) {
-      note = '💸 Capital insuficiente para más';
+      note = isRoad ? '💸 Fondos del Estado insuficientes para más' : '💸 Capital insuficiente para más';
     }
     this._setFocusLimit(note);
   }

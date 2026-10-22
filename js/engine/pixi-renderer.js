@@ -504,7 +504,7 @@ export class PixiRenderer {
       for (const it of plan.items) {
         for (let dy = 0; dy < it.size; dy++) for (let dx = 0; dx < it.size; dx++) covered.add(`${it.gx + dx},${it.gy + dy}`);
       }
-      const { gx0, gy0, gx1, gy1 } = ghost.area;
+      const { gx0, gy0, gx1, gy1 } = plan.line || ghost.area; // la carretera solo marca su tramo recto
       for (let y = Math.min(gy0, gy1); y <= Math.max(gy0, gy1); y++) {
         for (let x = Math.min(gx0, gx1); x <= Math.max(gx0, gx1); x++) {
           const t = grid.getTile(x, y);

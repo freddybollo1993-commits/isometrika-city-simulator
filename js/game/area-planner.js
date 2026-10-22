@@ -44,6 +44,43 @@ export function isAreaBuildable(def, sim) {
 }
 
 /**
+ * Tramo recto de carretera desde la casilla de partida hasta donde está el dedo, siempre en la
+ * misma fila o columna (manda el eje en que más se ha arrastrado). Salta las casillas ocupadas
+ * (carreteras que ya existen incluidas) y para cuando no alcanzan los fondos del Estado.
+ * @returns el mismo formato que planArea, con `line` = esquinas del tramo
+ */
+export function planRoadLine({ grid, sim, anchor, target, budget = null }) {
+  const def = CONFIG.BUILDINGS.road;
+  const result = { items: [], totalCost: 0, capacity: 0, counts: {}, skipped: { money: 0, density: 0 }, limits: [], area: 0 };
+  const max = grid.size - 1;
+  const tx = Math.max(0, Math.min(max, target.gx));
+  const ty = Math.max(0, Math.min(max, target.gy));
+  const horizontal = Math.abs(tx - anchor.gx) >= Math.abs(ty - anchor.gy);
+  const end = horizontal ? { gx: tx, gy: anchor.gy } : { gx: anchor.gx, gy: ty };
+  result.line = { gx0: anchor.gx, gy0: anchor.gy, gx1: end.gx, gy1: end.gy };
+
+  const steps = Math.max(Math.abs(end.gx - anchor.gx), Math.abs(end.gy - anchor.gy));
+  const sx = Math.sign(end.gx - anchor.gx);
+  const sy = Math.sign(end.gy - anchor.gy);
+  result.area = steps + 1;
+
+  const cost = sim.getBuildingCost(def);
+  let money = budget !== null ? budget : sim.economy.stateFunds;
+  // Desde el punto de partida hacia fuera: si falta dinero, se corta el final del tramo
+  for (let i = 0; i <= steps; i++) {
+    const gx = anchor.gx + sx * i;
+    const gy = anchor.gy + sy * i;
+    if (!grid.canBuild(gx, gy, 'road').allowed) continue;
+    if (cost > money) { result.skipped.money++; continue; }
+    money -= cost;
+    result.items.push({ id: 'road', gx, gy, size: 1, cost });
+    result.totalCost += cost;
+    result.counts.road = (result.counts.road || 0) + 1;
+  }
+  return result;
+}
+
+/**
  * @param {object} p
  * @param {object} p.grid
  * @param {object} p.sim

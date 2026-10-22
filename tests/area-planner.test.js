@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCity } from './helpers/headless-city.js';
-import { planArea, familyOf } from '../js/game/area-planner.js';
+import { planArea, planRoadLine, familyOf } from '../js/game/area-planner.js';
 import { CONFIG } from '../js/game/config.js';
 
 /** Busca un rectángulo de w×h casillas de tierra libre. */
@@ -95,4 +95,32 @@ test('el plan respeta casillas ocupadas y se puede colocar tal cual', () => {
     assert.equal(familyOf(CONFIG.BUILDINGS[it.id]), 'retail');
     assert.ok(grid.placeBuilding(it.gx, it.gy, it.id), `${it.id} en ${it.gx},${it.gy}`);
   }
+});
+
+test('carretera: el tramo es recto en la fila o columna de partida y salta lo ocupado', () => {
+  const { sim, grid } = createCity();
+  const rect = clearRect(grid, 8, 8);
+  const anchor = { gx: rect.gx0, gy: rect.gy0 + 3 };
+  grid.placeBuilding(anchor.gx + 4, anchor.gy, 'road'); // tramo que ya existe
+
+  // Arrastre casi horizontal (se desvía 2 filas): se queda en la fila de partida
+  const h = planRoadLine({ grid, sim, anchor, target: { gx: anchor.gx + 7, gy: anchor.gy + 2 }, budget: 1e9 });
+  assert.ok(h.items.every((it) => it.gy === anchor.gy));
+  assert.equal(h.items.length, 7, '8 casillas menos la que ya tenía carretera');
+  assert.deepEqual(h.line, { gx0: anchor.gx, gy0: anchor.gy, gx1: anchor.gx + 7, gy1: anchor.gy });
+
+  // Arrastre más vertical: columna de partida, hacia arriba
+  const v = planRoadLine({ grid, sim, anchor, target: { gx: anchor.gx + 1, gy: anchor.gy - 3 }, budget: 1e9 });
+  assert.ok(v.items.every((it) => it.gx === anchor.gx));
+  assert.equal(v.items.length, 4);
+});
+
+test('carretera: con poco presupuesto se construye desde el punto de partida', () => {
+  const { sim, grid } = createCity();
+  const rect = clearRect(grid, 8, 1);
+  const one = sim.getBuildingCost(CONFIG.BUILDINGS.road);
+  const anchor = { gx: rect.gx0, gy: rect.gy0 };
+  const plan = planRoadLine({ grid, sim, anchor, target: { gx: rect.gx1, gy: rect.gy0 }, budget: one * 3 });
+  assert.deepEqual(plan.items.map((it) => it.gx), [anchor.gx, anchor.gx + 1, anchor.gx + 2]);
+  assert.equal(plan.skipped.money, 5);
 });
