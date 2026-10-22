@@ -178,27 +178,6 @@ html, body {
   display: none;
 }
 
-.stats-close-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: #cbd5e1;
-  font-size: 1.2rem;
-  line-height: 1;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.stats-close-btn:hover {
-  background: rgba(239, 68, 68, 0.4);
-  color: #fff;
-}
-
 /* Controles derechos del HUD */
 .hud-right-controls {
   display: flex;
@@ -220,7 +199,6 @@ html, body {
 }
 
 .text-positive { color: var(--color-success); }
-.text-warn { color: var(--color-warning); }
 .text-danger { color: var(--color-danger); }
 
 .hud-time {
@@ -288,8 +266,7 @@ html, body {
 /* ==========================================================================
    2. MENÚ DESPLEGABLE DE CONFIGURACIÓN Y SISTEMA (BOTÓN ENGRANAJE)
    ========================================================================== */
-.gear-menu-container,
-.game-menu-container {
+.gear-menu-container {
   position: relative;
   display: flex;
   align-items: center;
@@ -339,21 +316,18 @@ html, body {
   transform: rotate(45deg) scale(1.1);
 }
 
-.gear-menu-container.open .btn-gear-menu,
-.game-menu-container.open .btn-game-menu {
+.gear-menu-container.open .btn-gear-menu {
   background: rgba(56, 189, 248, 0.3);
   border-color: #38bdf8;
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
 }
 
-.gear-menu-container.open .btn-gear-menu .gear-icon,
-.game-menu-container.open .btn-game-menu .gear-icon {
+.gear-menu-container.open .btn-gear-menu .gear-icon {
   transform: rotate(90deg);
 }
 
 /* Panel Desplegable Flotante de Configuración y Opciones */
-.gear-menu-dropdown,
-.game-menu-dropdown {
+.gear-menu-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -375,45 +349,8 @@ html, body {
   scrollbar-width: thin;
 }
 
-.gear-menu-dropdown.hidden,
-.game-menu-dropdown.hidden {
+.gear-menu-dropdown.hidden {
   display: none !important;
-}
-
-.gear-menu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 8px;
-}
-
-.gear-menu-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.gear-menu-emoji {
-  font-size: 1.35rem;
-}
-
-.gear-menu-title h3 {
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: #f8fafc;
-  margin: 0;
-}
-
-.gear-menu-title small {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-}
-
-.gear-menu-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 /* ==========================================================================
@@ -619,135 +556,15 @@ html, body {
   }
 }
 
-.menu-group-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.menu-group-title {
-  font-size: 0.66rem;
-  font-weight: 800;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding-left: 2px;
-}
-
-/* Acciones de cámara */
-.menu-camera-actions {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 6px;
-}
-
-.menu-action-pill {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: rgba(30, 41, 59, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
-  border-radius: var(--radius-pill);
-  padding: 7px 10px;
-  font-size: 0.73rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.menu-action-pill:hover, .menu-action-pill:active {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
-  color: #38bdf8;
-}
-
-.act-icon {
-  font-size: 0.85rem;
-}
-
 /* Cuadrícula de sistema */
-.menu-system-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.menu-system-pill {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: rgba(30, 41, 59, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-size: 0.73rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.menu-system-pill:hover, .menu-system-pill:active {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-}
-
-.menu-system-pill.primary-pill {
-  background: rgba(2, 132, 199, 0.25);
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
-}
-
-.menu-system-pill.primary-pill:hover {
-  background: rgba(2, 132, 199, 0.45);
-  border-color: #38bdf8;
-  color: #ffffff;
-}
-
-.menu-btn-exit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #f87171;
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  margin-top: 2px;
-  user-select: none;
-}
-
-.menu-btn-exit:hover, .menu-btn-exit:active {
-  background: rgba(239, 68, 68, 0.22);
-  border-color: #ef4444;
-  color: #ffffff;
-}
 
 @media (max-width: 480px) {
-  .gear-menu-dropdown,
-  .game-menu-dropdown {
+  .gear-menu-dropdown {
     width: 95vw;
     right: -2px;
     padding: 10px 12px;
     max-height: 86vh;
     gap: 10px;
-  }
-  .menu-camera-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-  .menu-camera-actions #menu-btn-center {
-    grid-column: span 2;
   }
 }
 
@@ -1130,120 +947,6 @@ html, body {
   transform: translateY(105%);
 }
 
-.carousel-categories {
-  display: flex;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 5px;
-}
-
-.carousel-categories::-webkit-scrollbar {
-  display: none;
-}
-
-.cat-pill {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
-  color: #cbd5e1;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.cat-pill.active {
-  background: #38bdf8;
-  color: #0f172a;
-  border-color: #38bdf8;
-}
-
-.cat-demolish {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: #ef4444;
-  color: #fca5a5;
-  margin-left: auto;
-}
-
-.carousel-cards-track {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding: 4px 0;
-  scrollbar-width: none;
-}
-
-.carousel-cards-track::-webkit-scrollbar {
-  display: none;
-}
-
-.carousel-card {
-  flex: 0 0 115px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  scroll-snap-align: start;
-  transition: all 0.18s ease;
-}
-
-.carousel-card:hover, .carousel-card:active {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: #38bdf8;
-  transform: translateY(-2px);
-}
-
-.card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-icon {
-  font-size: 1.3rem;
-}
-
-.card-size {
-  font-size: 0.6rem;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 1px 4px;
-  border-radius: 4px;
-  color: #94a3b8;
-}
-
-.card-name {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #f8fafc;
-  line-height: 1.2;
-  margin: 3px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.card-cost {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: var(--color-success);
-}
-
 /* ==========================================================================
    6. INSPECTOR DE EDIFICIO Y MEJORAS DE NIVEL (BOTTOM SHEET)
    ========================================================================== */
@@ -1267,116 +970,6 @@ html, body {
 
 .inspector-bottom-sheet.hidden {
   transform: translateX(-50%) translateY(105%);
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 4px;
-  margin: 0 auto 8px auto;
-}
-
-.inspector-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.inspector-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.insp-emoji {
-  font-size: 1.8rem;
-}
-
-.insp-level-badge {
-  font-size: 0.7rem;
-  font-weight: 800;
-  background: #facc15;
-  color: #0f172a;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
-
-.sheet-close-btn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.4rem;
-  cursor: pointer;
-}
-
-.insp-description {
-  font-size: 0.78rem;
-  color: #cbd5e1;
-  margin: 6px 0 10px 0;
-}
-
-.insp-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: 0.76rem;
-}
-
-.insp-bonus-box {
-  margin: 10px 0;
-  padding: 8px 12px;
-  background: rgba(250, 204, 21, 0.12);
-  border: 1px solid rgba(250, 204, 21, 0.35);
-  border-radius: var(--radius-md);
-  font-size: 0.75rem;
-  color: #fef08a;
-}
-
-.inspector-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.btn-upgrade {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  color: white;
-  border: none;
-  padding: 9px 14px;
-  border-radius: var(--radius-md);
-  font-size: 0.82rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.btn-secondary-insp {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.btn-danger-insp {
-  background: rgba(239, 68, 68, 0.25);
-  border: 1px solid #ef4444;
-  color: #fca5a5;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 /* ==========================================================================
@@ -1541,46 +1134,6 @@ html, body {
 
 .modal-glassmorphic .modal-close:hover {
   color: #ffffff;
-}
-
-/* Badges de financiamiento en el Carrusel */
-.card-fund-tag {
-  font-size: 0.62rem;
-  font-weight: 800;
-  padding: 2px 5px;
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-}
-
-.badge-fund-state {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.4);
-}
-
-.badge-fund-corp {
-  background: rgba(234, 179, 8, 0.2);
-  color: #facc15;
-  border: 1px solid rgba(234, 179, 8, 0.4);
-}
-
-/* Badges de viabilidad fiscal en carrusel */
-.card-fund-tag.tag-safe {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.45);
-}
-
-.card-fund-tag.tag-warn {
-  background: rgba(234, 179, 8, 0.2);
-  color: #facc15;
-  border: 1px solid rgba(234, 179, 8, 0.45);
-}
-
-.card-fund-tag.tag-crit {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.45);
 }
 
 /* Estilos para el HUD Bar dual */
@@ -1890,44 +1443,6 @@ html, body {
   }
 }
 
-/* =========================================================================
-   PUGNA SALARIAL Y ESCALADO RESIDENCIAL ORGÁNICO (SISTEMA HÍBRIDO)
-   ========================================================================= */
-
-.wage-step-btn {
-  background: rgba(51, 65, 85, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border-radius: var(--radius-sm);
-  padding: 3px 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.wage-step-btn:hover {
-  background: #0284c7;
-  border-color: #38bdf8;
-}
-
-/* ESCALADO RESIDENCIAL ORGÁNICO */
-
-.organic-progress-wrap {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  margin: 4px 0;
-}
-
-.organic-progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #10b981, #34d399);
-  transition: width 0.3s ease;
-}
-
 /* ==========================================================================
    CONSEJERO MUNICIPAL (TICKER INTELIGENTE DE CUELLOS DE BOTELLA)
    ========================================================================== */
@@ -2021,104 +1536,5 @@ html, body {
 .modal-dilemma {
   max-width: 580px;
   width: 92vw;
-}
-
-.dilemma-banner {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  margin-bottom: 14px;
-}
-
-.dilemma-desc {
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: #cbd5e1;
-  margin: 0;
-}
-
-.dilemma-options-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-@media (max-width: 600px) {
-  .dilemma-options-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.dilemma-card-opt {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-md);
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-  transition: all 0.2s ease;
-}
-
-.dilemma-card-opt:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-}
-
-.dilemma-opt-badge {
-  display: inline-block;
-  align-self: flex-start;
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 2px 7px;
-  border-radius: 4px;
-}
-
-.badge-opt-a {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-}
-
-.badge-opt-b {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.dilemma-opt-title {
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: #f8fafc;
-  margin: 0;
-}
-
-.dilemma-opt-cost {
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #38bdf8;
-}
-
-.dilemma-opt-conseq {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  line-height: 1.35;
-  margin: 0;
-  flex: 1;
-}
-
-.btn-dilemma {
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 0.78rem;
-  font-weight: 800;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  margin-top: 4px;
 }
 

@@ -8,7 +8,6 @@
 import { CONFIG } from './config.js';
 import { EconomySystem } from './economy.js';
 import { CitizenManager } from './citizens.js';
-import { DilemmaManager } from './dilemmas.js';
 import { Calendar } from './calendar.js';
 import { RegionalEconomy } from './regional-economy.js';
 
@@ -21,7 +20,6 @@ export class Simulation {
     this.audio = audio;
     this.economy = economy || new EconomySystem(CONFIG.SIMULATION.INITIAL_FUNDS);
     this.citizens = new CitizenManager(this.grid, this.economy);
-    this.dilemmas = new DilemmaManager();
     // Coyuntura regional (ciclo económico e inflación) y estación del año
     this.region = new RegionalEconomy();
     this.economy.region = this.region;
@@ -520,7 +518,6 @@ export class Simulation {
     this.citizens.matchJobs(this.grid, this.economy);
 
     const isPioneerPhase = this.population < 20;
-    const dilemmaMods = this.dilemmas.getActiveModifiers();
 
     let totalHousing = 0;
     let commercialJobs = 0;
@@ -682,7 +679,7 @@ export class Simulation {
             privateActiveWorkers += activeW;
             privateCapacity += maxW;
             const rev = (levelData.revenue || def.revenuePerJob || 44.0);
-            const storeRevenue = activeW * rev * opEff * supplyMod * dilemmaMods.commSalesMultiplier * priceIndex;
+            const storeRevenue = activeW * rev * opEff * supplyMod * priceIndex;
             totalCommercialRevenue += storeRevenue;
             baseCommTax += storeRevenue;
 
@@ -725,7 +722,7 @@ export class Simulation {
             privateActiveWorkers += activeFarmW;
             privateCapacity += maxFarmW;
             const farmStaffRatio = maxFarmW > 0 ? Math.max(0.15, activeFarmW / maxFarmW) : 1.0;
-            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * dilemmaMods.foodMultiplier * this.season.farmYield);
+            const effectiveFood = Math.round((levelData.foodCapacity || 60) * opEff * ruralBonus * farmStaffRatio * this.season.farmYield);
             farmFoodSupply += effectiveFood;
             // No sumar puestos de granjas a commercialJobs para evitar doble tributación comercial
             parkHappinessBonus += (levelData.happiness || 5);
@@ -927,7 +924,6 @@ export class Simulation {
       addHappiness('🏚️', 'Edificios dañados', -Math.min(30, damagedCount * 2.5));
     }
 
-    addHappiness('📜', 'Eventos y dilemas', dilemmaMods.happinessMod);
     this.happiness = Math.max(5, Math.min(100, Math.round(calcHappiness)));
     this.happinessBreakdown = { base: 55, factors: happinessFactors, raw: Math.round(calcHappiness) };
 
@@ -939,7 +935,7 @@ export class Simulation {
 
     if (this.population < this.housingCapacity) {
       if (this.happiness > 50) { // Crecimiento robusto con felicidad > 50%
-        const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14 * dilemmaMods.immigrationMultiplier));
+        const arrival = Math.max(1, Math.floor((this.housingCapacity - this.population) * 0.14));
         this.population = Math.min(this.housingCapacity, this.population + arrival);
         migrationStatus = 'growing';
       } else if (this.happiness >= 35 && this.unemploymentRate < 25 && this.day % 2 === 0) {
@@ -974,7 +970,6 @@ export class Simulation {
     addSecurity('💼', 'Paro', -this.unemploymentRate * 0.5);
     addSecurity('🎓', 'Educación', Math.min(15, this.education * 0.18));
     addSecurity('🏥', 'Hospitales', Math.min(15, hospitalCoverage * 0.35));
-    addSecurity('📜', 'Eventos y dilemas', dilemmaMods.healthMod);
 
     // Sin agua potable los hidrantes pierden presión y la seguridad decae
     if (this.hasWaterShortage) {
@@ -1084,13 +1079,6 @@ export class Simulation {
       this.events.forEach((ev) => window.gameInstance.ui.showToast(ev.text));
     }
 
-    // 10. EVALUAR DILEMAS Y EVENTOS EJECUTIVOS DE ALCALDÍA
-    const newDilemma = this.dilemmas.tick(this);
-    if (newDilemma) {
-      if (window.gameInstance && window.gameInstance.ui) {
-        window.gameInstance.ui.showDilemma(newDilemma);
-      }
-    }
   }
 
   repairAllCity() {
@@ -1145,7 +1133,6 @@ export class Simulation {
       speed: this.speed,
       isPaused: this.isPaused,
       citizens: this.citizens ? this.citizens.serialize() : null,
-      dilemmas: this.dilemmas ? this.dilemmas.serialize() : null,
       region: this.region.serialize(),
     };
   }
@@ -1171,9 +1158,6 @@ export class Simulation {
     }
     if (data.citizens && this.citizens) {
       this.citizens.deserialize(data.citizens);
-    }
-    if (data.dilemmas && this.dilemmas) {
-      this.dilemmas.deserialize(data.dilemmas);
     }
     if (data.region) {
       this.region.deserialize(data.region);

@@ -25,9 +25,12 @@ Fusión adaptada de `shimaya-code-architect` (modularización, memoria, separaci
 | `js/game/citizens.js` (~1000) | Agentes, empleo, flujos de hogares | Recorre ciudadanos y la cuadrícula |
 | `js/game/economy.js` (~860), `ledger.js` | Economía y libro contable | Todo dinero vía `ledger.transfer` |
 | `js/game/supply-chain.js`, `regional-economy.js`, `calendar.js` | Insumos, ciclo e inflación, estaciones | Deterministas |
-| `js/game/ui.js` (~1700) | HUD, menú de construcción, inspector, dilemas | Aún grande: candidato a dividir |
+| `js/game/ui.js` (~1000) | HUD, barra superior, modo enfoque y coordinación de paneles | Coordina; la lógica de cada panel vive en su módulo |
 | `js/game/fullscreen-hub.js` + `finance-hub.js`, `city-hub.js`, `management-hub.js` | Pantallas completas | Repintan con un solo `innerHTML` |
 | `js/game/finance-hud.js` | Desplegables de Tributos y Sueldos | Un panel a la vez |
+| `js/game/build-catalog.js` | Catálogo de construcción (pestañas abajo) y sugerencia del modo inteligente | Repinta al abrir y en cada día |
+| `js/game/building-card.js` | Ficha de edificio (panel derecho) | Se cierra sola si el edificio desaparece |
+| `js/game/settings-hub.js`, `preferences.js` | Ajustes a pantalla completa y preferencias por dispositivo (localStorage) | |
 | `css/style.css` (~2150), `finance-hud.css`, `management-hub.css` | Estilos | |
 
 ## 1. Reglas que ninguna optimización puede romper
@@ -71,7 +74,7 @@ Fusión adaptada de `shimaya-code-architect` (modularización, memoria, separaci
 ## 5. Modularización
 
 - Un archivo por responsabilidad; los paneles grandes extienden `FullscreenHub` en lugar de añadir métodos a `ui.js`.
-- Siguiente paso pendiente: extraer de `ui.js` el **menú de construcción y modo enfoque**, el **inspector de edificios** y la **pantalla de título y ajustes** a módulos propios.
+- Catálogo, ficha de edificio y ajustes ya son módulos propios. Pendiente: la pantalla de título y el modo enfoque.
 - Los módulos de juego no importan nada de `ui.js` ni del DOM.
 
 ## 6. Limpieza de código muerto

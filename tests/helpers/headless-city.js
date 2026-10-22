@@ -41,8 +41,6 @@ export function createCity({ seed = 12345, disasters = false } = {}) {
   grid.simulation = sim;
   sim.isPaused = false;
   sim.speed = 1;
-  // Los dilemas son decisiones del jugador; en las pruebas no se disparan
-  sim.dilemmas.tick = () => null;
 
   const c = Math.floor(CONFIG.CANVAS.GRID_SIZE / 2);
   for (let gx = c - 3; gx <= c + 3; gx++) grid.placeBuilding(gx, c, 'road');

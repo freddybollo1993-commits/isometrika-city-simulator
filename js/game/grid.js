@@ -534,35 +534,8 @@ export class Grid {
     }
 
     // 3. Regulación de Densidad Poblacional (Desarrollo premeditado y justificado)
-    if (CONFIG.POPULATION_THRESHOLDS && CONFIG.POPULATION_THRESHOLDS[buildingId]) {
-      const threshold = CONFIG.POPULATION_THRESHOLDS[buildingId];
-      const existingCount = this.countBuildings(buildingId);
-
-      // Límite absoluto de unidades
-      if (threshold.maxTotal && existingCount >= threshold.maxTotal) {
-        return {
-          allowed: false,
-          reason: `Límite máximo alcanzado: solo se permite ${threshold.maxTotal} sede(s) de este edificio en la ciudad.`,
-        };
-      }
-
-      const currentPop = popOverride !== null ? popOverride : this.getCurrentPopulation();
-
-      // Cálculo del umbral poblacional requerido para la siguiente unidad
-      let requiredPop = 0;
-      if (existingCount === 0) {
-        requiredPop = threshold.minPop || 0;
-      } else {
-        requiredPop = Math.max(threshold.minPop || 0, existingCount * (threshold.popPerUnit || 10));
-      }
-
-      if (currentPop < requiredPop) {
-        return {
-          allowed: false,
-          reason: `Densidad insuficiente: requieres al menos ${requiredPop} habitantes para justificar esta unidad (población actual: ${currentPop}).`,
-        };
-      }
-    }
+    const density = this.checkPopulationThreshold(buildingId, popOverride);
+    if (!density.allowed) return density;
 
     return { allowed: true };
   }
@@ -570,6 +543,44 @@ export class Grid {
   /**
    * Coloca un edificio con orientación en 4 direcciones (0, 1, 2, 3)
    */
+  /**
+   * Regla de densidad: población necesaria para la siguiente unidad de un edificio.
+   * La usan canBuild y el catálogo de construcción (para mostrar el motivo del bloqueo).
+   */
+  checkPopulationThreshold(buildingId, popOverride = null) {
+    if (!CONFIG.POPULATION_THRESHOLDS || !CONFIG.POPULATION_THRESHOLDS[buildingId]) return { allowed: true };
+    const threshold = CONFIG.POPULATION_THRESHOLDS[buildingId];
+    const existingCount = this.countBuildings(buildingId);
+
+    // Límite absoluto de unidades
+    if (threshold.maxTotal && existingCount >= threshold.maxTotal) {
+      return {
+        allowed: false,
+        maxReached: true,
+        reason: `Límite máximo alcanzado: solo se permite ${threshold.maxTotal} sede(s) de este edificio en la ciudad.`,
+      };
+    }
+
+    const currentPop = popOverride !== null ? popOverride : this.getCurrentPopulation();
+
+    // Cálculo del umbral poblacional requerido para la siguiente unidad
+    let requiredPop = 0;
+    if (existingCount === 0) {
+      requiredPop = threshold.minPop || 0;
+    } else {
+      requiredPop = Math.max(threshold.minPop || 0, existingCount * (threshold.popPerUnit || 10));
+    }
+
+    if (currentPop < requiredPop) {
+      return {
+        allowed: false,
+        requiredPop,
+        reason: `Densidad insuficiente: requieres al menos ${requiredPop} habitantes para justificar esta unidad (población actual: ${currentPop}).`,
+      };
+    }
+    return { allowed: true };
+  }
+
   placeBuilding(gx, gy, buildingId, rotation = 0) {
     const check = this.canBuild(gx, gy, buildingId);
     if (!check.allowed) return false;

@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/finance-hud.css">
   <link rel="stylesheet" href="css/management-hub.css">
+  <link rel="stylesheet" href="css/panels.css">
 </head>
 <body class="landscape-app">
 
@@ -73,74 +74,6 @@
             <span class="gear-icon">⚙️</span>
           </button>
 
-          <!-- Dropdown Desplegable de Configuración -->
-          <div id="gear-menu-dropdown" class="gear-menu-dropdown hidden">
-            <div class="gear-menu-header">
-              <div class="gear-menu-title">
-                <span class="gear-menu-emoji">⚙️</span>
-                <div>
-                  <h3>Configuración y Opciones</h3>
-                  <small>Cámara, audio y partida</small>
-                </div>
-              </div>
-              <button id="btn-close-gear-menu" class="stats-close-btn" title="Cerrar configuración">&times;</button>
-            </div>
-
-            <div class="gear-menu-body">
-              <!-- SECCIÓN 1: CÁMARA Y PERSPECTIVA -->
-              <div class="menu-group-section">
-                <span class="menu-group-title">🎥 CÁMARA Y PERSPECTIVA</span>
-                <div class="menu-camera-actions">
-                  <button id="menu-btn-center" class="menu-action-pill" title="Centrar cámara en la cuadrícula">
-                    <span class="act-icon">🎯</span>
-                    <span>Centrar Ciudad</span>
-                  </button>
-                  <button class="menu-action-pill" data-zoom="in" title="Acercar cámara (Zoom +)">
-                    <span class="act-icon">＋</span>
-                    <span>Acercar</span>
-                  </button>
-                  <button class="menu-action-pill" data-zoom="out" title="Alejar cámara (Zoom -)">
-                    <span class="act-icon">－</span>
-                    <span>Alejar</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- SECCIÓN 2: AUDIO Y PANTALLA -->
-              <div class="menu-group-section">
-                <span class="menu-group-title">🔊 AUDIO Y PANTALLA</span>
-                <div class="menu-system-grid">
-                  <button id="menu-btn-audio" class="menu-system-pill" title="Alternar audio y sonido">
-                    <span id="menu-audio-icon">🔊</span>
-                    <span id="menu-audio-text">Audio: ON</span>
-                  </button>
-                  <button id="menu-btn-fullscreen" class="menu-system-pill" title="Alternar pantalla completa">
-                    <span>⛶</span>
-                    <span>Pantalla Completa</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- SECCIÓN 3: PARTIDA Y SISTEMA -->
-              <div class="menu-group-section">
-                <span class="menu-group-title">💾 PARTIDA Y SISTEMA</span>
-                <div class="menu-system-grid">
-                  <button id="menu-btn-save" class="menu-system-pill primary-pill" title="Guardar partida ahora">
-                    <span>💾</span>
-                    <span>Guardar Partida</span>
-                  </button>
-                  <button class="menu-system-pill" data-open-modal="settings" title="Opciones avanzadas y copia de seguridad">
-                    <span>⚙️</span>
-                    <span>Opciones</span>
-                  </button>
-                </div>
-
-                <button id="menu-btn-title-return" class="menu-btn-exit" title="Guardar partida y volver a la pantalla de título">
-                  <span>🏠 Guardar y Salir al Menú Principal</span>
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -230,217 +163,35 @@
 
     <!-- Dock Principal de Impacto Directo (Nivel 1: Ergonomía 48px/56px) -->
     <nav id="hud-bottom-dock" class="hud-bottom-dock" role="toolbar" aria-label="Centro de Mando de Impacto Directo">
-      <button class="dock-btn" data-dock-tool="road" title="Trazar Calles (R)">
+      <button class="dock-btn" data-dock-tool="road" title="Trazar calles (R)">
         <span class="dock-btn-icon">🛣️</span>
         <span class="dock-btn-label">Vía</span>
       </button>
 
-      <button class="dock-btn" data-dock-tool="residential_low" title="Vivienda Unifamiliar (Z)">
-        <span class="dock-btn-icon">🏠</span>
-        <span class="dock-btn-label">Casas</span>
-      </button>
-
-      <button class="dock-btn" data-dock-tool="commercial_store" title="Tienda de Barrio (C)">
-        <span class="dock-btn-icon">🛍️</span>
-        <span class="dock-btn-label">Tienda</span>
-      </button>
-
-      <button class="dock-btn" data-dock-tool="farm_organic" title="Granja Orgánica (Alimento)">
-        <span class="dock-btn-icon">🌾</span>
-        <span class="dock-btn-label">Granja</span>
-      </button>
-
-      <button class="dock-btn" data-dock-tool="industrial_mass" title="Fábrica de Contratación Masiva (Empleo)">
-        <span class="dock-btn-icon">🏭</span>
-        <span class="dock-btn-label">Fábrica</span>
-      </button>
-
-      <button id="btn-dock-services" class="dock-btn" data-open-carousel-cat="utility" title="Redes de Luz y Agua (S)">
-        <span class="dock-btn-icon">⚡💧</span>
-        <span class="dock-btn-label">Redes</span>
-      </button>
-
-      <button id="btn-toggle-carousel" class="dock-btn dock-btn-catalog" title="Catálogo Completo de Edificios">
+      <button id="btn-toggle-carousel" class="dock-btn dock-btn-catalog" title="Construir: catálogo completo">
         <span class="dock-btn-icon">🏗️</span>
-        <span class="dock-btn-label">Catálogo</span>
+        <span class="dock-btn-label">Construir</span>
       </button>
 
-      <!-- Divisor de Seguridad Destructiva -->
+      <!-- Modo inteligente (Ajustes): edificio que más necesita la ciudad -->
+      <button id="btn-dock-suggest" class="dock-btn dock-btn-suggest" hidden>
+        <span class="dock-btn-icon">💡</span>
+        <span class="dock-btn-label">Sugerido</span>
+        <span class="dock-btn-reason"></span>
+      </button>
+
       <span class="dock-separator-destructive" aria-hidden="true"></span>
 
-      <!-- Herramienta de Demolición Separada con Paleta de Advertencia -->
-      <button id="btn-dock-demolish" class="dock-btn dock-btn-demolish" data-dock-tool="demolish" title="Modo Demolición (D)">
+      <button id="btn-dock-demolish" class="dock-btn dock-btn-demolish" data-dock-tool="demolish" title="Demoler (D)">
         <span class="dock-btn-icon">🚜</span>
         <span class="dock-btn-label">Demoler</span>
       </button>
     </nav>
   </div>
 
-  <!-- 5. MENÚ CARRUSEL HORIZONTAL DESLIZANTE -->
-  <nav id="construction-carousel" class="construction-carousel-drawer hidden">
-    <!-- Pestañas de categorías -->
-    <div class="carousel-categories">
-      <button class="cat-pill active" data-category="all">Todas</button>
-      <button class="cat-pill" data-category="infra">Vías</button>
-      <button class="cat-pill" data-category="utility">Redes ⚡💧</button>
-      <button class="cat-pill" data-category="residential">Vivienda</button>
-      <button class="cat-pill" data-category="commercial">Comercio</button>
-      <button class="cat-pill" data-category="farm">Granjas</button>
-      <button class="cat-pill" data-category="industrial">Empresas</button>
-      <button class="cat-pill" data-category="service">Servicios</button>
-      <button class="cat-pill" data-category="nature">Naturaleza</button>
-      <button class="cat-pill cat-demolish" data-tool="demolish">🔨 Demoler</button>
-    </div>
-
-    <!-- Contenedor con scroll horizontal táctil y tarjetas -->
-    <div id="carousel-items-scroll" class="carousel-cards-track">
-      <!-- Rellenado dinámicamente por UIManager -->
-    </div>
-  </nav>
-
-  <!-- 6. INSPECTOR DE EDIFICIO Y MEJORAS DE NIVEL (BOTTOM SHEET) -->
-  <div id="inspector-sheet" class="inspector-bottom-sheet hidden">
-    <div class="sheet-handle"></div>
-    <div class="inspector-content">
-      <div class="inspector-header">
-        <div class="inspector-title-wrap">
-          <span id="insp-icon" class="insp-emoji">🏢</span>
-          <div>
-            <h3 id="insp-name">Nombre del Edificio</h3>
-            <span id="insp-level" class="insp-level-badge">Nivel 1</span>
-          </div>
-        </div>
-        <button id="btn-close-inspector" class="sheet-close-btn">&times;</button>
-      </div>
-
-      <p id="insp-desc" class="insp-description"></p>
-
-      <div id="insp-stats" class="insp-stats-grid"></div>
-
-      <div class="insp-bonus-box">
-        <strong>🌟 Bonificación Nivel Máximo:</strong>
-        <span id="insp-max-bonus"></span>
-      </div>
-
-      <div class="inspector-actions">
-        <button id="btn-upgrade-building" class="btn-upgrade">
-          <span>⚡ Mejorar a Nivel <span id="insp-next-lvl">2</span></span>
-          <strong id="insp-upgrade-cost">$0</strong>
-        </button>
-        <button id="btn-suspend-inspector" class="btn-secondary-insp" title="Pausar operación / Modo Ahorro">⏸️ Pausar</button>
-        <button id="btn-rotate-inspector" class="btn-secondary-insp" title="Rotar 90°">🔄 Rotar</button>
-        <button id="btn-demolish-inspector" class="btn-danger-insp" title="Demoler edificio">🔨 Demoler</button>
-      </div>
-    </div>
-  </div>
-
   <!-- TOASTS -->
   <div id="toast-container" class="toast-container"></div>
   <div id="modal-overlay" class="modal-overlay"></div>
-
-  <!-- MODAL DE DILEMAS Y EVENTOS DE ALCALDÍA -->
-  <div id="modal-dilemma" class="game-modal modal-glassmorphic modal-dilemma hidden">
-    <div class="modal-header">
-      <div class="modal-title-wrap">
-        <span id="dilemma-emoji" class="modal-emoji">🏛️</span>
-        <h2 id="dilemma-title">Decisión Ejecutiva de Alcaldía</h2>
-      </div>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body modal-body-glass">
-      <div class="dilemma-banner">
-        <p id="dilemma-desc" class="dilemma-desc">Descripción del evento...</p>
-      </div>
-      <div class="dilemma-options-grid">
-        <div id="dilemma-opt-a" class="dilemma-card-opt">
-          <div class="dilemma-opt-badge badge-opt-a">Opción A</div>
-          <h4 id="dilemma-opt-a-label" class="dilemma-opt-title">Opción A</h4>
-          <div id="dilemma-opt-a-cost" class="dilemma-opt-cost">Coste</div>
-          <p id="dilemma-opt-a-conseq" class="dilemma-opt-conseq">Consecuencias</p>
-          <button id="btn-dilemma-choose-a" class="btn-primary btn-dilemma">Decretar Opción A</button>
-        </div>
-        <div id="dilemma-opt-b" class="dilemma-card-opt">
-          <div class="dilemma-opt-badge badge-opt-b">Opción B</div>
-          <h4 id="dilemma-opt-b-label" class="dilemma-opt-title">Opción B</h4>
-          <div id="dilemma-opt-b-cost" class="dilemma-opt-cost">Coste</div>
-          <p id="dilemma-opt-b-conseq" class="dilemma-opt-conseq">Consecuencias</p>
-          <button id="btn-dilemma-choose-b" class="btn-secondary btn-dilemma">Decretar Opción B</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="modal-settings" class="game-modal modal-glassmorphic">
-    <div class="modal-header">
-      <div class="modal-title-wrap">
-        <span class="modal-emoji">⚙️</span>
-        <h2>Configuración y Opciones</h2>
-      </div>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body modal-body-glass">
-      <!-- 1. Audio y Efectos Sonoros -->
-      <div class="settings-card">
-        <h3>🔊 Audio y Efectos Sonoros</h3>
-        <p>Efectos sonoros procedimentales generados por síntesis acústica.</p>
-        <div class="settings-actions">
-          <button id="btn-settings-toggle-audio" class="btn-primary">
-            <span id="settings-audio-label">🔊 Sonido: Activado</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- 2. Visualización y Pantalla -->
-      <div class="settings-card">
-        <h3>📱 Pantalla y Orientación</h3>
-        <p>Modo horizontal inmersivo optimizado para móviles y escritorio.</p>
-        <div class="settings-actions">
-          <button id="btn-settings-fullscreen" class="btn-secondary">⛶ Alternar Pantalla Completa</button>
-          <button id="btn-settings-center-camera" class="btn-secondary">🎯 Centrar Vista en Ciudad</button>
-        </div>
-      </div>
-
-      <!-- 3. Almacenamiento Local -->
-      <div class="settings-card">
-        <h3>💾 Autoguardado en Dispositivo</h3>
-        <p>Tu progreso se conserva de forma segura en este navegador (LocalStorage).</p>
-        <div class="settings-actions">
-          <button id="btn-save-now" class="btn-primary">💾 Guardar Ahora</button>
-        </div>
-      </div>
-
-      <!-- 4. Copia de Seguridad -->
-      <div class="settings-card">
-        <h3>📁 Copias de Seguridad (.json)</h3>
-        <p>Exporta o importa partidas completas en archivos JSON externos.</p>
-        <div class="settings-actions">
-          <button id="btn-export-city" class="btn-secondary">📤 Exportar Ciudad (.json)</button>
-          <label class="btn-secondary file-label">
-            📥 Importar Ciudad (.json)
-            <input type="file" id="file-import-city" accept=".json" style="display: none;">
-          </label>
-        </div>
-      </div>
-
-      <!-- 5. Navegación Principal -->
-      <div class="settings-card">
-        <h3>🏠 Menú Principal</h3>
-        <p>Guarda el progreso de la ciudad y regresa a la pantalla de bienvenida.</p>
-        <div class="settings-actions">
-          <button id="btn-return-to-title" class="btn-secondary" style="border-color: rgba(56, 189, 248, 0.4);">
-            <span>🏠 Volver a la Pantalla de Inicio</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- 6. Zona de Demolición / Reinicio -->
-      <div class="settings-card danger-card">
-        <h3>⚠️ Reiniciar Ciudad</h3>
-        <p>Borra la partida actual y funda un asentamiento nuevo desde cero.</p>
-        <button id="btn-reset-city" class="btn-danger">⚠️ Nueva Ciudad (Reiniciar)</button>
-      </div>
-    </div>
-  </div>
 
   <!-- PANTALLA DE INICIO (TITLE SCREEN) -->
   <div id="title-screen" class="title-screen-overlay">

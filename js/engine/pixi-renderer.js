@@ -31,16 +31,6 @@ const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'sire
 const hexToNumber = (hex) => parseInt(String(hex).replace('#', '').slice(0, 6), 16);
 
 export class PixiRenderer {
-  /** WebGL disponible en este navegador. */
-  static supported() {
-    try {
-      const c = document.createElement('canvas');
-      return !!(c.getContext('webgl2') || c.getContext('webgl'));
-    } catch (e) {
-      return false;
-    }
-  }
-
   constructor(canvas) {
     this.canvas = canvas;
     this.ready = false;
