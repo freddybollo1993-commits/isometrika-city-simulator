@@ -1,17 +1,17 @@
 /**
  * CONFIGURACIÓN CENTRAL DE ISOMETRICA (V2.0)
- * Catálogo completo de estructuras estandarizadas (1x1 y 2x2),
+ * Catálogo completo de estructuras (su superficie se fija en BUILDING_SIZES, al final),
  * esquema de progresión de 3 niveles, bonificaciones de nivel máximo,
  * y dependencias de servicios básicos (Electricidad y Agua Potable).
  */
 
 export const CONFIG = {
   CANVAS: {
-    TILE_WIDTH: 64,
-    TILE_HEIGHT: 32,
-    GRID_SIZE: 28,
-    MIN_ZOOM: 0.5,
-    MAX_ZOOM: 2.2,
+    TILE_WIDTH: 32, // casillas a la mitad que en la v2 (ver ESCALA DEL MAPA al final)
+    TILE_HEIGHT: 16,
+    GRID_SIZE: 88, // tamaño máximo con las dos expansiones; al fundar solo se usa el centro
+    MIN_ZOOM: 0.4,
+    MAX_ZOOM: 3.0,
     DEFAULT_ZOOM: 1.0,
   },
 
@@ -118,7 +118,6 @@ export const CONFIG = {
       id: 'road',
       name: 'Carretera Asfaltada',
       category: 'infra',
-      size: 1, // 1x1
       cost: 40,
       upkeep: 0.15, // Costo base diario reducido de limpieza; mantenimiento estructural cada 20 días
       description: 'Conecta zonas, transporta suministros agrícolas a comercios y permite la movilidad urbana.',
@@ -128,7 +127,6 @@ export const CONFIG = {
       id: 'transit_bus_terminal',
       name: 'Terminal de Autobuses y Tránsito',
       category: 'infra',
-      size: 1, // 1x1
       height: 24,
       cost: 1200,
       upkeep: 12,
@@ -153,7 +151,6 @@ export const CONFIG = {
       name: 'Parque Solar Fotovoltaico',
       category: 'utility',
       utilityType: 'power',
-      size: 1, // 1x1
       height: 14,
       cost: 1200,
       upkeep: 12,
@@ -175,7 +172,6 @@ export const CONFIG = {
       name: 'Central Eléctrica y Subestación',
       category: 'utility',
       utilityType: 'power',
-      size: 2, // 2x2
       height: 48,
       cost: 4200,
       upkeep: 42,
@@ -197,7 +193,6 @@ export const CONFIG = {
       name: 'Torre de Agua y Bombeo',
       category: 'utility',
       utilityType: 'water',
-      size: 1, // 1x1
       height: 38,
       cost: 1000,
       upkeep: 10,
@@ -219,7 +214,6 @@ export const CONFIG = {
       name: 'Planta Potabilizadora Ribereña',
       category: 'utility',
       utilityType: 'water',
-      size: 2, // 2x2
       height: 24,
       cost: 3400,
       upkeep: 38,
@@ -242,7 +236,6 @@ export const CONFIG = {
       id: 'residential_low',
       name: 'Casa y Residencia Baja',
       category: 'residential',
-      size: 1, // 1x1
       height: 28,
       cost: 400,
       upkeep: 3,
@@ -262,7 +255,6 @@ export const CONFIG = {
       id: 'residential_high',
       name: 'Torre de Departamentos',
       category: 'residential',
-      size: 2, // 2x2
       height: 72,
       cost: 3200,
       upkeep: 45,
@@ -284,7 +276,6 @@ export const CONFIG = {
       category: 'residential',
       funding: 'public', // Obra pública financiada por la Alcaldía
       socialHousing: true,
-      size: 2, // 2x2
       height: 50,
       cost: 2400,
       upkeep: 35,
@@ -306,7 +297,6 @@ export const CONFIG = {
       id: 'commercial_store',
       name: 'Tienda de Barrio',
       category: 'commercial',
-      size: 1, // 1x1
       height: 34,
       cost: 850,
       upkeep: 10,
@@ -326,7 +316,6 @@ export const CONFIG = {
       id: 'commercial_gastronomy',
       name: 'Bulevar Gastronómico y Cafeterías',
       category: 'commercial',
-      size: 1, // 1x1
       height: 30,
       cost: 1000,
       upkeep: 14,
@@ -348,7 +337,6 @@ export const CONFIG = {
       id: 'commercial_market',
       name: 'Mercado Popular',
       category: 'commercial',
-      size: 1, // 1x1
       height: 28,
       cost: 1100,
       upkeep: 16,
@@ -368,7 +356,6 @@ export const CONFIG = {
       id: 'commercial_super',
       name: 'Supermercado de Abasto',
       category: 'commercial',
-      size: 2, // 2x2
       height: 40,
       cost: 2800,
       upkeep: 35,
@@ -388,7 +375,6 @@ export const CONFIG = {
       id: 'commercial_tower',
       name: 'Edificio de Oficinas',
       category: 'commercial',
-      size: 2, // 2x2
       height: 80,
       cost: 4200,
       upkeep: 50,
@@ -409,7 +395,6 @@ export const CONFIG = {
       name: 'Empresa de Mantenimiento y Servicios Urbanos',
       category: 'commercial',
       maintenanceFirm: true,
-      size: 1, // 1x1
       height: 32,
       cost: 1200,
       upkeep: 8,
@@ -431,7 +416,6 @@ export const CONFIG = {
       name: 'Centro de Distribución Mayorista',
       category: 'commercial',
       logisticsHub: true,
-      size: 2, // 2x2
       height: 30,
       cost: 2600,
       upkeep: 22,
@@ -454,7 +438,6 @@ export const CONFIG = {
       id: 'farm_organic',
       name: 'Granja Agrícola y Huertos Rurales',
       category: 'farm',
-      size: 2, // 2x2
       height: 20,
       cost: 1200,
       upkeep: 12,
@@ -479,7 +462,6 @@ export const CONFIG = {
       name: 'Fábrica de Contratación Masiva',
       category: 'industrial',
       branch: 'mass',
-      size: 2, // 2x2
       height: 52,
       cost: 3200,
       upkeep: 35,
@@ -501,7 +483,6 @@ export const CONFIG = {
       name: 'Complejo Tecnológico Calificado',
       category: 'industrial',
       branch: 'tech',
-      size: 2, // 2x2
       height: 64,
       cost: 4500,
       upkeep: 40,
@@ -524,7 +505,6 @@ export const CONFIG = {
       category: 'industrial',
       branch: 'agro',
       agroIndustry: true,
-      size: 2, // 2x2
       height: 48,
       cost: 2800,
       upkeep: 30,
@@ -551,7 +531,6 @@ export const CONFIG = {
       category: 'industrial',
       branch: 'supply',
       supplies: 'materials',
-      size: 2, // 2x2
       height: 22,
       cost: 1800,
       upkeep: 16,
@@ -573,7 +552,6 @@ export const CONFIG = {
       category: 'industrial',
       branch: 'supply',
       supplies: 'components',
-      size: 1, // 1x1
       height: 30,
       cost: 2400,
       upkeep: 20,
@@ -596,7 +574,6 @@ export const CONFIG = {
       id: 'service_police',
       name: 'Comisaría de Seguridad',
       category: 'service',
-      size: 1, // 1x1
       height: 38,
       cost: 1500,
       upkeep: 16,
@@ -617,7 +594,6 @@ export const CONFIG = {
       id: 'service_fire',
       name: 'Estación de Bomberos',
       category: 'service',
-      size: 1, // 1x1
       height: 38,
       cost: 1500,
       upkeep: 16,
@@ -637,7 +613,6 @@ export const CONFIG = {
       id: 'service_hospital',
       name: 'Hospital Central de Alta Resolución',
       category: 'service',
-      size: 2, // 2x2
       height: 48,
       cost: 3800,
       upkeep: 35,
@@ -658,7 +633,6 @@ export const CONFIG = {
       id: 'service_school',
       name: 'Academia y Centro Técnico',
       category: 'service',
-      size: 1, // 1x1
       height: 36,
       cost: 1600,
       upkeep: 18,
@@ -679,7 +653,6 @@ export const CONFIG = {
       id: 'service_university',
       name: 'Universidad Metropolitana',
       category: 'service',
-      size: 2, // 2x2
       height: 62,
       cost: 4800,
       upkeep: 42,
@@ -702,7 +675,6 @@ export const CONFIG = {
       name: 'Radar Sísmico y Alerta Geotécnica',
       category: 'service',
       funding: 'public',
-      size: 1, // 1x1
       height: 36,
       cost: 1900,
       upkeep: 18,
@@ -724,7 +696,6 @@ export const CONFIG = {
       id: 'service_research',
       name: 'Instituto de Ciencias e Innovación',
       category: 'service',
-      size: 2, // 2x2
       height: 56,
       cost: 4200,
       upkeep: 35,
@@ -745,7 +716,6 @@ export const CONFIG = {
       id: 'service_cityhall',
       name: 'Alcaldía y Palacio Municipal',
       category: 'service',
-      size: 2, // 2x2
       height: 54,
       cost: 5000,
       upkeep: 30,
@@ -766,7 +736,6 @@ export const CONFIG = {
       id: 'service_barrier',
       name: 'Dique de Contención Fluvial',
       category: 'service',
-      size: 1, // 1x1
       height: 16,
       cost: 700,
       upkeep: 12,
@@ -789,7 +758,6 @@ export const CONFIG = {
       id: 'deco_plaza',
       name: 'Plaza Cívica con Fuente',
       category: 'nature',
-      size: 1, // 1x1
       height: 8,
       cost: 400,
       upkeep: 8,
@@ -809,7 +777,6 @@ export const CONFIG = {
       id: 'deco_park',
       name: 'Parque Bioclimático',
       category: 'nature',
-      size: 1, // 1x1
       height: 10,
       cost: 320,
       upkeep: 6,
@@ -829,7 +796,6 @@ export const CONFIG = {
       id: 'deco_botanical',
       name: 'Jardín Botánico y Reserva',
       category: 'nature',
-      size: 2, // 2x2
       height: 18,
       cost: 2200,
       upkeep: 25,
@@ -849,7 +815,6 @@ export const CONFIG = {
       id: 'deco_lamp',
       name: 'Alumbrado y Señalética',
       category: 'nature',
-      size: 1, // 1x1
       height: 18,
       cost: 80,
       upkeep: 2,
@@ -1015,3 +980,52 @@ export const CONFIG = {
     },
   },
 };
+
+// =============================================================================
+// ESCALA DEL MAPA
+// Las casillas miden la mitad que en la versión anterior (32×16 px) y cada edificio ocupa
+// una superficie acorde a su capacidad. Las distancias del catálogo (radios, separación entre
+// servicios públicos, alcance logístico) siguen escritas en casillas antiguas y se convierten
+// aquí con MAP_SCALE; el código que mide distancias en casillas usa CONFIG.MAP.SCALE.
+// =============================================================================
+
+export const MAP_SCALE = 2;
+
+CONFIG.MAP = {
+  SCALE: MAP_SCALE,
+  BASE_SIZE: 56, // lado del terreno disponible al fundar la ciudad
+  EXPANSIONS: [
+    { size: 72, cost: 15000 },
+    { size: 88, cost: 40000 },
+  ],
+  ROAD_WIDTH: 2, // cada tramo de carretera ocupa 2×2 casillas (calzada y aceras)
+};
+
+// Lado (en casillas nuevas) que ocupa cada estructura
+const BUILDING_SIZES = {
+  road: 2, transit_bus_terminal: 3,
+  utility_power_solar: 3, utility_power_plant: 5, utility_water_tower: 2, utility_water_plant: 4,
+  residential_low: 2, residential_high: 4, residential_social: 4,
+  commercial_store: 2, commercial_gastronomy: 3, commercial_market: 3, commercial_super: 4,
+  commercial_tower: 4, commercial_maintenance: 3, commercial_distribution: 5,
+  farm_organic: 6, industrial_mass: 5, industrial_tech: 4, industrial_agro: 5,
+  supply_quarry: 5, supply_components: 3,
+  service_police: 3, service_fire: 3, service_hospital: 5, service_school: 3, service_university: 6,
+  service_seismic_radar: 2, service_research: 4, service_cityhall: 5, service_barrier: 2,
+  deco_plaza: 2, deco_park: 2, deco_botanical: 5, deco_lamp: 1,
+};
+
+for (const [id, def] of Object.entries(CONFIG.BUILDINGS)) {
+  def.size = BUILDING_SIZES[id] || def.size || 1;
+  if (def.radius) def.radius *= MAP_SCALE;
+  if (def.logisticsRange) def.logisticsRange *= MAP_SCALE;
+  if (def.levels) {
+    for (const lv of Object.values(def.levels)) {
+      if (lv.radius) lv.radius *= MAP_SCALE;
+      if (lv.logisticsRange) lv.logisticsRange *= MAP_SCALE;
+    }
+  }
+}
+for (const id of Object.keys(CONFIG.MIN_PUBLIC_SPACING)) {
+  CONFIG.MIN_PUBLIC_SPACING[id] *= MAP_SCALE;
+}

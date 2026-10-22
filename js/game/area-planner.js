@@ -52,16 +52,25 @@ export function isAreaBuildable(def, sim) {
 export function planRoadLine({ grid, sim, anchor, target, budget = null }) {
   const def = CONFIG.BUILDINGS.road;
   const result = { items: [], totalCost: 0, capacity: 0, counts: {}, skipped: { money: 0, density: 0 }, limits: [], area: 0 };
-  const max = grid.size - 1;
-  const tx = Math.max(0, Math.min(max, target.gx));
-  const ty = Math.max(0, Math.min(max, target.gy));
-  const horizontal = Math.abs(tx - anchor.gx) >= Math.abs(ty - anchor.gy);
-  const end = horizontal ? { gx: tx, gy: anchor.gy } : { gx: anchor.gx, gy: ty };
-  result.line = { gx0: anchor.gx, gy0: anchor.gy, gx1: end.gx, gy1: end.gy };
+  // Todo en tramos de 2×2 alineados a su rejilla
+  const w = CONFIG.MAP.ROAD_WIDTH;
+  const snap = (v) => Math.floor(v / w) * w;
+  const max = grid.size - w;
+  const a = { gx: snap(anchor.gx), gy: snap(anchor.gy) };
+  const tx = Math.max(0, Math.min(max, snap(target.gx)));
+  const ty = Math.max(0, Math.min(max, snap(target.gy)));
+  const horizontal = Math.abs(tx - a.gx) >= Math.abs(ty - a.gy);
+  const end = horizontal ? { gx: tx, gy: a.gy } : { gx: a.gx, gy: ty };
+  // Esquinas del tramo completo en casillas (para marcarlo en el mapa)
+  result.line = {
+    gx0: Math.min(a.gx, end.gx), gy0: Math.min(a.gy, end.gy),
+    gx1: Math.max(a.gx, end.gx) + w - 1, gy1: Math.max(a.gy, end.gy) + w - 1,
+  };
 
-  const steps = Math.max(Math.abs(end.gx - anchor.gx), Math.abs(end.gy - anchor.gy));
-  const sx = Math.sign(end.gx - anchor.gx);
-  const sy = Math.sign(end.gy - anchor.gy);
+  const steps = Math.max(Math.abs(end.gx - a.gx), Math.abs(end.gy - a.gy)) / w;
+  const sx = Math.sign(end.gx - a.gx) * w;
+  const sy = Math.sign(end.gy - a.gy) * w;
+  anchor = a;
   result.area = steps + 1;
 
   const cost = sim.getBuildingCost(def);
@@ -73,7 +82,7 @@ export function planRoadLine({ grid, sim, anchor, target, budget = null }) {
     if (!grid.canBuild(gx, gy, 'road').allowed) continue;
     if (cost > money) { result.skipped.money++; continue; }
     money -= cost;
-    result.items.push({ id: 'road', gx, gy, size: 1, cost });
+    result.items.push({ id: 'road', gx, gy, size: w, cost });
     result.totalCost += cost;
     result.counts.road = (result.counts.road || 0) + 1;
   }

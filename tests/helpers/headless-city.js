@@ -13,6 +13,7 @@ import { CorporationsManager } from '../../js/game/corporations.js';
 import { ResearchManager } from '../../js/game/research.js';
 import { DisasterSystem } from '../../js/game/disasters.js';
 import { Simulation } from '../../js/game/simulation.js';
+import { setupInitialTown } from '../../js/game/initial-town.js';
 
 const silentAudio = new Proxy({}, { get: () => () => {} });
 const stillCamera = new Proxy({}, { get: () => () => {} });
@@ -42,19 +43,11 @@ export function createCity({ seed = 12345, disasters = false } = {}) {
   sim.isPaused = false;
   sim.speed = 1;
 
-  const c = Math.floor(CONFIG.CANVAS.GRID_SIZE / 2);
-  for (let gx = c - 3; gx <= c + 3; gx++) grid.placeBuilding(gx, c, 'road');
-  grid.placeBuilding(c - 1, c - 1, 'residential_low', 0);
-  grid.placeBuilding(c + 1, c - 1, 'residential_low', 0);
-  grid.placeBuilding(c + 2, c - 1, 'residential_low', 0);
-  grid.placeBuilding(c + 1, c + 1, 'residential_low', 0);
-  grid.placeBuilding(c, c + 1, 'commercial_store', 0);
-  grid.placeBuilding(c - 3, c - 1, 'utility_power_solar', 0);
-  grid.placeBuilding(c + 3, c - 1, 'utility_water_tower', 0);
-  grid.placeBuilding(c - 3, c + 1, 'farm_organic', 0);
+  // El mismo pueblo fundacional que el juego (grid.town guarda su calle principal)
+  const town = setupInitialTown(grid);
   if (sim.recalculateCapacities) sim.recalculateCapacities();
 
-  return { sim, grid, center: c };
+  return { sim, grid, center: town.center, roadRow: town.roadRow };
 }
 
 /**
@@ -73,20 +66,60 @@ export function build(sim, grid, gx, gy, id, rotation = 0) {
 }
 
 /**
+ * Construye en la primera casilla libre recorriendo anillos desde el centro del pueblo
+ * (un poco al sur de su calle principal, lejos del río).
+ */
+export function buildNearCenter(sim, grid, c, id) {
+  if (!sim.canAffordBuilding(CONFIG.BUILDINGS[id]).allowed) return false;
+  const oy = grid.town ? grid.town.roadRow + 4 : c;
+  for (let r = 0; r <= 26; r++) {
+    for (let gy = oy - r; gy <= oy + r; gy++) {
+      for (let gx = c - r; gx <= c + r; gx++) {
+        if (Math.max(Math.abs(gx - c), Math.abs(gy - oy)) !== r) continue;
+        if (grid.canBuild(gx, gy, id).allowed && build(sim, grid, gx, gy, id)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Esquina de un rectángulo libre de w×h casillas de tierra, recorriendo desde el pueblo. */
+export function emptyArea(grid, w, h) {
+  const c = grid.town.center;
+  const oy = grid.town.roadRow + 12;
+  for (let r = 0; r <= 30; r++) {
+    for (let gy = oy - r; gy <= oy + r; gy++) {
+      for (let gx = c - r; gx <= c + r; gx++) {
+        if (Math.max(Math.abs(gx - c), Math.abs(gy - oy)) !== r) continue;
+        let ok = true;
+        for (let y = gy; y < gy + h && ok; y++) {
+          for (let x = gx; x < gx + w && ok; x++) {
+            const t = grid.getTile(x, y);
+            if (!t || t.building || t.terrain === 'water' || !grid.isUnlocked(x, y)) ok = false;
+          }
+        }
+        if (ok) return { gx, gy };
+      }
+    }
+  }
+  throw new Error('Sin espacio libre');
+}
+
+/**
  * Ciudad en crecimiento: cada pocos días amplía carreteras y añade
  * viviendas, comercio y servicios si hay fondos y población suficiente.
  */
 export function growCity(sim, grid, c, day) {
   const plan = [
-    [5, () => { for (let gx = c - 6; gx <= c + 6; gx++) build(sim, grid, gx, c + 4, 'road'); for (let gy = c; gy <= c + 4; gy++) build(sim, grid, c + 5, gy, 'road'); }],
-    [6, () => { build(sim, grid, c - 5, c + 3, 'residential_low'); build(sim, grid, c - 4, c + 3, 'residential_low'); build(sim, grid, c - 2, c + 3, 'residential_low'); }],
-    [10, () => { build(sim, grid, c, c + 3, 'residential_low'); build(sim, grid, c + 2, c + 3, 'residential_low'); }],
-    [14, () => { build(sim, grid, c + 3, c + 5, 'commercial_store'); build(sim, grid, c - 1, c + 5, 'farm_organic'); }],
-    [20, () => { build(sim, grid, c + 6, c + 1, 'service_police'); build(sim, grid, c + 6, c + 3, 'industrial_mass'); }],
-    [28, () => { build(sim, grid, c - 6, c + 5, 'residential_low'); build(sim, grid, c - 4, c + 5, 'residential_low'); build(sim, grid, c + 4, c + 3, 'commercial_store'); }],
-    [36, () => { build(sim, grid, c - 6, c - 1, 'service_school'); build(sim, grid, c + 4, c + 1, 'residential_social'); }],
+    [5, ['road', 'road', 'road', 'road', 'road', 'road']],
+    [6, ['residential_low', 'residential_low', 'residential_low']],
+    [10, ['residential_low', 'residential_low']],
+    [14, ['commercial_store', 'farm_organic']],
+    [20, ['service_police', 'industrial_mass']],
+    [28, ['residential_low', 'residential_low', 'commercial_store']],
+    [36, ['service_school', 'residential_social']],
   ];
-  for (const [d, act] of plan) if (d === day) act();
+  for (const [d, ids] of plan) if (d === day) ids.forEach((id) => buildNearCenter(sim, grid, c, id));
 }
 
 /**
@@ -96,8 +129,10 @@ export function growCity(sim, grid, c, day) {
 export function autoPlayer(sim, grid, c, { useSuppliers = true, maintain = true } = {}) {
   if (maintain) maintainCity(sim, grid);
   if (sim.day === 2) {
-    for (const gy of [c - 4, c + 4]) for (let gx = c - 8; gx <= c + 8; gx++) build(sim, grid, gx, gy, 'road');
-    for (const gx of [c - 8, c + 8]) for (let gy = c - 4; gy <= c + 4; gy++) build(sim, grid, gx, gy, 'road');
+    // Anillo de calles al sur del pueblo (tramos de 2×2)
+    const r = grid.town.roadRow;
+    for (let gx = c - 14; gx <= c + 14; gx += 2) build(sim, grid, gx, r + 10, 'road');
+    for (const gx of [c - 14, c + 14]) for (let gy = r; gy <= r + 10; gy += 2) build(sim, grid, gx, gy, 'road');
   }
   if (sim.day % 3 !== 0) return;
 
@@ -106,7 +141,7 @@ export function autoPlayer(sim, grid, c, { useSuppliers = true, maintain = true 
   if (sim.foodCapacity < sim.population * 1.2) wants.push('farm_organic');
   if (sim.powerRatio < 1 || sim.powerDemand > sim.powerSupply * 0.85) wants.push('utility_power_solar');
   if (sim.waterRatio < 1 || sim.waterDemand > sim.waterSupply * 0.85) wants.push('utility_water_tower');
-  // Exigencias ciudadanas, solo si queda colchón de dinero (desde el centro hacia fuera)
+  // Exigencias ciudadanas, solo si queda colchón de dinero
   if (sim.demands) {
     for (const d of sim.demands.status) {
       if (!d.problem) continue;
@@ -130,27 +165,7 @@ export function autoPlayer(sim, grid, c, { useSuppliers = true, maintain = true 
     if (market.logisticsRatio < 0.95) wants.unshift('commercial_distribution');
   }
 
-  for (const id of wants) {
-    let placed = false;
-    for (let gy = c - 7; gy <= c + 7 && !placed; gy++) {
-      for (let gx = c - 7; gx <= c + 7 && !placed; gx++) {
-        if (grid.canBuild(gx, gy, id).allowed) placed = build(sim, grid, gx, gy, id);
-      }
-    }
-  }
-}
-
-/** Construye en la primera casilla libre recorriendo anillos desde el centro. */
-function buildNearCenter(sim, grid, c, id) {
-  for (let r = 1; r <= 9; r++) {
-    for (let gy = c - r; gy <= c + r; gy++) {
-      for (let gx = c - r; gx <= c + r; gx++) {
-        if (Math.max(Math.abs(gx - c), Math.abs(gy - c)) !== r) continue;
-        if (grid.canBuild(gx, gy, id).allowed && build(sim, grid, gx, gy, id)) return true;
-      }
-    }
-  }
-  return false;
+  for (const id of wants) buildNearCenter(sim, grid, c, id);
 }
 
 /**

@@ -23,6 +23,7 @@ export class ManagementHub extends FullscreenHub {
         { id: 'corp', icon: '🏭', name: 'Empresas', feat: 'linear-gradient(160deg, #f59e0b 0%, #92400e 55%, #2a1405 100%)' },
         { id: 'science', icon: '🔬', name: 'Ciencia', feat: 'linear-gradient(160deg, #a78bfa 0%, #5b21b6 55%, #1e1046 100%)' },
         { id: 'risk', icon: '🌋', name: 'Riesgos', feat: 'linear-gradient(160deg, #f87171 0%, #991b1b 55%, #2a0808 100%)' },
+        { id: 'land', icon: '🗺️', name: 'Territorio', feat: 'linear-gradient(160deg, #a3e635 0%, #3f6212 55%, #10200a 100%)' },
       ],
     });
 
@@ -37,7 +38,40 @@ export class ManagementHub extends FullscreenHub {
   renderSection(s) {
     if (s.id === 'corp') return this._sectionCorp(s);
     if (s.id === 'science') return this._sectionScience(s);
+    if (s.id === 'land') return this._sectionLand(s);
     return this._sectionRisk(s);
+  }
+
+  _sectionLand(s) {
+    const sim = this.game.simulation;
+    const grid = this.game.grid;
+    const side = grid.unlockedSize;
+    const next = grid.nextExpansion();
+    const cost = sim.expansionCost();
+    const level = grid.mapLevel || 0;
+    const feat = this.feat(`${side}×${side}`, `casillas disponibles · ampliación ${level}/${CONFIG.MAP.EXPANSIONS.length}`, [
+      next ? `Siguiente: ${next.size}×${next.size} (+${next.size * next.size - side * side} casillas)` : '🏆 Mapa al tamaño máximo',
+      'El terreno nuevo rodea la ciudad por los cuatro lados',
+    ], this.meter((side * side) / (grid.size * grid.size)));
+
+    const cards = CONFIG.MAP.EXPANSIONS.map((e, i) => {
+      const bought = level > i;
+      const isNext = level === i;
+      const price = isNext ? cost : Math.round(e.cost * sim.difficulty.expansion);
+      return this.card({
+        icon: bought ? '✅' : isNext ? '🗺️' : '🔒', title: `Ampliación ${i + 1}`, sub: `${e.size}×${e.size} casillas`,
+        color: bought ? '#15803d' : isNext ? '#4d7c0f' : '#475569',
+        state: bought ? 'on' : isNext ? '' : 'locked',
+        rows: [
+          ['Terreno nuevo', `+${(e.size * e.size - (i ? CONFIG.MAP.EXPANSIONS[i - 1].size ** 2 : CONFIG.MAP.BASE_SIZE ** 2)).toLocaleString()} casillas`],
+          ['Precio', money(price), isNext && sim.economy.stateFunds < price ? 'neg' : ''],
+        ],
+        footer: `<div class="hub-card-foot"><span>🏛️ Estado</span>${bought
+          ? '<span class="hub-done">✅ Comprada</span>'
+          : `<button class="hub-btn" data-action="expand" ${isNext ? '' : 'disabled'}>${isNext ? 'Comprar' : 'Bloqueada'}</button>`}</div>`,
+      });
+    });
+    return this.section(s, feat, cards);
   }
 
   onAction(action, btn) {
@@ -57,6 +91,14 @@ export class ManagementHub extends FullscreenHub {
     } else if (action === 'repair') {
       const res = sim.repairAllCity();
       this.ui.showToast(res.success ? `🛡️ ${res.count} edificios reparados por ${money(res.cost)}` : `⚠️ ${res.reason}`);
+    } else if (action === 'expand') {
+      const res = sim.buyExpansion();
+      if (res.ok) {
+        if (this.game.audio) this.game.audio.playChime();
+        this.ui.showToast(`🗺️ Mapa ampliado a ${res.size}×${res.size} (−${money(res.cost)})`);
+      } else {
+        this.ui.showToast(`⚠️ ${res.reason}`);
+      }
     }
     this.render();
   }

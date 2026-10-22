@@ -18,6 +18,8 @@ import { AudioManager } from './game/audio.js';
 import { StorageManager } from './game/storage.js';
 import { UIManager } from './game/ui.js';
 import { planArea, planRoadLine, isAreaBuildable } from './game/area-planner.js';
+import { Traffic } from './engine/traffic.js';
+import { setupInitialTown } from './game/initial-town.js';
 
 // Densidad de píxeles máxima del lienzo (ver viewportSize)
 const MAX_RENDER_DPR = 1.5;
@@ -60,6 +62,7 @@ export class Game {
 
     // Inicializar subsistemas
     this.audio = new AudioManager();
+    this.traffic = new Traffic();
     this.camera = new Camera(this.canvas);
     this.renderer = this.createRenderer();
     this.grid = new Grid();
@@ -125,56 +128,61 @@ export class Game {
     this.simulation.speed = speed;
     this.simulation.isPaused = (speed === 0);
 
+    // Fracción del día ya transcurrida: al reanudar o cambiar de velocidad el día continúa
+    const progress = this._lastDayProgress || 0;
     if (this.simTimer) {
       clearInterval(this.simTimer);
       this.simTimer = null;
+    }
+    if (this.simStartTimer) {
+      clearTimeout(this.simStartTimer);
+      this.simStartTimer = null;
     }
 
     if (speed > 0) {
       // 1x = 10000ms (10s por día), 2x = 5000ms (5s por día)
       const interval = Math.round(CONFIG.SIMULATION.TICK_INTERVAL_MS / Math.max(1, speed));
       this.currentTickInterval = interval;
-      this.lastTickTime = performance.now();
+      this.lastTickTime = performance.now() - progress * interval;
 
-      this.simTimer = setInterval(() => {
+      const step = () => {
         this.lastTickTime = performance.now();
+        this._lastDayProgress = 0;
         this.simulation.tick(this.camera);
         this.ui.updateHUD(this.simulation, this.research);
-      }, interval);
+      };
+      this.simStartTimer = setTimeout(() => {
+        this.simStartTimer = null;
+        step();
+        this.simTimer = setInterval(step, interval);
+      }, Math.max(0, (1 - progress) * interval));
     }
   }
 
   getDayProgress() {
-    if (this.simulation.isPaused || this.simulation.speed === 0) return 0;
+    // En pausa se congela donde estaba (las barras de obra no retroceden)
+    if (this.simulation.isPaused || this.simulation.speed === 0) return this._lastDayProgress || 0;
     const elapsed = performance.now() - (this.lastTickTime || performance.now());
-    return Math.min(1.0, Math.max(0.0, elapsed / Math.max(1, this.currentTickInterval || 10000)));
+    this._lastDayProgress = Math.min(1.0, Math.max(0.0, elapsed / Math.max(1, this.currentTickInterval || 10000)));
+    return this._lastDayProgress;
+  }
+
+  /** Momento actual del juego en días con decimales (para las obras). */
+  simTime() {
+    return this.simulation.day + this.getDayProgress();
+  }
+
+  /** Progreso (0–1) de la obra de un edificio. */
+  constructionProgress(b) {
+    if (!b || !b.construction) return 1;
+    return Math.max(0, Math.min(1, (this.simTime() - b.construction.start) / b.construction.days));
   }
 
   /**
    * Crea un asentamiento inicial equilibrado con calles, casas, comercio y servicios básicos
    */
   setupInitialTown() {
-    const center = Math.floor(CONFIG.CANVAS.GRID_SIZE / 2);
-
-    // Carretera principal de la fundación
-    for (let gx = center - 3; gx <= center + 3; gx++) {
-      this.grid.placeBuilding(gx, center, 'road');
-    }
-
-    // Viviendas y comercio iniciales (4 casas unifamiliares = 16 hab., 1 tienda minorista)
-    this.grid.placeBuilding(center - 1, center - 1, 'residential_low', 0);
-    this.grid.placeBuilding(center + 1, center - 1, 'residential_low', 0);
-    this.grid.placeBuilding(center + 2, center - 1, 'residential_low', 0);
-    this.grid.placeBuilding(center + 1, center + 1, 'residential_low', 0);
-    this.grid.placeBuilding(center, center + 1, 'commercial_store', 0);
-
-    // Servicios Básicos iniciales: 1 Parque Solar (60 MW, 1 empleo) y 1 Torre de Agua (60 kL, 1 empleo)
-    this.grid.placeBuilding(center - 3, center - 1, 'utility_power_solar', 0);
-    this.grid.placeBuilding(center + 3, center - 1, 'utility_water_tower', 0);
-
-    // Granja Orgánica pionera (2x2, 40 de capacidad de comida, 3 empleos)
-    this.grid.placeBuilding(center - 3, center + 1, 'farm_organic', 0);
-
+    setupInitialTown(this.grid);
     // Recalcular capacidades iniciales para sincronizar el HUD
     if (this.simulation && this.simulation.recalculateCapacities) {
       this.simulation.recalculateCapacities();
@@ -288,15 +296,10 @@ export class Game {
 
       // Si se está arrastrando el fantasma directamente sobre el canvas
       if (this.isDraggingGhost && this.ghostState.active && this.ghostState.buildingId) {
-        const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-        const bSize = def ? (def.size || 1) : 1;
-        const maxG = this.grid.size - bSize;
-
-        const targetGx = Math.round(gridCoords.gx - this.ghostDragOffset.gx);
-        const targetGy = Math.round(gridCoords.gy - this.ghostDragOffset.gy);
-
-        this.ghostState.gx = Math.max(0, Math.min(maxG, targetGx));
-        this.ghostState.gy = Math.max(0, Math.min(maxG, targetGy));
+        this.setGhostPosition(
+          Math.round(gridCoords.gx - this.ghostDragOffset.gx),
+          Math.round(gridCoords.gy - this.ghostDragOffset.gy)
+        );
       }
     };
 
@@ -358,13 +361,8 @@ export class Game {
 
       // CASO 2: COLOCACIÓN FANTASMA ACTIVA (Un toque en el suelo reubica el fantasma)
       if (this.ghostState.active && this.ghostState.buildingId) {
-        const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-        const bSize = def ? (def.size || 1) : 1;
-        const maxG = this.grid.size - bSize;
-
         if (this.ghostState.area) this.clearArea();
-        this.ghostState.gx = Math.max(0, Math.min(maxG, gx));
-        this.ghostState.gy = Math.max(0, Math.min(maxG, gy));
+        this.setGhostPosition(gx, gy);
         this.audio.playClick();
         return;
       }
@@ -481,46 +479,31 @@ export class Game {
       }
     }
 
-    const maxG = this.grid.size - bSize;
-    targetGx = Math.max(0, Math.min(maxG, targetGx));
-    targetGy = Math.max(0, Math.min(maxG, targetGy));
-
-    this.ghostState = {
-      active: true,
-      buildingId,
-      gx: targetGx,
-      gy: targetGy,
-      rotation: 0,
-    };
+    // El edificio queda centrado bajo el punto elegido
+    this.ghostState = { active: true, buildingId, gx: 0, gy: 0, rotation: 0 };
+    this.setGhostPosition(targetGx - Math.floor((bSize - 1) / 2), targetGy - Math.floor((bSize - 1) / 2));
 
     this.audio.playClick();
     this.ui.showGhostManipulator(def);
   }
 
+  /** Mueve el fantasma sin salirse del mapa; las carreteras encajan en su rejilla de 2×2. */
+  setGhostPosition(gx, gy) {
+    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
+    const maxG = this.grid.size - (def ? (def.size || 1) : 1);
+    const snapped = this.grid.snapPosition(this.ghostState.buildingId, gx, gy);
+    this.ghostState.gx = Math.max(0, Math.min(maxG, snapped.gx));
+    this.ghostState.gy = Math.max(0, Math.min(maxG, snapped.gy));
+  }
+
   nudgeGhost(dir) {
     if (!this.ghostState.active || !this.ghostState.buildingId) return;
 
-    const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-    const bSize = def ? (def.size || 1) : 1;
-    const maxG = this.grid.size - bSize;
-
-    // Desplazamiento según proyección isométrica de la pantalla
-    if (dir === 'up') {
-      this.ghostState.gx -= 1;
-      this.ghostState.gy -= 1;
-    } else if (dir === 'down') {
-      this.ghostState.gx += 1;
-      this.ghostState.gy += 1;
-    } else if (dir === 'left') {
-      this.ghostState.gx -= 1;
-      this.ghostState.gy += 1;
-    } else if (dir === 'right') {
-      this.ghostState.gx += 1;
-      this.ghostState.gy -= 1;
-    }
-
-    this.ghostState.gx = Math.max(0, Math.min(maxG, this.ghostState.gx));
-    this.ghostState.gy = Math.max(0, Math.min(maxG, this.ghostState.gy));
+    // Desplazamiento según proyección isométrica de la pantalla (las carreteras, de tramo en tramo)
+    const step = this.ghostState.buildingId === 'road' ? CONFIG.MAP.ROAD_WIDTH : 1;
+    const moves = { up: [-1, -1], down: [1, 1], left: [-1, 1], right: [1, -1] };
+    const [dx, dy] = moves[dir] || [0, 0];
+    this.setGhostPosition(this.ghostState.gx + dx * step, this.ghostState.gy + dy * step);
     this.audio.playClick();
   }
 
@@ -614,6 +597,7 @@ export class Game {
       const afford = this.simulation.canAffordBuilding(def);
       if (!afford.allowed) break;
       if (!this.grid.placeBuilding(it.gx, it.gy, it.id, this.ghostState.rotation)) continue;
+      this.grid.startConstruction(it.gx, it.gy, this.simTime());
       this.simulation.spendForBuilding(def, afford.cost);
       spent += afford.cost;
       built[it.id] = (built[it.id] || 0) + 1;
@@ -668,10 +652,12 @@ export class Game {
     );
 
     if (built) {
+      const obra = this.grid.startConstruction(this.ghostState.gx, this.ghostState.gy, this.simTime());
       this.simulation.spendForBuilding(def, afford.cost);
       this.audio.playBuild();
       const fundLabel = afford.funding === 'public' ? '🏛️ Obra Pública' : '💼 Inversión Privada';
-      this.ui.showToast(`${fundLabel}: ${def.name} construida (-$${afford.cost})`);
+      const when = obra ? ` · obra de ${String(obra.days).replace('.', ',')} días` : '';
+      this.ui.showToast(`${fundLabel}: ${def.name} (-$${afford.cost})${when}`);
       this.ui.updateHUD(this.simulation, this.research);
 
       // Si ya no dispone de fondos para colocar otra, cerramos el manipulador
@@ -837,6 +823,13 @@ export class Game {
   loop() {
     this.camera.update();
     const dayProgress = this.getDayProgress();
+
+    // Tráfico animado (coches y peatones), independiente del ritmo de la simulación
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - (this._lastFrame || now)) / 1000);
+    this._lastFrame = now;
+    this.traffic.update(this.grid, dt, this.simulation.population);
+    this.grid.vehicles = this.traffic.agents;
 
     if (this.ui) {
       this.ui.updateDayProgress(dayProgress);

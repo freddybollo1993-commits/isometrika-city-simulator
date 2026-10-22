@@ -121,7 +121,7 @@ export class CitizenManager {
         const def = CONFIG.BUILDINGS[tile.building.id];
         if (!def || def.category !== 'residential') continue;
         // Una vivienda clausurada queda vacía: sus vecinos se marchan
-        if (tile.building.closed) continue;
+        if (tile.building.closed || tile.building.construction) continue;
 
         const bldgKey = `bldg_${gx}_${gy}`;
         currentResKeys.add(bldgKey);
@@ -283,7 +283,7 @@ export class CitizenManager {
         if (!def) continue;
 
         // Si el edificio está en modo ahorro / suspendido, no genera puestos de trabajo
-        if (tile.building.suspended || tile.building.closed) {
+        if (tile.building.suspended || tile.building.closed || tile.building.construction) {
           tile.building.assignedWorkers = 0;
           continue;
         }
@@ -483,7 +483,7 @@ export class CitizenManager {
         if (vac.filled >= vac.capacity) continue;
         if (citizen.educationLevel < vac.requiredEdu) continue;
 
-        const distance = Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy);
+        const distance = (Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy)) / CONFIG.MAP.SCALE; // casillas antiguas
         let transCost = 0;
         if (distance > 7) {
           const transportFactor = grid.getTransportEfficiencyAt(homeX, homeY);
@@ -545,7 +545,7 @@ export class CitizenManager {
           const home = this.residentialBuildings.get(citizen.homeBuildingId);
           const homeX = home ? home.x : 0;
           const homeY = home ? home.y : 0;
-          const distance = Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy);
+          const distance = (Math.abs(homeX - vac.gx) + Math.abs(homeY - vac.gy)) / CONFIG.MAP.SCALE;
 
           const isApprentice = citizen.educationLevel < vac.requiredEdu;
           const apprenticeSalary = isApprentice ? Math.round(vac.salary * 0.85) : vac.salary;
@@ -692,7 +692,7 @@ export class CitizenManager {
 
       if (workplace && home) {
         // Distancia Manhattan con 7 casillas peatonales gratuitas (caminables)
-        const distance = Math.abs(home.x - workplace.x) + Math.abs(home.y - workplace.y);
+        const distance = (Math.abs(home.x - workplace.x) + Math.abs(home.y - workplace.y)) / CONFIG.MAP.SCALE;
         if (distance <= 7) {
           citizen.transportCost = 0;
         } else {
@@ -727,7 +727,7 @@ export class CitizenManager {
         : null;
 
       let foodProximityBonus = 0;
-      if (foodVenue && foodVenue.distance <= 14) {
+      if (foodVenue && foodVenue.distance <= 14 * CONFIG.MAP.SCALE) {
         foodVenue.building.foodSalesToday = (foodVenue.building.foodSalesToday || 0) + food;
         foodProximityBonus = 4; // Acceso cercano a alimentos frescos
       } else {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clearSupplyMarket } from '../js/game/supply-chain.js';
-import { createCity, runDays, build, autoPlayer } from './helpers/headless-city.js';
+import { createCity, runDays, autoPlayer, buildNearCenter } from './helpers/headless-city.js';
 
 test('primero se compra en la ciudad; solo se importa el faltante y se exporta el sobrante', () => {
   const m = clearSupplyMarket({ materials: 300, components: 0, goods: 50 }, { materials: 200, components: 80, goods: 500 }, 10000);
@@ -27,18 +27,13 @@ test('una cantera local reduce las importaciones de materias primas de las fábr
     runDays(sim, 90, (s) => autoPlayer(s, grid, c, { useSuppliers: false }));
     if (withQuarry) {
       sim.economy.corporateFunds += 5000; // margen para que el escenario pueda construir
-      let placed = false;
-      for (let gy = c - 7; gy <= c + 7 && !placed; gy++) {
-        for (let gx = c - 7; gx <= c + 7 && !placed; gx++) placed = build(sim, grid, gx, gy, 'supply_quarry');
-      }
-      assert.ok(placed, 'se pudo construir la cantera');
+      assert.ok(buildNearCenter(sim, grid, c, 'supply_quarry'), 'se pudo construir la cantera');
     }
     // Viviendas nuevas en ambos escenarios para que haya mano de obra disponible
     sim.economy.corporateFunds += 5000;
-    let homes = 0;
-    for (let gy = c - 7; gy <= c + 7 && homes < 4; gy++) {
-      for (let gx = c - 7; gx <= c + 7 && homes < 4; gx++) if (build(sim, grid, gx, gy, 'residential_low')) homes++;
-    }
+    for (let i = 0; i < 4; i++) buildNearCenter(sim, grid, c, 'residential_low');
+    sim.recalculateCapacities();
+    sim.population = sim.housingCapacity; // viviendas llenas: sobra mano de obra en ambos escenarios
     runDays(sim, 20);
     return sim.economy.supplyMarket.items.materials;
   };

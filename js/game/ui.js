@@ -1022,7 +1022,9 @@ export class UIManager {
       this.elTitleContinueDetails.textContent = `Día ${summary.day} • ${summary.population} hab. • 🏛️ $${Math.round(sFunds).toLocaleString()} • 💼 $${Math.round(cFunds).toLocaleString()}${timeStr}`;
     } else {
       this.elBtnMenuContinue.classList.add('disabled');
-      this.elTitleContinueDetails.textContent = 'Sin partida guardada previa';
+      this.elTitleContinueDetails.textContent = this.game.storage.hasLegacySave()
+        ? 'Tu ciudad es del mapa anterior: funda una nueva con la nueva escala'
+        : 'Sin partida guardada previa';
     }
   }
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCity, runDays } from './helpers/headless-city.js';
+import { createCity, runDays, emptyArea } from './helpers/headless-city.js';
 import { MAINTENANCE } from '../js/game/maintenance.js';
 import { CONFIG } from '../js/game/config.js';
 
@@ -93,4 +93,21 @@ test('la fiscalización no crea ni destruye dinero', () => {
   const publicFines = report.results.filter((r) => r.fine > 0 && isPublic(r.id)).reduce((s, r) => s + r.fine, 0);
   assert.ok(report.results.some((r) => r.fine > 0));
   assert.ok(Math.abs(total() - (before - publicFines)) < 0.05);
+});
+
+test('un edificio en obras no funciona hasta que termina su plazo', () => {
+  const { sim, grid, center: c, roadRow } = createCity();
+  const o = emptyArea(grid, 4, 4);
+  sim.population = 40;
+  assert.ok(grid.placeBuilding(o.gx, o.gy, 'service_police', 0));
+  const obra = grid.startConstruction(o.gx, o.gy, sim.day + 0.3);
+  assert.equal(obra.days, 1, 'comisaría de 3×3: un día de obra');
+  const b = grid.getTile(o.gx, o.gy).building;
+  assert.equal(grid.toggleSuspend(o.gx, o.gy), null, 'no se puede pausar en obras');
+  runDays(sim, 1);
+  assert.ok(b.construction, 'aún en obras: empezó a media mañana');
+  runDays(sim, 1);
+  assert.ok(!b.construction, 'terminada');
+  assert.equal(b.builtDay, sim.day);
+  assert.equal(grid.startConstruction(c, roadRow, sim.day), null, 'las carreteras no pasan por obra');
 });

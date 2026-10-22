@@ -206,6 +206,7 @@ export class MaintenanceSystem {
     const events = [];
     const diff = this.sim.difficulty;
     this._forEachRoot((b, def) => {
+      if (b.construction) return; // en obras no se desgasta
       this._ensure(b, day);
       const c = this.condition(b, def, day);
       let rate = MAINTENANCE.BASE_WEAR * (CATEGORY_WEAR[def.category] || 1) * diff.wear;
@@ -239,7 +240,7 @@ export class MaintenanceSystem {
     const diff = this.sim.difficulty;
     const pool = [];
     this._forEachRoot((b, def, gx, gy) => {
-      if (def.id === 'road' || b.closed) return;
+      if (def.id === 'road' || b.closed || b.construction) return;
       pool.push({ b, def, gx, gy, weight: 10 + this.condition(b, def, day).score });
     });
 

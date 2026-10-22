@@ -58,7 +58,7 @@ export const SERVICE_DEMANDS = {
   },
 };
 
-const DEFAULT_RADIUS = 10;
+const DEFAULT_RADIUS = 10 * CONFIG.MAP.SCALE;
 
 /** Exigencia y datos de servicio de un tipo de edificio (o null si no atiende a vecinos). */
 export function serviceOf(buildingId) {
@@ -109,7 +109,7 @@ export class DemandSystem {
         const svc = serviceOf(b.id);
         if (!svc) continue;
         b.serviceLoad = null;
-        if (b.closed || b.suspended) continue;
+        if (b.closed || b.suspended || b.construction) continue;
         const level = b.level || 1;
         const ld = (def.levels && def.levels[level]) || def;
         providers[svc.demandId].push({

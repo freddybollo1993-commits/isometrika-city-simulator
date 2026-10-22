@@ -21,6 +21,7 @@ export const DIFFICULTIES = {
     demandGrace: 45, // días para atender una exigencia ciudadana
     demandPenalty: 0.6,
     rewards: 1.25, // premios de las misiones
+    expansion: 0.75, // precio de las ampliaciones del mapa
   },
   normal: {
     id: 'normal',
@@ -38,6 +39,7 @@ export const DIFFICULTIES = {
     demandGrace: 30,
     demandPenalty: 1,
     rewards: 1,
+    expansion: 1,
   },
   hard: {
     id: 'hard',
@@ -55,6 +57,7 @@ export const DIFFICULTIES = {
     demandGrace: 20,
     demandPenalty: 1.4,
     rewards: 0.8,
+    expansion: 1.3,
   },
 };
 

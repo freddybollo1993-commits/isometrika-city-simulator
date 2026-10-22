@@ -7,24 +7,51 @@
 import { CONFIG } from './config.js';
 import { IsoMath } from '../engine/iso.js';
 
+/**
+ * Días de obra según la superficie: medio día por cada ~10 casillas (mínimo medio día).
+ * Casa 2×2: 0,5 · mercado 3×3: 1 · hospital 5×5: 2,5 · universidad 6×6: 3,5.
+ */
+export function constructionDays(def) {
+  const size = (def && def.size) || 1;
+  return Math.max(0.5, Math.round((size * size) / 5) / 2);
+}
+
+/** Edificio que no funciona hoy: en modo ahorro, clausurado o todavía en obras. */
+export function isInactive(b) {
+  return !!(b && (b.suspended || b.closed || b.construction));
+}
+
 export class Grid {
   constructor(size = CONFIG.CANVAS.GRID_SIZE) {
     this.size = size;
     this.tiles = [];
     this.vehicles = [];
+    this.mapLevel = 0; // expansiones compradas (0, 1 o 2)
+    this._counts = null; // recuento de edificios por tipo (ver countBuildings)
     this.initTerrain();
+    this.refreshLocks();
   }
 
   /**
    * Genera el terreno inicial con un río serpenteante y vegetación
    */
+  /** Fila central del río en la columna gx (su curva escala con el mapa). */
+  riverCenterAt(gx) {
+    const S = CONFIG.MAP.SCALE;
+    return this.size * 0.45 + Math.sin((gx / S) * 0.35) * 2.8 * S;
+  }
+
+  /** Distancia al río en casillas antiguas (0 = agua, 1 = orilla de arena). */
+  riverDistance(gx, gy) {
+    return Math.floor(Math.abs(gy - this.riverCenterAt(gx)) / CONFIG.MAP.SCALE);
+  }
+
   initTerrain() {
     this.tiles = [];
     for (let gy = 0; gy < this.size; gy++) {
       this.tiles[gy] = [];
       for (let gx = 0; gx < this.size; gx++) {
-        const riverCenter = Math.floor(this.size * 0.45 + Math.sin(gx * 0.35) * 2.8);
-        const distToRiver = Math.abs(gy - riverCenter);
+        const distToRiver = this.riverDistance(gx, gy);
 
         let terrain = 'grass';
         let variation = (gx * 7 + gy * 13) % 3;
@@ -36,7 +63,7 @@ export class Grid {
         }
 
         let deco = null;
-        if (terrain === 'grass' && (gx + gy * 3) % 7 === 0 && Math.random() > 0.4) {
+        if (terrain === 'grass' && (gx + gy * 3) % 13 === 0 && Math.random() > 0.4) {
           deco = 'tree';
         }
 
@@ -132,17 +159,32 @@ export class Grid {
    * La cercanía a carreteras pavimentadas y red vial reduce los costos de desplazamiento.
    */
   getTransportEfficiencyAt(gx, gy) {
-    let minDist = 999;
+    // Caché por día: la consultan todos los vecinos al buscar empleo
+    const day = this.simulation ? this.simulation.day : 0;
+    if (!this._transportCache || this._transportCacheDay !== day) {
+      this._transportCache = new Map();
+      this._transportCacheDay = day;
+    }
+    const key = gy * this.size + gx;
+    if (this._transportCache.has(key)) return this._transportCache.get(key);
+    const factor = this._transportEfficiency(gx, gy);
+    this._transportCache.set(key, factor);
+    return factor;
+  }
 
-    // Buscar la carretera más cercana en un radio de hasta 6 celdas
-    const scanRadius = 6;
+  _transportEfficiency(gx, gy) {
+    let minDist = 999;
+    const S = CONFIG.MAP.SCALE;
+
+    // Buscar la carretera más cercana en un radio de hasta 6 casillas antiguas
+    const scanRadius = 6 * S;
     for (let dy = -scanRadius; dy <= scanRadius; dy++) {
       for (let dx = -scanRadius; dx <= scanRadius; dx++) {
         const tx = gx + dx;
         const ty = gy + dy;
         const t = this.getTile(tx, ty);
         if (t && t.building && t.building.id === 'road') {
-          const d = Math.abs(dx) + Math.abs(dy);
+          const d = Math.ceil((Math.abs(dx) + Math.abs(dy)) / S); // en casillas antiguas
           if (d < minDist) {
             minDist = d;
             if (minDist <= 1) break;
@@ -168,81 +210,46 @@ export class Grid {
   }
 
   /**
-   * Verifica si una celda está en el radio de cobertura de una Terminal de Autobuses
+   * ¿Está la casilla dentro del radio de algún edificio de este tipo? Recorre solo los edificios
+   * de ese tipo (índice cacheado), no el mapa entero.
    */
+  isTileCoveredBy(buildingId, gx, gy, fallbackRadius) {
+    const def = CONFIG.BUILDINGS[buildingId];
+    for (const { gx: x, gy: y } of this.rootsOf(buildingId)) {
+      const b = this.tiles[y][x].building;
+      const lvl = (b && b.level) || 1;
+      const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def && def.radius) || fallbackRadius;
+      if (Math.abs(gx - x) + Math.abs(gy - y) <= rad) return true;
+    }
+    return false;
+  }
+
+  /** Cobertura de una Terminal de Autobuses */
   isTileCoveredByBusTerminal(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && t.building.id === 'transit_bus_terminal') {
-          const def = CONFIG.BUILDINGS['transit_bus_terminal'];
-          const lvl = t.building.level || 1;
-          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 7);
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist <= rad) return true;
-        }
-      }
-    }
-    return false;
+    return this.isTileCoveredBy('transit_bus_terminal', gx, gy, 7 * CONFIG.MAP.SCALE);
   }
 
-  /**
-   * Verifica si una celda está en el radio de cobertura de una Academia o Centro Técnico
-   */
+  /** Cobertura de una Academia o Centro Técnico */
   isTileCoveredBySchool(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && t.building.id === 'service_school') {
-          const def = CONFIG.BUILDINGS['service_school'];
-          const lvl = t.building.level || 1;
-          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 8);
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist <= rad) return true;
-        }
-      }
-    }
-    return false;
+    return this.isTileCoveredBy('service_school', gx, gy, 8 * CONFIG.MAP.SCALE);
   }
 
-  /**
-   * Verifica si una celda está en el radio de cobertura de la Universidad Metropolitana
-   */
+  /** Cobertura de la Universidad Metropolitana */
   isTileCoveredByUniversity(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && t.building.id === 'service_university') {
-          const def = CONFIG.BUILDINGS['service_university'];
-          const lvl = t.building.level || 1;
-          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 12);
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist <= rad) return true;
-        }
-      }
-    }
-    return false;
+    return this.isTileCoveredBy('service_university', gx, gy, 12 * CONFIG.MAP.SCALE);
   }
 
   /**
    * Obtiene la bonificación de felicidad por cercanía a un Bulevar Gastronómico
    */
   getGastronomyBonusAt(gx, gy) {
+    const def = CONFIG.BUILDINGS.commercial_gastronomy;
     let maxBonus = 0;
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && t.building.id === 'commercial_gastronomy') {
-          const def = CONFIG.BUILDINGS['commercial_gastronomy'];
-          const lvl = t.building.level || 1;
-          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 5);
-          const bonus = (def && def.levels && def.levels[lvl] && def.levels[lvl].happinessBonus) || 8;
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist <= rad && bonus > maxBonus) {
-            maxBonus = bonus;
-          }
-        }
-      }
+    for (const { gx: x, gy: y } of this.rootsOf('commercial_gastronomy')) {
+      const lvl = this.tiles[y][x].building.level || 1;
+      const rad = (def.levels && def.levels[lvl] && def.levels[lvl].radius) || def.radius || 5 * CONFIG.MAP.SCALE;
+      const bonus = (def.levels && def.levels[lvl] && def.levels[lvl].happinessBonus) || 8;
+      if (Math.abs(gx - x) + Math.abs(gy - y) <= rad && bonus > maxBonus) maxBonus = bonus;
     }
     return maxBonus;
   }
@@ -270,23 +277,22 @@ export class Grid {
    * Busca la granja productora más cercana a una coordenada
    */
   findNearestFarm(gx, gy) {
-    let bestFarm = null;
-    let minDist = 999;
+    const best = this._nearestOf(['farm_organic', 'industrial_agro'], gx, gy);
+    return best ? { gx: best.gx, gy: best.gy, building: best.building, dist: best.dist } : null;
+  }
 
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
+  /** El edificio activo más cercano de alguno de estos tipos (recorre solo el índice). */
+  _nearestOf(ids, gx, gy) {
+    let best = null;
+    for (const id of ids) {
+      for (const { gx: x, gy: y } of this.rootsOf(id)) {
         const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && (t.building.id === 'farm_organic' || t.building.id === 'industrial_agro')) {
-          if (t.building.suspended || t.building.closed) continue;
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist < minDist) {
-            minDist = dist;
-            bestFarm = { gx: x, gy: y, building: t.building, dist };
-          }
-        }
+        if (isInactive(t.building)) continue;
+        const dist = Math.abs(gx - x) + Math.abs(gy - y);
+        if (!best || dist < best.dist) best = { gx: x, gy: y, building: t.building, tile: t, dist };
       }
     }
-    return bestFarm;
+    return best;
   }
 
   /**
@@ -335,7 +341,7 @@ export class Grid {
     const farmLvl = farmInfo.building.level || 1;
     const maxLogisticsRange = (farmDef && farmDef.levels && farmDef.levels[farmLvl] && farmDef.levels[farmLvl].logisticsRange)
       || (farmDef && farmDef.logisticsRange)
-      || 65; // Gran alcance interurbano: permite erigir granjas en la periferia rural lejana y abastecer la ciudad
+      || 65 * CONFIG.MAP.SCALE; // Gran alcance interurbano: permite erigir granjas en la periferia rural lejana y abastecer la ciudad
 
     if (farmInfo.dist > maxLogisticsRange) {
       return {
@@ -360,52 +366,17 @@ export class Grid {
    * Encuentra el local de venta de comida más cercano a una vivienda (Punto 3)
    */
   findNearestFoodVenue(gx, gy) {
-    let bestVenue = null;
-    let minDist = 999;
-
-    const foodBuildingIds = ['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy', 'farm_organic'];
-
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && foodBuildingIds.includes(t.building.id)) {
-          if (t.building.suspended || t.building.closed) continue;
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist < minDist) {
-            minDist = dist;
-            bestVenue = {
-              gx: x,
-              gy: y,
-              building: t.building,
-              tile: t,
-              distance: dist,
-              id: t.building.id,
-            };
-          }
-        }
-      }
-    }
-    return bestVenue;
+    const best = this._nearestOf(['commercial_store', 'commercial_market', 'commercial_super', 'commercial_gastronomy', 'farm_organic'], gx, gy);
+    return best ? { gx: best.gx, gy: best.gy, building: best.building, tile: best.tile, distance: best.dist, id: best.building.id } : null;
   }
 
   /**
    * Verifica si una celda está protegida por un Radar Sísmico y Geotécnico
    */
   isTileCoveredBySeismicRadar(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot && t.building.id === 'service_seismic_radar') {
-          const def = CONFIG.BUILDINGS['service_seismic_radar'];
-          const lvl = t.building.level || 1;
-          const rad = (def && def.levels && def.levels[lvl] && def.levels[lvl].radius) || (def ? def.radius : 15);
-          const dist = Math.abs(gx - x) + Math.abs(gy - y);
-          if (dist <= rad) return true;
-        }
-      }
-    }
-    return false;
+    return this.isTileCoveredBy('service_seismic_radar', gx, gy, 15 * CONFIG.MAP.SCALE);
   }
+
 
   /**
    * Verifica si la ciudad cuenta con al menos un Radar Sísmico operativo
@@ -426,16 +397,103 @@ export class Grid {
    * Cuenta cuántos edificios construidos de un tipo específico existen en el mapa
    */
   countBuildings(buildingId) {
-    let count = 0;
+    this._buildIndex();
+    return this._counts[buildingId] || 0;
+  }
+
+  /** Posiciones de los edificios de un tipo (índice cacheado). */
+  rootsOf(buildingId) {
+    this._buildIndex();
+    return this._roots[buildingId] || [];
+  }
+
+  /** Recuento y posiciones por tipo: se recalculan solo cuando se coloca, demuele o carga algo. */
+  _buildIndex() {
+    if (this._counts) return;
+    this._counts = {};
+    this._roots = {};
     for (let gy = 0; gy < this.size; gy++) {
       for (let gx = 0; gx < this.size; gx++) {
         const b = this.tiles[gy][gx]?.building;
-        if (b && b.isRoot && b.id === buildingId) {
-          count++;
-        }
+        if (!b || !b.isRoot) continue;
+        this._counts[b.id] = (this._counts[b.id] || 0) + 1;
+        (this._roots[b.id] || (this._roots[b.id] = [])).push({ gx, gy });
       }
     }
-    return count;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Carreteras de 2×2: rejilla alineada y conexiones con los tramos vecinos
+  // ---------------------------------------------------------------------------
+
+  /** Casilla donde debe ir un edificio: las carreteras se alinean a su rejilla de 2×2. */
+  snapPosition(buildingId, gx, gy) {
+    if (buildingId !== 'road') return { gx, gy };
+    const w = CONFIG.MAP.ROAD_WIDTH;
+    return { gx: Math.floor(gx / w) * w, gy: Math.floor(gy / w) * w };
+  }
+
+  _isRoadRoot(gx, gy) {
+    const t = this.getTile(gx, gy);
+    return !!(t && t.building && t.building.isRoot && t.building.id === 'road');
+  }
+
+  /**
+   * Máscara de conexiones de un tramo: 1 = hacia −gy, 2 = +gx, 4 = +gy, 8 = −gx.
+   * Se guarda en el tramo para dibujarlo (calzada hacia los lados conectados, aceras en el resto).
+   */
+  updateRoadMask(gx, gy) {
+    const t = this.getTile(gx, gy);
+    if (!t || !t.building || !t.building.isRoot || t.building.id !== 'road') return;
+    const w = CONFIG.MAP.ROAD_WIDTH;
+    t.building.roadMask = (this._isRoadRoot(gx, gy - w) ? 1 : 0) | (this._isRoadRoot(gx + w, gy) ? 2 : 0)
+      | (this._isRoadRoot(gx, gy + w) ? 4 : 0) | (this._isRoadRoot(gx - w, gy) ? 8 : 0);
+  }
+
+  /** Recalcula un tramo y sus cuatro vecinos (tras colocar o demoler). */
+  _refreshRoadsAround(gx, gy) {
+    const w = CONFIG.MAP.ROAD_WIDTH;
+    [[0, 0], [0, -w], [w, 0], [0, w], [-w, 0]].forEach(([dx, dy]) => this.updateRoadMask(gx + dx, gy + dy));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Terreno disponible y expansiones
+  // ---------------------------------------------------------------------------
+
+  /** Lado del terreno comprado según las expansiones adquiridas. */
+  get unlockedSize() {
+    const level = this.mapLevel || 0;
+    return level === 0 ? CONFIG.MAP.BASE_SIZE : CONFIG.MAP.EXPANSIONS[level - 1].size;
+  }
+
+  /** Primera casilla comprada (el terreno comprado es un cuadrado centrado). */
+  get unlockedMin() {
+    return Math.floor((this.size - this.unlockedSize) / 2);
+  }
+
+  isUnlocked(gx, gy) {
+    const min = this.unlockedMin;
+    const max = min + this.unlockedSize;
+    return gx >= min && gx < max && gy >= min && gy < max;
+  }
+
+  /** Siguiente expansión a la venta (o null si ya están todas). */
+  nextExpansion() {
+    return CONFIG.MAP.EXPANSIONS[this.mapLevel || 0] || null;
+  }
+
+  expand() {
+    if (!this.nextExpansion()) return false;
+    this.mapLevel = (this.mapLevel || 0) + 1;
+    this.refreshLocks();
+    return true;
+  }
+
+  /** Marca las casillas sin comprar (se dibujan más oscuras y no admiten obras). */
+  refreshLocks() {
+    for (let gy = 0; gy < this.size; gy++) {
+      for (let gx = 0; gx < this.size; gx++) this.tiles[gy][gx].locked = !this.isUnlocked(gx, gy);
+    }
   }
 
   /**
@@ -500,6 +558,12 @@ export class Grid {
         if (!tile) {
           return { allowed: false, reason: 'La estructura se sale de los límites de la ciudad' };
         }
+        if (!this.isUnlocked(tx, ty)) {
+          return { allowed: false, reason: 'Terreno sin comprar: amplía el mapa en Gestión › Territorio' };
+        }
+        if (buildingId === 'road' && (gx % CONFIG.MAP.ROAD_WIDTH || gy % CONFIG.MAP.ROAD_WIDTH)) {
+          return { allowed: false, reason: 'Las carreteras se alinean a su rejilla de 2×2' };
+        }
 
         // Si es agua: solo el Dique o Carretera (como puente) son permitidos
         if (tile.terrain === 'water') {
@@ -515,20 +579,15 @@ export class Grid {
     }
 
     // 2. Zona de Exclusión Espacial para Edificios Públicos / Servicios (Evitar amontonamiento)
-    if (CONFIG.MIN_PUBLIC_SPACING && CONFIG.MIN_PUBLIC_SPACING[buildingId]) {
+    if (CONFIG.MIN_PUBLIC_SPACING && CONFIG.MIN_PUBLIC_SPACING[buildingId] && this.countBuildings(buildingId) > 0) {
       const minSpacing = CONFIG.MIN_PUBLIC_SPACING[buildingId];
-      for (let y = 0; y < this.size; y++) {
-        for (let x = 0; x < this.size; x++) {
-          const b = this.tiles[y][x]?.building;
-          if (b && b.isRoot && b.id === buildingId) {
-            const dist = Math.abs(gx - x) + Math.abs(gy - y);
-            if (dist < minSpacing) {
-              return {
-                allowed: false,
-                reason: `Zona de exclusión: las estructuras de este tipo deben estar separadas al menos ${minSpacing} casillas para una cobertura equilibrada (distancia actual: ${dist}).`,
-              };
-            }
-          }
+      for (const { gx: x, gy: y } of this.rootsOf(buildingId)) {
+        const dist = Math.abs(gx - x) + Math.abs(gy - y);
+        if (dist < minSpacing) {
+          return {
+            allowed: false,
+            reason: `Zona de exclusión: las estructuras de este tipo deben estar separadas al menos ${minSpacing} casillas para una cobertura equilibrada (distancia actual: ${dist}).`,
+          };
         }
       }
     }
@@ -590,6 +649,7 @@ export class Grid {
 
     const def = CONFIG.BUILDINGS[buildingId];
     const bSize = def.size || 1;
+    this._counts = null;
 
     // Colocar celda raíz
     const rootTile = this.getTile(gx, gy);
@@ -634,11 +694,23 @@ export class Grid {
     }
 
     // Generar tráfico vehicular si es carretera
-    if (buildingId === 'road' && Math.random() > 0.6) {
-      this.spawnVehicle(gx, gy);
-    }
+    if (buildingId === 'road') this._refreshRoadsAround(gx, gy);
 
     return true;
+  }
+
+  /**
+   * Pone en obras un edificio recién colocado: no funciona hasta que termina.
+   * `time` es el momento actual del juego en días con decimales (día + fracción del día).
+   * Las carreteras no pasan por obra.
+   */
+  startConstruction(gx, gy, time) {
+    const tile = this.getTile(gx, gy);
+    const b = tile && tile.building;
+    if (!b || !b.isRoot || b.id === 'road') return null;
+    const days = constructionDays(CONFIG.BUILDINGS[b.id]);
+    b.construction = { start: time, days };
+    return b.construction;
   }
 
   /**
@@ -675,6 +747,9 @@ export class Grid {
       };
     }
 
+    if (b.construction) {
+      return { success: false, reason: 'El edificio sigue en obras' };
+    }
     const nextLevel = (b.level || 1) + 1;
     if (nextLevel > 3) {
       return { success: false, reason: 'El edificio ya alcanzó su nivel máximo (Nivel 3)' };
@@ -734,7 +809,7 @@ export class Grid {
 
     if (rootTile && rootTile.building) {
       const b = rootTile.building;
-      if (b.closed) return null; // un clausurado solo se reabre con mantenimiento correctivo
+      if (b.closed || b.construction) return null; // un clausurado solo se reabre con mantenimiento correctivo
       b.suspended = !b.suspended;
       return b.suspended;
     }
@@ -760,6 +835,8 @@ export class Grid {
     if (!rootTile || !rootTile.building) return false;
 
     const bSize = rootTile.building.size || 1;
+    const wasRoad = rootTile.building.id === 'road';
+    this._counts = null;
 
     // Limpiar todas las celdas del bloque
     for (let dy = 0; dy < bSize; dy++) {
@@ -772,6 +849,7 @@ export class Grid {
         }
       }
     }
+    if (wasRoad) this._refreshRoadsAround(rootGx, rootGy);
 
     return true;
   }
@@ -807,43 +885,6 @@ export class Grid {
     }
   }
 
-  spawnVehicle(gx, gy) {
-    if (this.vehicles.length > 30) return;
-    const colors = ['#ef4444', '#3b82f6', '#fbbf24', '#ffffff', '#10b981', '#a855f7'];
-    this.vehicles.push({
-      gx,
-      gy,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      progress: 0,
-      dirX: Math.random() > 0.5 ? 1 : 0,
-      dirY: Math.random() > 0.5 ? 1 : 0,
-    });
-  }
-
-  updateVehicles() {
-    for (let i = this.vehicles.length - 1; i >= 0; i--) {
-      const v = this.vehicles[i];
-      v.progress += 0.04;
-      if (v.progress >= 1.0) {
-        v.progress = 0;
-        const nextGx = v.gx + v.dirX;
-        const nextGy = v.gy + v.dirY;
-        const nextTile = this.getTile(nextGx, nextGy);
-        if (nextTile && nextTile.building && nextTile.building.id === 'road') {
-          v.gx = nextGx;
-          v.gy = nextGy;
-        } else {
-          if (Math.random() > 0.4) {
-            v.dirX = v.dirX === 0 ? (Math.random() > 0.5 ? 1 : -1) : 0;
-            v.dirY = v.dirX === 0 ? (Math.random() > 0.5 ? 1 : -1) : 0;
-          } else {
-            this.vehicles.splice(i, 1);
-          }
-        }
-      }
-    }
-  }
-
   serialize() {
     const serializedTiles = [];
     for (let gy = 0; gy < this.size; gy++) {
@@ -863,6 +904,7 @@ export class Grid {
     }
     return {
       size: this.size,
+      mapLevel: this.mapLevel || 0,
       tiles: serializedTiles,
     };
   }
@@ -870,6 +912,9 @@ export class Grid {
   deserialize(data) {
     if (!data || !data.tiles) return;
     this.initTerrain();
+    this.mapLevel = data.mapLevel || 0;
+    this._counts = null;
+    this.refreshLocks();
     data.tiles.forEach((item) => {
       const tile = this.getTile(item.gx, item.gy);
       if (tile) {
@@ -880,5 +925,9 @@ export class Grid {
         if (tile.building) tile.deco = null;
       }
     });
+    // Conexiones de las carreteras para dibujarlas y para el tráfico
+    for (let gy = 0; gy < this.size; gy += CONFIG.MAP.ROAD_WIDTH) {
+      for (let gx = 0; gx < this.size; gx += CONFIG.MAP.ROAD_WIDTH) this.updateRoadMask(gx, gy);
+    }
   }
 }

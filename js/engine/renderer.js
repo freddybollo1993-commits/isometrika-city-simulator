@@ -46,16 +46,26 @@ export class Renderer {
     ctx.translate(camera.x + camera.shakeOffsetX, camera.y + camera.shakeOffsetY);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // 1. Renderizado de terreno y edificios por profundidad (Painter's Algorithm)
-    for (let depth = 0; depth <= (grid.size - 1) * 2; depth++) {
+    // 1. Terreno completo primero; luego edificios y árboles ordenados por la profundidad de su
+    // centro (así un edificio grande no queda tapado por el suelo de sus propias casillas)
+    const drawables = [];
+    for (let gy = 0; gy < grid.size; gy++) {
       for (let gx = 0; gx < grid.size; gx++) {
-        const gy = depth - gx;
-        if (gy < 0 || gy >= grid.size) continue;
-
         const tile = grid.tiles[gy][gx];
         const iso = IsoMath.gridToIso(gx, gy);
-
         this.renderTerrainTile(ctx, iso.x, iso.y, tile);
+        if ((tile.building && tile.building.isRoot) || (!tile.building && tile.deco === 'tree') || tile.flooded || tile.onFire) {
+          const size = tile.building && tile.building.isRoot ? (tile.building.size || 1) : 1;
+          drawables.push({ gx, gy, depth: gx + gy + size - 1 });
+        }
+      }
+    }
+    drawables.sort((a, b) => a.depth - b.depth);
+
+    for (const { gx, gy } of drawables) {
+      {
+        const tile = grid.tiles[gy][gx];
+        const iso = IsoMath.gridToIso(gx, gy);
 
         // Si hay edificio y es celda raíz, dibujarlo
         if (tile.building && tile.building.isRoot) {
@@ -79,6 +89,9 @@ export class Renderer {
             ctx.restore();
           } else {
             this.renderBuildingInstance(ctx, tile.building, gx, gy);
+            if (tile.building.construction && window.gameInstance) {
+              this.drawConstructionBar(ctx, tile.building, gx, gy, window.gameInstance.constructionProgress(tile.building));
+            }
           }
         } else if (tile.deco === 'tree') {
           this.renderTree(ctx, iso.x, iso.y);
@@ -123,6 +136,8 @@ export class Renderer {
     }
 
     IsoMath.drawIsoDiamond(ctx, x, y, tw, th, fill, CONFIG.PALETTE.gridLines, 0.7);
+    // Terreno sin comprar: velado oscuro (se compra en Gestión › Territorio)
+    if (tile.locked) IsoMath.drawIsoDiamond(ctx, x, y, tw, th, 'rgba(15, 23, 42, 0.38)');
 
     if (tile.terrain === 'water') {
       ctx.beginPath();
@@ -291,6 +306,138 @@ export class Renderer {
   }
 
   /**
+   * Tramo de carretera. (x, y) es el vértice superior del rombo del tramo; u avanza hacia +gx
+   * y v hacia +gy. mask: 1 = −gy, 2 = +gx, 4 = +gy, 8 = −gx (tramos vecinos conectados).
+   */
+  renderRoadSegment(ctx, x, y, tw, th, mask) {
+    const P = (u, v) => [x + (u - v) * (tw / 2), y + (u + v) * (th / 2)];
+    const quad = (u0, v0, u1, v1, fill) => {
+      const pts = [P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)];
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    const SW = 0.2; // ancho de la acera (fracción del tramo)
+
+    // Acera de fondo y bordillo
+    quad(0, 0, 1, 1, '#cbd5e1');
+    // Calzada: llega hasta el borde en los lados conectados
+    const u0 = mask & 8 ? 0 : SW;
+    const u1 = mask & 2 ? 1 : 1 - SW;
+    const v0 = mask & 1 ? 0 : SW;
+    const v1 = mask & 4 ? 1 : 1 - SW;
+    quad(u0, v0, u1, v1, '#475569');
+    // En los cruces, la acera de las esquinas sigue visible
+    if ((mask & 8) && (mask & 1)) quad(0, 0, SW, SW, '#cbd5e1');
+    if ((mask & 2) && (mask & 1)) quad(1 - SW, 0, 1, SW, '#cbd5e1');
+    if ((mask & 2) && (mask & 4)) quad(1 - SW, 1 - SW, 1, 1, '#cbd5e1');
+    if ((mask & 8) && (mask & 4)) quad(0, 1 - SW, SW, 1, '#cbd5e1');
+
+    // Línea discontinua central en el sentido de cada eje conectado
+    ctx.save();
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    const line = (a, b) => {
+      ctx.beginPath();
+      ctx.moveTo(...a);
+      ctx.lineTo(...b);
+      ctx.stroke();
+    };
+    const alongU = (mask & 2) || (mask & 8);
+    const alongV = (mask & 1) || (mask & 4);
+    if (alongU && !alongV) line(P(u0, 0.5), P(u1, 0.5));
+    if (alongV && !alongU) line(P(0.5, v0), P(0.5, v1));
+    ctx.restore();
+    // Paso de cebra en los cruces de tres o cuatro salidas
+    const exits = [1, 2, 4, 8].filter((b) => mask & b).length;
+    if (exits >= 3) {
+      for (let i = 0; i < 4; i++) {
+        const s = 0.32 + i * 0.1;
+        quad(s, SW * 0.2, s + 0.05, SW * 0.9, 'rgba(255, 255, 255, 0.7)');
+      }
+    }
+  }
+
+  /**
+   * Obra: losa de hormigón, el edificio translúcido, andamios en los bordes y una grúa.
+   * Es estática (se hornea una vez); el avance lo muestra la barra de drawConstructionBar.
+   */
+  renderConstructionSite(ctx, building, def, x, y, tw, th, gx, gy) {
+    IsoMath.drawIsoBlock(ctx, x, y, tw * 0.96, th * 0.96, 3, '#d6d3d1', '#a8a29e', '#78716c');
+
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    this.renderBuildingInstance(ctx, { ...building, construction: null }, gx, gy);
+    ctx.restore();
+
+    // Andamios: postes en las cuatro esquinas y travesaños
+    const h = Math.max(16, (def.height || 24) * 0.85);
+    const corners = [[x, y + 2], [x + tw / 2 - 3, y + th / 2], [x, y + th - 2], [x - tw / 2 + 3, y + th / 2]];
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.6;
+    corners.forEach(([cx, cy]) => {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - h);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.75)';
+    for (let level = 1; level <= 3; level++) {
+      const dy = (h / 3) * level;
+      ctx.beginPath();
+      corners.forEach(([cx, cy], i) => (i ? ctx.lineTo(cx, cy - dy) : ctx.moveTo(cx, cy - dy)));
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // Grúa torre
+    const gxp = x + tw * 0.18;
+    const gyp = y + th * 0.35;
+    const craneH = h + 18;
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(gxp, gyp);
+    ctx.lineTo(gxp, gyp - craneH);
+    ctx.lineTo(gxp - tw * 0.35, gyp - craneH + 2);
+    ctx.moveTo(gxp, gyp - craneH);
+    ctx.lineTo(gxp + 10, gyp - craneH + 3);
+    ctx.stroke();
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(gxp - tw * 0.28, gyp - craneH + 2);
+    ctx.lineTo(gxp - tw * 0.28, gyp - craneH + 14);
+    ctx.stroke();
+  }
+
+  /**
+   * Barra de avance de una obra sobre el edificio (coordenadas de mundo).
+   * La usa el Canvas 2D; el motor PixiJS dibuja la misma barra con sus gráficos.
+   */
+  constructionBarRect(building, gx, gy) {
+    const def = CONFIG.BUILDINGS[building.id] || {};
+    const size = building.size || def.size || 1;
+    const c = IsoMath.gridToIso(gx + (size - 1) / 2, gy + (size - 1) / 2);
+    const w = Math.max(30, Math.min(70, 18 * size));
+    const top = c.y - Math.max(16, (def.height || 24) * 0.85) - 34;
+    return { x: c.x - w / 2, y: top, w, h: 6 };
+  }
+
+  drawConstructionBar(ctx, building, gx, gy, progress) {
+    const r = this.constructionBarRect(building, gx, gy);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(r.x, r.y, r.w * progress, r.h);
+  }
+
+  /**
    * Renderiza una instancia construida de edificio (1x1 o 2x2)
    */
   renderBuildingInstance(ctx, building, gx, gy) {
@@ -303,10 +450,16 @@ export class Renderer {
     const rotation = building.rotation || 0;
     const level = building.level || 1;
 
-    // Coordenada central en la base del bloque
-    const isoCenter = IsoMath.gridToIso(gx + (bSize - 1) / 2, gy + (bSize - 1) / 2);
-    const x = isoCenter.x;
-    const y = isoCenter.y;
+    // Vértice superior del rombo que ocupa el bloque (drawIsoBlock dibuja desde ese vértice)
+    const isoTop = IsoMath.gridToIso(gx, gy);
+    const x = isoTop.x;
+    const y = isoTop.y;
+
+    // En obras: solar con andamios y el edificio a medio levantar (la barra va aparte)
+    if (building.construction) {
+      this.renderConstructionSite(ctx, building, def, x, y, tw, th, gx, gy);
+      return;
+    }
 
     // Sombra elipsoidal en la base
     ctx.beginPath();
@@ -314,13 +467,9 @@ export class Renderer {
     ctx.fillStyle = CONFIG.PALETTE.shadow;
     ctx.fill();
 
-    // 1. CARRETERA (1x1)
+    // 1. CARRETERA (tramo de 2×2: calzada hacia los tramos conectados y aceras en los bordes libres)
     if (def.id === 'road') {
-      IsoMath.drawIsoBlock(ctx, x, y, tw, th, 3, '#475569', '#334155', '#1e293b');
-      ctx.beginPath();
-      ctx.arc(x, y + th / 2 - 2, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
+      this.renderRoadSegment(ctx, x, y, tw, th, building.roadMask || 0);
       return;
     }
 
@@ -1162,21 +1311,18 @@ export class Renderer {
     }
   }
 
+  /** Coches y peatones del tráfico animado (traffic.js ya calcula su posición). */
   renderVehicles(ctx, grid) {
-    grid.vehicles.forEach((v) => {
-      const fromIso = IsoMath.gridToIso(v.gx, v.gy);
-      const toIso = IsoMath.gridToIso(v.gx + v.dirX, v.gy + v.dirY);
-
-      const curX = fromIso.x + (toIso.x - fromIso.x) * v.progress;
-      const curY = fromIso.y + (toIso.y - fromIso.y) * v.progress + CONFIG.CANVAS.TILE_HEIGHT / 2 - 2;
-
+    (grid.vehicles || []).forEach((v) => {
       ctx.beginPath();
-      ctx.arc(curX, curY, 3.5, 0, Math.PI * 2);
+      ctx.arc(v.x, v.y, v.kind === 'car' ? 2.6 : 1.3, 0, Math.PI * 2);
       ctx.fillStyle = v.color;
       ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
+      if (v.kind === 'car') {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
     });
   }
 

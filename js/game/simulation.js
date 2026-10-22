@@ -117,7 +117,7 @@ export class Simulation {
 
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
-        const isSuspended = !!(b.suspended || b.closed);
+        const isSuspended = !!(b.suspended || b.closed || b.construction);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         // Punto 1: Ocupación Real Proporcional (Gastos modulados al personal e inquilinos reales)
@@ -150,7 +150,7 @@ export class Simulation {
             totalWaterSupply += (levelData.waterSupply || 0) * opEff;
           }
         } else if (def.category === 'residential') {
-          if (!b.closed) totalHousing += (levelData.capacity || 0);
+          if (!b.closed && !b.construction) totalHousing += (levelData.capacity || 0);
         } else if (def.category === 'commercial') {
           if (!isSuspended) commercialJobs += (levelData.jobs || 0);
         } else if (def.category === 'farm') {
@@ -188,7 +188,7 @@ export class Simulation {
     const b = tile.building;
 
     // Si el edificio está suspendido / modo ahorro o clausurado, eficiencia = 0
-    if (b.suspended || b.closed) {
+    if (b.suspended || b.closed || b.construction) {
       b.operationalEfficiency = 0;
       return 0;
     }
@@ -522,7 +522,8 @@ export class Simulation {
     // Estación del año y fase del ciclo regional
     this.events = [];
 
-    // Desgaste diario y visita del inspector (las clausuras se aplican ya hoy)
+    // Obras terminadas, desgaste diario y visita del inspector (las clausuras se aplican ya hoy)
+    this._finishConstructions();
     this.events.push(...this.maintenance.daily(this.day));
     const previousSeason = this.season;
     this.season = Calendar.seasonForDay(this.day);
@@ -605,7 +606,7 @@ export class Simulation {
         const level = b.level || 1;
         const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
         const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100) * wearFactor(b);
-        const isSuspended = !!(b.suspended || b.closed);
+        const isSuspended = !!(b.suspended || b.closed || b.construction);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
         if (tile.damage > 20) damagedCount++;
@@ -678,7 +679,7 @@ export class Simulation {
         }
 
         // VIVIENDAS (una clausurada no aloja a nadie)
-        if (def.category === 'residential' && !b.closed) {
+        if (def.category === 'residential' && !b.closed && !b.construction) {
           const cap = (levelData.capacity || def.capacity || 4);
           totalHousing += cap;
           const taxRate = (levelData.tax || def.taxPerCapita || 2.2);
@@ -1115,8 +1116,6 @@ export class Simulation {
       camera
     );
 
-    this.grid.updateVehicles();
-
     // Cierre contable del día
     const householdsTotal = this.citizens.getTotalSavings();
     this.economy.ledger.closeDay(this.day, householdsTotal);
@@ -1137,6 +1136,46 @@ export class Simulation {
       this.events.forEach((ev) => window.gameInstance.ui.showToast(ev.text));
     }
 
+  }
+
+  /** Precio de la siguiente ampliación del mapa (o null si ya se compraron todas). */
+  expansionCost() {
+    const next = this.grid.nextExpansion();
+    return next ? Math.round(next.cost * this.difficulty.expansion * this.region.priceIndex) : null;
+  }
+
+  /** Compra la siguiente ampliación con fondos del Estado: el terreno se paga al Exterior. */
+  buyExpansion() {
+    const cost = this.expansionCost();
+    if (cost === null) return { ok: false, reason: 'El mapa ya tiene su tamaño máximo' };
+    if (!this.economy.ledger.transfer('state', 'external', cost, 'Compra de terreno (ampliación del mapa)', { requireFunds: true })) {
+      return { ok: false, reason: `Faltan fondos del Estado: cuesta $${cost.toLocaleString()}` };
+    }
+    this.grid.expand();
+    return { ok: true, cost, size: this.grid.unlockedSize };
+  }
+
+  /** Los edificios cuya obra ya cumplió su plazo empiezan a funcionar hoy. */
+  _finishConstructions() {
+    let finished = 0;
+    let name = '';
+    for (let gy = 0; gy < this.grid.size; gy++) {
+      for (let gx = 0; gx < this.grid.size; gx++) {
+        const b = this.grid.tiles[gy][gx].building;
+        if (!b || !b.isRoot || !b.construction) continue;
+        if (this.day < b.construction.start + b.construction.days) continue;
+        b.construction = null;
+        b.builtDay = this.day;
+        b.lastServiceDay = this.day;
+        b.wear = 0;
+        finished++;
+        name = (CONFIG.BUILDINGS[b.id] || {}).name || '';
+      }
+    }
+    if (finished) {
+      this.events.push({ type: 'construction', text: finished === 1 ? `🏗️ Obra terminada: ${name}` : `🏗️ ${finished} obras terminadas` });
+      this.recalculateCapacities();
+    }
   }
 
   repairAllCity() {

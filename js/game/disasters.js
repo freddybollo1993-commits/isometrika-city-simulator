@@ -181,9 +181,8 @@ export class DisasterSystem {
       for (let gy = 0; gy < grid.size; gy++) {
         for (let gx = 0; gx < grid.size; gx++) {
           const tile = grid.tiles[gy][gx];
-          // Proximidad al río
-          const riverCenter = Math.floor(grid.size * 0.45 + Math.sin(gx * 0.35) * 2.8);
-          const dist = Math.abs(gy - riverCenter);
+          // Proximidad al río (en casillas antiguas, igual que maxDist)
+          const dist = grid.riverDistance(gx, gy);
 
           // Si hay dique de contención fluvial, no se inunda
           if (tile && tile.building && tile.building.id === 'service_barrier') {

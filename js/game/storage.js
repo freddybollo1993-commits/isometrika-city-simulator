@@ -74,6 +74,7 @@ export class StorageManager {
 
       const data = JSON.parse(raw);
       if (!data || !data.grid || !data.simulation) return false;
+      if (!StorageManager.isCurrentScale(data)) return false; // ciudad de la escala anterior
 
       if (this.simulation && typeof this.simulation.deserialize === 'function') {
         this.simulation.deserialize(data.simulation);
@@ -107,11 +108,36 @@ export class StorageManager {
   }
 
   /**
-   * Verifica si existe una partida guardada previamente
+   * Las ciudades guardadas con la escala anterior (casillas grandes, mapa de 28) no se pueden
+   * cargar en el mapa actual: hay que fundar una nueva.
+   */
+  static isCurrentScale(data) {
+    return !!(data && data.grid && data.grid.size === CONFIG.CANVAS.GRID_SIZE);
+  }
+
+  /** Hay una partida guardada de una versión anterior que ya no se puede cargar. */
+  hasLegacySave() {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return !!(data && data.grid && !StorageManager.isCurrentScale(data));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Verifica si existe una partida guardada previamente (y compatible con el mapa actual)
    */
   hasSavedGame() {
     if (typeof localStorage === 'undefined') return false;
-    return Boolean(localStorage.getItem(STORAGE_KEY));
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    try {
+      return StorageManager.isCurrentScale(JSON.parse(raw));
+    } catch (e) {
+      return false;
+    }
   }
 
   /**

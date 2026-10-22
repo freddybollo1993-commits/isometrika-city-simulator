@@ -91,7 +91,11 @@ export class BuildingCard {
     const chips = [`<i>${isPublic ? '🏛️ Estado' : '💼 Empresa'}</i>`];
     const maint = sim.maintenance;
     const cond = maint.condition(building, def);
-    if (building.closed) chips.push(`<i class="neg">${building.closed.kind === 'permanent' ? '🚫 Clausura definitiva' : '🔒 Clausurado'}</i>`);
+    if (building.construction) {
+      const pct = Math.round(this.game.constructionProgress(building) * 100);
+      const left = Math.max(0, building.construction.start + building.construction.days - this.game.simTime());
+      chips.push(`<i class="warn">🏗️ En obras ${pct}% · ${left < 1 ? 'menos de 1 día' : `${Math.ceil(left)} días`}</i>`);
+    } else if (building.closed) chips.push(`<i class="neg">${building.closed.kind === 'permanent' ? '🚫 Clausura definitiva' : '🔒 Clausurado'}</i>`);
     else if (building.suspended) chips.push('<i class="warn">⏸ En ahorro</i>');
     else chips.push('<i class="pos">▶ Operando</i>');
     if (building.damage > 0) chips.push(`<i class="neg">🏚️ Daño ${Math.round(building.damage)}%</i>`);

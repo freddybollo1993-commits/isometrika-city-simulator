@@ -145,7 +145,9 @@ export class PixiRenderer {
 
     this.painter.grassPalette = this.grassPalette;
     this.painter.animationTick = 0;
-    const texture = this._canvasTexture(W, H, TERRAIN_SCALE, (ctx) => {
+    // Muchos móviles no admiten texturas de más de 4096 px: se baja la resolución si hace falta
+    const scale = Math.min(TERRAIN_SCALE, 4000 / W);
+    const texture = this._canvasTexture(W, H, scale, (ctx) => {
       ctx.translate(originX, 1);
       for (let gy = 0; gy < size; gy++) {
         for (let gx = 0; gx < size; gx++) {
@@ -157,7 +159,7 @@ export class PixiRenderer {
 
     this.terrainLayer.removeChildren().forEach((c) => c.destroy({ texture: true, textureSource: true }));
     const sprite = new Sprite(texture);
-    sprite.scale.set(1 / TERRAIN_SCALE);
+    sprite.scale.set(1 / scale);
     sprite.position.set(-originX, -1);
     this.terrainLayer.addChild(sprite);
 
@@ -180,8 +182,8 @@ export class PixiRenderer {
   }
 
   _terrainKey(grid) {
-    // El terreno solo cambia con la estación (paleta) o con una cuadrícula nueva
-    return `${(this.grassPalette || CONFIG.PALETTE.grass).join(',')}`;
+    // El terreno solo cambia con la estación (paleta), las expansiones o una cuadrícula nueva
+    return `${(this.grassPalette || CONFIG.PALETTE.grass).join(',')}|${grid.mapLevel || 0}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -205,18 +207,18 @@ export class PixiRenderer {
     const frame = animated ? Math.floor(this.animationTick / ANIM_STEP) % ANIM_FRAMES : 0;
     return [
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,
-      Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : 0,
-      building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, frame,
+      Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : building.construction ? 'obra' : 0,
+      building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, building.roadMask || 0, frame,
     ].join('|');
   }
 
   _bakeBuilding(building, def, dayProgress, frame) {
     const p = this.painter;
     const b = building.size || def.size || 1;
-    const W = 64 * b + 96;
-    const H = 64 * b + 260;
+    const W = CONFIG.CANVAS.TILE_WIDTH * b + 96;
+    const H = CONFIG.CANVAS.TILE_WIDTH * b + 260;
     const ox = W / 2;
-    const oy = H - 32 * b - 48;
+    const oy = H - CONFIG.CANVAS.TILE_HEIGHT * b - 48;
 
     const c = document.createElement('canvas');
     c.width = Math.ceil(W * BAKE_SCALE);
@@ -327,6 +329,7 @@ export class PixiRenderer {
     const emitters = [];
     const flooded = [];
     const fire = [];
+    const sites = []; // obras en curso (barra de avance por fotograma)
 
     for (let gy = 0; gy < grid.size; gy++) {
       for (let gx = 0; gx < grid.size; gx++) {
@@ -342,6 +345,7 @@ export class PixiRenderer {
           const def = CONFIG.BUILDINGS[tile.building.id];
           if (!def) continue;
           key = `b${gx},${gy}`;
+          if (tile.building.construction) sites.push({ b: tile.building, gx, gy });
           const existing = this.objects.get(key);
           ({ sig, entry } = this._entryFor(tile.building, def, dayProgress, sim, !!existing));
           if (!entry) {
@@ -365,7 +369,8 @@ export class PixiRenderer {
         if (!obj) {
           const sprite = new Sprite(texture);
           sprite.scale.set(1 / BAKE_SCALE);
-          sprite.zIndex = (gx + gy) * 4;
+          // Orden de dibujo por el centro del edificio (los grandes no tapan a los de delante)
+          sprite.zIndex = (gx + gy + (tile.building ? (tile.building.size || 1) - 1 : 0)) * 4;
           this.objectLayer.addChild(sprite);
           obj = { sprite, sig: null };
           this.objects.set(key, obj);
@@ -392,6 +397,7 @@ export class PixiRenderer {
     }
     this.emitters = emitters;
     this.dynamicTiles = { flooded, fire };
+    this.sites = sites;
     this._evictTextures();
   }
 
@@ -411,6 +417,17 @@ export class PixiRenderer {
         .fill({ color: 0x3b82f6, alpha: floodAlpha })
         .stroke({ color: 0x60a5fa, width: 1.5 });
     }
+    // Barras de avance de las obras
+    const game = window.gameInstance;
+    for (const s of this.sites || []) {
+      if (!game) break;
+      const r = this.painter.constructionBarRect(s.b, s.gx, s.gy);
+      const p = game.constructionProgress(s.b);
+      g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill({ color: 0x0f172a, alpha: 0.85 });
+      g.rect(r.x, r.y, r.w, r.h).fill({ color: 0x334155 });
+      if (p > 0) g.rect(r.x, r.y, r.w * p, r.h).fill({ color: 0xf59e0b });
+    }
+
     const flameH = 14 + Math.sin(this.animationTick * 8) * 4;
     for (const t of this.dynamicTiles.fire) {
       const { x, y } = IsoMath.gridToIso(t.gx, t.gy);
@@ -467,18 +484,16 @@ export class PixiRenderer {
     while (layer.children.length < vehicles.length) {
       const s = new Sprite(this.dotTexture);
       s.anchor.set(0.5);
-      s.width = s.height = 8;
       layer.addChild(s);
     }
+    // Coches y peatones del tráfico animado (traffic.js ya calcula su posición)
     layer.children.forEach((s, i) => {
       const v = vehicles[i];
       s.visible = !!v;
       if (!v) return;
-      const from = IsoMath.gridToIso(v.gx, v.gy);
-      const to = IsoMath.gridToIso(v.gx + v.dirX, v.gy + v.dirY);
-      s.position.set(from.x + (to.x - from.x) * v.progress,
-        from.y + (to.y - from.y) * v.progress + CONFIG.CANVAS.TILE_HEIGHT / 2 - 2);
-      s.tint = v.color;
+      s.width = s.height = v.kind === 'car' ? 5.5 : 2.8;
+      s.position.set(v.x, v.y);
+      s.tint = hexToNumber(v.color);
     });
   }
 

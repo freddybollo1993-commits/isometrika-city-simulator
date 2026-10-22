@@ -1,16 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCity, runDays } from './helpers/headless-city.js';
+import { createCity, runDays, emptyArea } from './helpers/headless-city.js';
 import { MISSIONS } from '../js/game/missions.js';
 
 test('las misiones avanzan en orden y el premio entra desde el Exterior', () => {
-  const { sim, grid, center: c } = createCity();
+  const { sim, grid } = createCity();
   const ms = sim.missions;
+  const o = emptyArea(grid, 4, 4);
   assert.deepEqual(ms.active().map((m) => m.id), MISSIONS.slice(0, 3).map((m) => m.id));
 
   // Cumplir "Orden público" (la 2ª): construir una comisaría
   sim.population = 40;
-  assert.ok(grid.placeBuilding(c + 5, c + 5, 'service_police', 0));
+  assert.ok(grid.placeBuilding(o.gx, o.gy, 'service_police', 0));
   runDays(sim, 1);
   assert.ok(ms.completed.includes('police'));
   assert.ok(!ms.active().some((m) => m.id === 'police'), 'deja sitio a la siguiente');
