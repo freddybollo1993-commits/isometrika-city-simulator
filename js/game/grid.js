@@ -423,46 +423,6 @@ export class Grid {
   }
 
   /**
-   * Verifica si una celda está en el radio de cobertura de alguna planta de energía
-   */
-  isTileCoveredByPower(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot) {
-          const def = CONFIG.BUILDINGS[t.building.id];
-          if (def && def.category === 'utility' && def.utilityType === 'power') {
-            const rad = def.id === 'utility_coal' ? 16 : 10;
-            const dist = Math.abs(gx - x) + Math.abs(gy - y);
-            if (dist <= rad) return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Verifica si una celda está en el radio de cobertura de una torre o planta de agua
-   */
-  isTileCoveredByWater(gx, gy) {
-    for (let y = 0; y < this.size; y++) {
-      for (let x = 0; x < this.size; x++) {
-        const t = this.tiles[y][x];
-        if (t && t.building && t.building.isRoot) {
-          const def = CONFIG.BUILDINGS[t.building.id];
-          if (def && def.category === 'utility' && def.utilityType === 'water') {
-            const rad = def.id === 'utility_water_plant' ? 14 : 8;
-            const dist = Math.abs(gx - x) + Math.abs(gy - y);
-            if (dist <= rad) return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  /**
    * Cuenta cuántos edificios construidos de un tipo específico existen en el mapa
    */
   countBuildings(buildingId) {

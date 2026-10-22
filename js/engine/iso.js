@@ -106,11 +106,4 @@ export class IsoMath {
     ctx.fillStyle = colorTop;
     ctx.fill();
   }
-
-  /**
-   * Calcula la distancia Manhattan entre dos celdas
-   */
-  static manhattanDistance(x1, y1, x2, y2) {
-    return Math.abs(x1 - x2) + Math.abs(y1 - y2);
-  }
 }

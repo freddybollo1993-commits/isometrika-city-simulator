@@ -58,13 +58,6 @@ export class ResearchManager {
     return unlockedCount / totalTechs;
   }
 
-  /**
-   * Retorna el número de tecnologías completadas
-   */
-  getUnlockedCount() {
-    return Object.values(this.techs).filter((t) => t.unlocked).length;
-  }
-
   serialize() {
     const unlockedIds = Object.keys(this.techs).filter((id) => this.techs[id].unlocked);
     return {

@@ -206,14 +206,6 @@ export class Camera {
   }
 
   /**
-   * Mueve manualmente la cámara en una dirección fija (botones de pantalla)
-   */
-  panBy(dx, dy) {
-    this.x += dx;
-    this.y += dy;
-  }
-
-  /**
    * Aplica zoom centrado en un punto de la pantalla
    */
   applyZoomAt(factor, screenX, screenY) {

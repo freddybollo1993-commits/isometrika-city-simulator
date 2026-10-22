@@ -646,27 +646,6 @@ export class EconomySystem {
   }
 
   /**
-   * Factor de contratación empresarial según la tasa corporativa y la solvencia de la empresa.
-   * Si el Estado asfixia a la empresa o si la empresa está en quiebra, modula contrataciones suavemente.
-   */
-  getCorporateEmploymentFactor() {
-    // Si la empresa privada está en quiebra/números rojos severos, congela vacantes (-30% empleo)
-    if (this.isCorporateCrisis) {
-      return 0.70;
-    }
-
-    const avgRate = (this.taxRates.commercial + this.taxRates.industrial) / 2;
-    if (avgRate <= 0.08) {
-      return 1.10; // +10% puestos laborales por alivio tributario
-    } else if (avgRate <= 0.12) {
-      return 1.0;
-    } else {
-      const penalty = (avgRate - 0.12) * 1.5;
-      return Math.max(0.65, 1.0 - penalty);
-    }
-  }
-
-  /**
    * Evalúa la viabilidad fiscal y sostenibilidad macroeconómica de una obra pública
    * en función de su consumo operativo (mantenimiento físico + nómina pública)
    * comparado con la capacidad contributiva real del sector privado.
