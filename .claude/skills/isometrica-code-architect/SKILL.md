@@ -1,6 +1,6 @@
 ---
 name: isometrica-code-architect
-description: Arquitecto de código y optimización de ISOMETRICA (HTML5 Canvas 2D + módulos ES sin compilación, desplegado estático en Vercel, jugado en móvil horizontal). Úsalo para optimizar rendimiento (60 FPS en el bucle de render, ticks de simulación, DOM del HUD), limpiar código muerto, modularizar archivos grandes, prevenir fugas de memoria y de listeners, revisar que los cambios respeten el libro contable y el determinismo de la simulación, o auditar el código antes de publicar.
+description: Arquitecto de código y optimización de ISOMETRICA (PixiJS v8 por GPU con respaldo Canvas 2D + módulos ES sin compilación, desplegado estático en Vercel, jugado en móvil horizontal). Úsalo para optimizar rendimiento (60 FPS en el bucle de render, ticks de simulación, DOM del HUD), limpiar código muerto, modularizar archivos grandes, prevenir fugas de memoria y de listeners, revisar que los cambios respeten el libro contable y el determinismo de la simulación, o auditar el código antes de publicar.
 ---
 
 # ISOMETRICA Code Architect
@@ -17,7 +17,9 @@ Fusión adaptada de `shimaya-code-architect` (modularización, memoria, separaci
 | Archivo | Rol | Notas de rendimiento |
 |---|---|---|
 | `js/main.js` (~680) | Bucle RAF, entrada, `setInterval` de ticks | Un solo RAF; el tick va por `setInterval` según velocidad |
-| `js/engine/renderer.js` (~1200) | Dibujo Canvas 2D procedural | Punto caliente: corre 60 veces por segundo |
+| `js/engine/pixi-renderer.js` | Motor de dibujo por GPU (PixiJS) | ~0,3 ms por fotograma con 320 edificios; el coste está en hornear (5–8 ms por imagen, máx. 2 por fotograma) |
+| `js/engine/renderer.js` (~1200) | Pintor Canvas 2D: hornea piezas para PixiJS y es el respaldo sin WebGL | En modo respaldo corre 60 veces por segundo |
+| `js/vendor/pixi.min.mjs` | PixiJS 8.6.6 (MIT), copia local | No se edita; actualizar descargando una versión exacta |
 | `js/engine/camera.js`, `iso.js` | Cámara y proyección | `centerOnGrid` centra la casilla central |
 | `js/game/simulation.js` (~1190) | Tick diario | 4 recorridos completos de la cuadrícula por tick |
 | `js/game/citizens.js` (~1000) | Agentes, empleo, flujos de hogares | Recorre ciudadanos y la cuadrícula |
@@ -39,12 +41,13 @@ Fusión adaptada de `shimaya-code-architect` (modularización, memoria, separaci
 
 ## 2. Rendimiento a 60 FPS (render)
 
-- Presupuesto: ~16 ms por fotograma en un móvil de gama media. El render es el único código que corre en cada fotograma.
-- **Nada de asignaciones por fotograma**: ni arrays, ni objetos, ni gradientes nuevos. Hoy `renderer.js` crea un `createLinearGradient` del fondo en cada `render()`: es candidato a cachearse y regenerarse solo al cambiar el tamaño.
-- **Prohibido en el bucle**: `shadowBlur`, `ctx.filter`, `getImageData`, `toDataURL`, leer layout del DOM (`getBoundingClientRect`, `offsetWidth`).
-- **Culling**: dibujar solo las celdas visibles según la cámara.
-- **Cachear lo estático**: el terreno (césped, agua, arena) solo cambia con la estación, el zoom o el tamaño; puede ir a un canvas fuera de pantalla.
-- **Colores derivados** (sombras, caras laterales, tintes estacionales) se calculan una vez por tipo y estación, no por celda y fotograma.
+- Presupuesto: ~16 ms por fotograma en un móvil de gama media.
+- **Densidad de píxeles limitada** a `MAX_RENDER_DPR = 1.5` (`main.js`): no subirla.
+- **El mapa no se dibuja** mientras una pantalla completa lo tapa (`ui.isFullscreenOpen()`).
+- **PixiJS**: la cámara es la transformación del contenedor `world`; nunca redibujar piezas para mover o hacer zoom. Lo que cambia de aspecto se re-hornea vía firma; lo que se mueve es un sprite.
+- **Nada de asignaciones por fotograma** en `render()`: pools para partículas y vehículos.
+- **Prohibido en el bucle**: `getImageData` (salvo al hornear), `shadowBlur`, `ctx.filter`, leer layout del DOM.
+- **Medir** con el arnés del navegador: tiempo medio y peores fotogramas de `renderer.render()` con una ciudad grande sintética (320 edificios) tras calentar la caché.
 - Detalles de arte y proyecciones: ver la skill `isometrica-render-architect`.
 
 ## 3. Rendimiento del tick de simulación
@@ -58,6 +61,8 @@ Fusión adaptada de `shimaya-code-architect` (modularización, memoria, separaci
 
 - **Repintado**: una sola asignación de `innerHTML` por panel y **eventos delegados** en el contenedor (patrón de `FullscreenHub._onClick` y `FinanceHUD._onClick`).
 - **Animaciones**: solo `transform` y `opacity`. Las barras se escalan con `transform: scaleX()`, nunca con `width`.
+- **Sin `backdrop-filter`**: sobre un mapa que se redibuja en cada fotograma obliga a recalcular el desenfoque continuamente. Usar fondos sólidos semitransparentes.
+- **Pantallas completas**: se monta primero la sección visible y el resto en segundo plano (`_fillPendingSections`); `content-visibility: auto` evita pintar las secciones fuera de la vista.
 - **Un overlay por tipo**: antes de crear uno nuevo se cierra el anterior. Los listeners en `document`/`window` se guardan y se quitan en `close()` (ver `FinanceHUD._onOutside`).
 - **Intervalos**: hoy existen el `setInterval` del tick (`main.js`) y el autoguardado (`storage.js`). Cualquier temporizador nuevo necesita su cancelación.
 - **Pantallas completas** pausan el juego y restauran la velocidad previa al cerrar; respetar ese contrato.

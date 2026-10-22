@@ -53,10 +53,55 @@ export class FullscreenHub {
     root.addEventListener('click', (e) => this._onClick(e));
     document.body.appendChild(root);
     this.root = root;
-    this.render();
-    this.goTo(sectionId || this.sections[0].id, false);
-    requestAnimationFrame(() => root.classList.add('open'));
+
+    // Primero solo la sección que se va a ver: abrir no congela la pantalla
+    const target = sectionId || this.sections[0].id;
+    this.render(target);
+    this.goTo(target, false);
+    // La animación de entrada empieza cuando el contenido ya está pintado
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (this.root === root) root.classList.add('open');
+    }));
+    this._fillPendingSections(target, root);
     document.addEventListener('keydown', this._onKey);
+  }
+
+  /**
+   * Completa el resto de secciones de una en una, empezando por las vecinas de la visible,
+   * repartidas en distintos turnos del navegador para no bloquear el desplazamiento.
+   */
+  _fillPendingSections(target, root) {
+    const index = this.sections.findIndex((s) => s.id === target);
+    const queue = this.sections
+      .map((s, i) => ({ s, d: Math.abs(i - index) }))
+      .filter(({ s }) => s.id !== target)
+      .sort((a, b) => a.d - b.d)
+      .map(({ s }) => s.id);
+    const step = () => {
+      if (this.root !== root || !queue.length) return;
+      this._fillSection(queue.shift());
+      setTimeout(step, 30);
+    };
+    setTimeout(step, 220);
+  }
+
+  _fillSection(id) {
+    const strip = this.root && this.root.querySelector('.hub-strip');
+    const el = strip && strip.querySelector(`.hub-sec-pending[data-id="${id}"]`);
+    if (!el) return;
+    const section = this.sections.find((s) => s.id === id);
+    const leftOfView = el.offsetLeft < strip.scrollLeft;
+    const oldWidth = el.offsetWidth;
+    const holder = document.createElement('div');
+    holder.innerHTML = this.renderSection(section);
+    const filled = holder.firstElementChild;
+    el.replaceWith(filled);
+    // Si la sección estaba a la izquierda, se compensa para que la vista no salte
+    if (leftOfView) strip.scrollLeft += filled.offsetWidth - oldWidth;
+  }
+
+  _pendingSection(s) {
+    return `<section class="hub-sec hub-sec-pending" data-id="${s.id}"><h4>${s.icon} ${s.name.toUpperCase()}</h4></section>`;
   }
 
   close() {
@@ -78,6 +123,7 @@ export class FullscreenHub {
   }
 
   goTo(id, smooth = true) {
+    this._fillSection(id);
     const strip = this.root && this.root.querySelector('.hub-strip');
     const sec = strip && strip.querySelector(`.hub-sec[data-id="${id}"]`);
     if (!sec) return;
@@ -105,8 +151,11 @@ export class FullscreenHub {
     });
   }
 
-  /** Repinta conservando la posición de la franja. */
-  render() {
+  /**
+   * Repinta conservando la posición de la franja. Con `onlyId`, las demás secciones quedan
+   * como marcadores ligeros que se completan después.
+   */
+  render(onlyId = null) {
     if (!this.root) return;
     const prevStrip = this.root.querySelector('.hub-strip');
     const scroll = prevStrip ? prevStrip.scrollLeft : 0;
@@ -117,7 +166,7 @@ export class FullscreenHub {
         <h2>${this.title}</h2>
         <span class="hub-paused">⏸ Juego en pausa</span>
       </div>
-      <div class="hub-strip">${this.sections.map((s) => this.renderSection(s)).join('')}</div>
+      <div class="hub-strip">${this.sections.map((s) => (onlyId && s.id !== onlyId ? this._pendingSection(s) : this.renderSection(s))).join('')}</div>
       <nav class="hub-tabs">
         ${this.sections.map((s) => `<button class="hub-tab" data-action="tab" data-id="${s.id}"><span>${s.icon}</span>${s.name}</button>`).join('')}
       </nav>`;

@@ -18,10 +18,21 @@ import { AudioManager } from './game/audio.js';
 import { StorageManager } from './game/storage.js';
 import { UIManager } from './game/ui.js';
 
+// Densidad de píxeles máxima del lienzo (ver viewportSize)
+const MAX_RENDER_DPR = 1.5;
+
+function webglSupported() {
+  try {
+    const c = document.createElement('canvas');
+    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+  } catch (e) {
+    return false;
+  }
+}
+
 export class Game {
   constructor() {
     this.canvas = document.getElementById('city-canvas');
-    this.ctx = this.canvas.getContext('2d');
 
     // Estado del cursor y selección
     this.hoverTile = null;
@@ -41,7 +52,7 @@ export class Game {
     // Inicializar subsistemas
     this.audio = new AudioManager();
     this.camera = new Camera(this.canvas);
-    this.renderer = new Renderer(this.canvas, this.ctx);
+    this.renderer = this.createRenderer();
     this.grid = new Grid();
     this.corporations = new CorporationsManager();
     this.research = new ResearchManager();
@@ -159,16 +170,51 @@ export class Game {
     }
   }
 
-  handleResize() {
-    const dpr = window.devicePixelRatio || 1;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+  /**
+   * Elige el motor de dibujo: PixiJS (GPU) si hay WebGL, o Canvas 2D como respaldo.
+   * PixiJS se carga en segundo plano; mientras tanto no se dibuja nada. Si su carga falla,
+   * se recarga la página en modo Canvas 2D (?canvas2d).
+   */
+  createRenderer() {
+    const forceCanvas = new URLSearchParams(window.location.search).has('canvas2d');
+    if (!forceCanvas && webglSupported()) {
+      const pending = { grassPalette: null, render() {}, resize() {} };
+      import('./engine/pixi-renderer.js')
+        .then(async ({ PixiRenderer }) => {
+          const pixi = new PixiRenderer(this.canvas);
+          const { w, h, dpr } = this.viewportSize();
+          await pixi.init(w, h, dpr);
+          this.renderer = pixi;
+        })
+        .catch((err) => {
+          console.warn('PixiJS no disponible, se usa Canvas 2D:', err);
+          const url = new URL(window.location.href);
+          url.searchParams.set('canvas2d', '1');
+          window.location.replace(url.toString());
+        });
+      return pending;
+    }
+    const renderer = new Renderer(this.canvas, this.canvas.getContext('2d'));
+    return renderer;
+  }
 
-    this.canvas.width = w * dpr;
-    this.canvas.height = h * dpr;
-    this.ctx.scale(dpr, dpr);
+  /**
+   * Tamaño de la vista y densidad de píxeles limitada: en móviles con pantallas de 2,5-3×
+   * dibujar a resolución nativa multiplica el trabajo sin una mejora visible.
+   */
+  viewportSize() {
+    return {
+      w: window.innerWidth,
+      h: window.innerHeight,
+      dpr: Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR),
+    };
+  }
+
+  handleResize() {
+    const { w, h, dpr } = this.viewportSize();
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
+    this.renderer.resize(w, h, dpr);
   }
 
   /**
@@ -655,18 +701,21 @@ export class Game {
       }
     }
 
-    // El césped cambia de tono con la estación del año
-    const season = this.simulation.season;
-    this.renderer.grassPalette = (season && season.grassTint) || null;
+    // Con una pantalla completa encima, el mapa no se ve: no se dibuja
+    if (!this.ui || !this.ui.isFullscreenOpen()) {
+      // El césped cambia de tono con la estación del año
+      const season = this.simulation.season;
+      this.renderer.grassPalette = (season && season.grassTint) || null;
 
-    this.renderer.render(
-      this.grid,
-      this.camera,
-      this.hoverTile,
-      this.ghostState,
-      this.disasters,
-      dayProgress
-    );
+      this.renderer.render(
+        this.grid,
+        this.camera,
+        this.hoverTile,
+        this.ghostState,
+        this.disasters,
+        dayProgress
+      );
+    }
 
     requestAnimationFrame(this.loop);
   }

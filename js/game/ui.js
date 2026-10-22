@@ -1677,6 +1677,11 @@ export class UIManager {
     }
   }
 
+  /** Hay una pantalla completa (Finanzas, Ciudad o Gestión) tapando el mapa. */
+  isFullscreenOpen() {
+    return [this.financeHub, this.cityHub, this.managementHub].some((hub) => hub && hub.isOpen);
+  }
+
   closeModals() {
     this.elModals.forEach((m) => m.classList.remove('active'));
     if (this.elModalOverlay) this.elModalOverlay.classList.remove('active');

@@ -17,6 +17,15 @@ export class Renderer {
     this.currentDayProgress = 0;
   }
 
+  /**
+   * Ajusta el lienzo al tamaño de la vista con la densidad de píxeles indicada.
+   */
+  resize(width, height, dpr) {
+    this.canvas.width = Math.round(width * dpr);
+    this.canvas.height = Math.round(height * dpr);
+    if (this.ctx) this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
   render(grid, camera, hoverTile, ghostState, disasters, dayProgress = 0) {
     this.animationTick += 0.05;
     this.currentDayProgress = dayProgress;

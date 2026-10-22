@@ -52,13 +52,11 @@
   padding-bottom: env(safe-area-inset-bottom);
   overflow: hidden;
   opacity: 0;
-  transform: scale(1.02);
-  transition: opacity 0.18s ease, transform 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 
 .fs-hub.open {
   opacity: 1;
-  transform: none;
 }
 
 .fs-hub::before {
@@ -136,11 +134,18 @@
 }
 
 .hub-sec {
+  /* Las secciones fuera de la vista no se calculan ni se pintan */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 760px auto 300px;
   flex: none;
   display: flex;
   flex-direction: column;
   min-width: 0;
   scroll-snap-align: start;
+}
+
+.hub-sec-pending {
+  width: 760px;
 }
 
 .hub-sec > h4 {

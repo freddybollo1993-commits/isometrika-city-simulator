@@ -1,6 +1,6 @@
 ---
 name: isometrica-render-architect
-description: Arquitecto del motor de render de ISOMETRICA (HTML5 Canvas 2D procedural, sin sprites ni PixiJS). Úsalo para diseñar o programar el dibujo de terreno, edificios, props urbanos, agua, vegetación, partículas, estados de daño/fuego/inundación, el ciclo día/noche, el orden de profundidad y, sobre todo, el sistema de proyecciones intercambiables (isométrica 2:1 ↔ cenital 3/4) en js/engine/iso.js, renderer.js y camera.js, garantizando 60 FPS en móvil y que cada toque caiga en la celda correcta en ambas vistas.
+description: Arquitecto del motor de render de ISOMETRICA (PixiJS v8 por GPU con piezas horneadas desde dibujo Canvas 2D procedural; Canvas 2D como respaldo). Úsalo para diseñar o programar el dibujo de terreno, edificios, props urbanos, agua, vegetación, partículas, estados de daño/fuego/inundación, el ciclo día/noche, el orden de profundidad y, sobre todo, el sistema de proyecciones intercambiables (isométrica 2:1 ↔ cenital 3/4) en js/engine/iso.js, pixi-renderer.js, renderer.js y camera.js, garantizando 60 FPS en móvil y que cada toque caiga en la celda correcta en ambas vistas.
 ---
 
 # ISOMETRICA Render Architect
@@ -9,7 +9,12 @@ Fusión de `procedural-pixel-25d-architect`, `pixel-25d-ambient-asset-specialist
 
 ## 0. Verdad del motor (léela antes de proponer nada)
 
-- **Canvas 2D puro**, dibujo procedural con `ctx.beginPath / lineTo / fill`. No hay `drawImage`, ni spritesheets, ni PixiJS, ni Vite, ni Web Workers. No propongas `anchor.set()`, `sprite.skew`, `RenderTexture` ni filtros de GPU.
+- **Dos capas de dibujo**:
+  - `js/engine/renderer.js` (Canvas 2D): **pinta** cada pieza de forma procedural (`ctx.beginPath / lineTo / fill`). Es la fuente del aspecto visual y el respaldo si no hay WebGL (`?canvas2d=1` lo fuerza).
+  - `js/engine/pixi-renderer.js` (PixiJS 8.6.6, copia local en `js/vendor/pixi.min.mjs`): **compone** en la GPU. Hornea con el pintor Canvas 2D el terreno completo, cada edificio según su firma visual (tipo, nivel, rotación, daño, estado, noche, avisos y fotograma de animación) y los árboles; luego solo mueve sprites.
+- **Lo dinámico va en PixiJS**: agua (sprites que alternan dos texturas), vehículos y partículas (sprites teñidos de un círculo), inundación y fuego (`Graphics`), fantasma de construcción, tinte de día/noche y alertas en pantalla.
+- **Reglas del horneado**: lienzos de horneado con `{ willReadFrequently: true }` (recortar sin sincronizar con la GPU); máximo `BAKES_PER_FRAME` horneados nuevos por fotograma; caché con tope `MAX_TEXTURES`; los edificios animados (`ANIMATED_FLAGS`) se hornean en `ANIM_FRAMES` fotogramas. Una pieza nueva o un cambio de aspecto debe reflejarse en la **firma** (`_signature`) o no se volverá a hornear.
+- **Arte futuro**: los sprites de pixel art sustituyen a las texturas horneadas sin cambiar el resto (misma firma → otra textura).
 - **Proyección actual**: `js/engine/iso.js` → `IsoMath.gridToIso`, `isoToGrid`, `drawIsoDiamond`, `drawIsoBlock`. Losa `TILE_WIDTH=64`, `TILE_HEIGHT=32` (`CONFIG.CANVAS`), grilla `GRID_SIZE=28`.
 - **Colores por edificio**: `colorTop`, `colorLeft`, `colorRight` en `CONFIG.BUILDINGS` (`js/game/config.js`). Paleta global en `CONFIG.PALETTE`.
 - **Render principal**: `Renderer.render()` en `js/engine/renderer.js`; edificios en `renderBuildingInstance`, detalles orientados (`renderOrientedDoor`, `renderOrientedAwning`) dependen de `building.rotation` (0–3).
