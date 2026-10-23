@@ -10,6 +10,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { designZone, zoneSeed, ZONE_LIMITS } from './recreation-zone.js';
 
 /** Familia de un edificio: los que pueden sustituirse entre sí al rellenar un área. */
 export function familyOf(def) {
@@ -87,6 +88,44 @@ export function planRoadLine({ grid, sim, anchor, target, budget = null }) {
     result.counts.road = (result.counts.road || 0) + 1;
   }
   return result;
+}
+
+/**
+ * Zona recreativa: un solo bloque rectangular de 4×4 a 16×16 cuyo interior se diseña según el
+ * espacio y el dinero del Estado. `rect` trae la esquina fija (gx0, gy0) y la esquina arrastrada
+ * (gx1, gy1); si el arrastre es menor que el mínimo, el rectángulo crece hacia donde se arrastra.
+ * `salt` cambia la semilla ("Rediseñar"). El resultado sigue el formato de planArea.
+ */
+export function planRecreation({ grid, sim, rect, salt = 0, budget = null }) {
+  const def = CONFIG.BUILDINGS.recreation_zone;
+  const { MIN, MAX } = ZONE_LIMITS;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const dx = rect.gx1 - rect.gx0;
+  const dy = rect.gy1 - rect.gy0;
+  const w = clamp(Math.abs(dx) + 1, MIN, MAX);
+  const h = clamp(Math.abs(dy) + 1, MIN, MAX);
+  const x0 = clamp(dx >= 0 ? rect.gx0 : rect.gx0 - (w - 1), 0, grid.size - w);
+  const y0 = clamp(dy >= 0 ? rect.gy0 : rect.gy0 - (h - 1), 0, grid.size - h);
+
+  const check = grid.canBuild(x0, y0, def.id, null, { w, h });
+  const design = designZone({
+    w, h, seed: zoneSeed(x0, y0, w, h, salt),
+    budget: budget !== null ? budget : sim.economy.stateFunds,
+    costMult: sim.costMultiplier,
+  });
+  return {
+    zone: { ...design, gx: x0, gy: y0 },
+    valid: check.allowed,
+    reason: check.allowed ? '' : check.reason,
+    rect: { gx0: x0, gy0: y0, gx1: x0 + w - 1, gy1: y0 + h - 1 },
+    items: [],
+    totalCost: design.price,
+    capacity: 0,
+    counts: design.counts,
+    skipped: { money: design.affordable ? 0 : 1, density: 0 },
+    limits: [],
+    area: w * h,
+  };
 }
 
 /**

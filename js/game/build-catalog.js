@@ -143,12 +143,12 @@ export class BuildCatalog {
       const gives = contribution(def);
       return `
         <button class="bc-card ${st.available ? '' : 'locked'}" data-action="build" data-id="${def.id}" ${st.available ? '' : 'aria-disabled="true"'}>
-          <span class="bc-size">${def.size || 1}×${def.size || 1}</span>
+          <span class="bc-size">${def.variableSize ? '4–16' : `${def.size || 1}×${def.size || 1}`}</span>
           <span class="bc-icon">${icon}</span>
           <b class="bc-name">${def.name}</b>
           ${st.lock ? `<span class="bc-lock">🔒 ${st.lock}</span>` : (gives ? `<span class="bc-gives">${gives}</span>` : '')}
           <span class="bc-foot">
-            <span class="bc-cost">$${st.cost.toLocaleString()}</span>
+            <span class="bc-cost">${def.variableSize ? 'desde ' : ''}$${st.cost.toLocaleString()}</span>
             <span class="bc-pay">${st.funding === 'public' ? '🏛️' : '💼'}</span>
           </span>
         </button>`;

@@ -110,7 +110,7 @@ export class MaintenanceSystem {
 
   /** Coste actual (con inflación y estación) de cada tipo de mantenimiento. */
   costs(b, def = CONFIG.BUILDINGS[b.id]) {
-    const base = this.sim.getBuildingCost(def, b.level || 1);
+    const base = this.sim.getBuildingCost(def, b.level || 1, b);
     return {
       preventive: Math.max(5, Math.round(base * MAINTENANCE.PREVENTIVE_COST)),
       corrective: Math.max(10, Math.round(base * MAINTENANCE.CORRECTIVE_COST * (b.wear || 0) / 100)),

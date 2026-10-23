@@ -30,6 +30,7 @@ export const BUILDING_ICONS = {
   residential_low: '🏡',
   residential_high: '🏢',
   residential_social: '🏘️',
+  recreation_zone: '🌳',
   commercial_stall: '🌮',
   commercial_store: '🏬',
   commercial_gastronomy: '🍽️',
@@ -713,7 +714,7 @@ export class UIManager {
         if (this.elFocusToolName) this.elFocusToolName.textContent = def ? def.name : toolId;
         if (this.elFocusToolCost) this.elFocusToolCost.textContent = `Coste: ${this.game.simulation.getBuildingCost(def).toLocaleString()}`;
         this.game.startGhostPlacement(toolId);
-        this.showAreaPlan(null);
+        this.showAreaPlan(this.game.ghostState.plan || null);
       }
     }
   }
@@ -721,6 +722,24 @@ export class UIManager {
   /**
    * Resumen de la construcción por área en la barra de enfoque (null vuelve al edificio suelto).
    */
+  /** Barra inferior de la zona recreativa: tamaño, coste, efecto y los elementos del diseño. */
+  _showZonePlan(plan) {
+    const z = plan.zone;
+    const names = { botanical: 'jardín', plaza: 'plazas', park: 'arboledas', lamp: 'farolas', tree: 'árboles' };
+    const parts = Object.entries(z.counts).filter(([t]) => names[t]).map(([t, n]) => `${n} ${names[t]}`);
+    if (this.elFocusToolIcon) this.elFocusToolIcon.textContent = '🌳';
+    if (this.elGhostConfirmText) this.elGhostConfirmText.textContent = `Construir ${Math.round(plan.totalCost).toLocaleString()}`;
+    this.elFocusToolName.textContent = `Zona recreativa ${z.w}×${z.h}`;
+    this.elFocusToolCost.textContent = plan.valid
+      ? `Total $${Math.round(plan.totalCost).toLocaleString()} · felicidad +${z.stats.happiness} · ${Math.round(z.serves)} vecinos`
+      : 'Elige un terreno libre';
+    let note = parts.join(' · ');
+    if (!plan.valid) note = `⚠️ ${plan.reason}`;
+    else if (!z.affordable) note = `💸 Faltan fondos: no alcanza ni el diseño más simple`;
+    else if (z.reduced) note = `💸 Diseño ajustado al presupuesto · ${note}`;
+    this._setFocusLimit(note);
+  }
+
   showAreaPlan(plan) {
     const id = this.game.ghostState.buildingId;
     const def = CONFIG.BUILDINGS[id];
@@ -729,6 +748,10 @@ export class UIManager {
     if (!plan) this._setFocusLimit('');
     // Las flechas de ajuste mueven un solo edificio: en modo área sobran y tapan la barra
     if (this.elGhostManipulator && this.game.ghostState.active) this.elGhostManipulator.classList.toggle('hidden', !!plan);
+    if (plan && plan.zone) {
+      this._showZonePlan(plan);
+      return;
+    }
     if (this.elGhostConfirmText) {
       this.elGhostConfirmText.textContent = plan
         ? `Construir ${plan.items.length} · ${Math.round(plan.totalCost).toLocaleString()}`

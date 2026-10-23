@@ -208,6 +208,7 @@ export class PixiRenderer {
     return [
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,
       Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : building.construction ? 'obra' : 0,
+      building.zone ? `z${building.zone.seed}:${building.w}x${building.h}:${this.painter.zoneStage(building)}` : '',
       building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, building.roadMask || 0, building.variant || 0, frame,
     ].join('|');
   }
@@ -370,7 +371,8 @@ export class PixiRenderer {
           const sprite = new Sprite(texture);
           sprite.scale.set(1 / BAKE_SCALE);
           // Orden de dibujo por el centro del edificio (los grandes no tapan a los de delante)
-          sprite.zIndex = (gx + gy + (tile.building ? (tile.building.size || 1) - 1 : 0)) * 4;
+          const b = tile.building;
+          sprite.zIndex = (gx + gy + (b ? (b.w && b.h ? (b.w + b.h) / 2 : (b.size || 1)) - 1 : 0)) * 4;
           this.objectLayer.addChild(sprite);
           obj = { sprite, sig: null };
           this.objects.set(key, obj);
@@ -497,6 +499,35 @@ export class PixiRenderer {
     });
   }
 
+  /** Plan de una zona recreativa: huella roja o verde y el diseño ya terminado en translúcido. */
+  _drawZonePlan(g, plan) {
+    const z = plan.zone;
+    const tw = CONFIG.CANVAS.TILE_WIDTH;
+    const th = CONFIG.CANVAS.TILE_HEIGHT;
+    const o = IsoMath.gridToIso(z.gx, z.gy);
+    const P = (u, v) => [o.x + (u - v) * (tw / 2), o.y + (u + v) * (th / 2)];
+    g.poly([...P(0, 0), ...P(z.w, 0), ...P(z.w, z.h), ...P(0, z.h)])
+      .fill({ color: plan.valid ? 0x4ade80 : 0xef4444, alpha: plan.valid ? 0.35 : 0.45 })
+      .stroke({ color: plan.valid ? 0x22c55e : 0xef4444, width: 2 });
+
+    this.planSprites = this.planSprites || [];
+    while (this.planSprites.length < 1) {
+      const s = new Sprite(Texture.EMPTY);
+      s.alpha = 0.72;
+      s.scale.set(1 / BAKE_SCALE);
+      this.ghostLayer.addChild(s);
+      this.planSprites.push(s);
+    }
+    this.planSprites.forEach((s, i) => { s.visible = i === 0 && plan.valid; });
+    if (!plan.valid) return;
+    const def = CONFIG.BUILDINGS.recreation_zone;
+    const mock = { id: def.id, level: 1, size: Math.max(z.w, z.h), w: z.w, h: z.h, zone: z, isRoot: true, damage: 0 };
+    const { entry } = this._entryFor(mock, def, 0.4, null);
+    const s = this.planSprites[0];
+    s.texture = entry.texture;
+    s.position.set(o.x + entry.offX, o.y + entry.offY);
+  }
+
   _drawGhost(grid, ghost) {
     const g = this.ghostGraphics;
     g.clear();
@@ -515,6 +546,10 @@ export class PixiRenderer {
     if (ghost.area) {
       this.ghostSprite.visible = false;
       const plan = ghost.plan || { items: [] };
+      if (plan.zone) {
+        this._drawZonePlan(g, plan);
+        return;
+      }
       const covered = new Set();
       for (const it of plan.items) {
         for (let dy = 0; dy < it.size; dy++) for (let dx = 0; dx < it.size; dx++) covered.add(`${it.gx + dx},${it.gy + dy}`);

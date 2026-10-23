@@ -5,13 +5,15 @@
  */
 
 import { CONFIG, variantAt } from './config.js';
+import { zoneConstructionDays } from './recreation-zone.js';
 import { IsoMath } from '../engine/iso.js';
 
 /**
  * Días de obra según la superficie: medio día por cada ~10 casillas (mínimo medio día).
  * Casa 2×2: 0,5 · mercado 3×3: 1 · hospital 5×5: 2,5 · universidad 6×6: 3,5.
  */
-export function constructionDays(def) {
+export function constructionDays(def, building = null) {
+  if (building && building.zone) return zoneConstructionDays(building.w, building.h);
   const size = (def && def.size) || 1;
   return Math.max(0.5, Math.round((size * size) / 5) / 2);
 }
@@ -546,15 +548,17 @@ export class Grid {
   /**
    * Valida si se puede construir un edificio (1x1 o 2x2) en la coordenada indicada
    */
-  canBuild(gx, gy, buildingId, popOverride = null) {
+  canBuild(gx, gy, buildingId, popOverride = null, dims = null) {
     const def = CONFIG.BUILDINGS[buildingId];
     if (!def) return { allowed: false, reason: 'Edificio desconocido' };
 
     const bSize = def.size || 1;
+    const bw = dims ? dims.w : bSize;
+    const bh = dims ? dims.h : bSize;
 
     // 1. Verificar límites del mapa, terreno y colisiones
-    for (let dy = 0; dy < bSize; dy++) {
-      for (let dx = 0; dx < bSize; dx++) {
+    for (let dy = 0; dy < bh; dy++) {
+      for (let dx = 0; dx < bw; dx++) {
         const tx = gx + dx;
         const ty = gy + dy;
 
@@ -647,12 +651,19 @@ export class Grid {
     return { allowed: true };
   }
 
-  placeBuilding(gx, gy, buildingId, rotation = 0) {
-    const check = this.canBuild(gx, gy, buildingId);
+  /** Coloca una zona recreativa (rectángulo w×h con su diseño ya generado). */
+  placeZone(gx, gy, zone) {
+    return this.placeBuilding(gx, gy, 'recreation_zone', 0, { w: zone.w, h: zone.h, zone });
+  }
+
+  placeBuilding(gx, gy, buildingId, rotation = 0, dims = null) {
+    const check = this.canBuild(gx, gy, buildingId, null, dims);
     if (!check.allowed) return false;
 
     const def = CONFIG.BUILDINGS[buildingId];
-    const bSize = def.size || 1;
+    const bSize = dims ? Math.max(dims.w, dims.h) : (def.size || 1);
+    const bw = dims ? dims.w : bSize;
+    const bh = dims ? dims.h : bSize;
     this._counts = null;
 
     // Colocar celda raíz
@@ -677,13 +688,15 @@ export class Grid {
       wear: 0,
       // Diseño visual (puestos de comida: 4 diseños repartidos al azar)
       ...(def.variants ? { variant: variantAt(def, gx, gy) } : {}),
+      // Zona recreativa: rectángulo w×h y su diseño procedural
+      ...(dims ? { w: dims.w, h: dims.h, zone: dims.zone } : {}),
     };
     rootTile.deco = null;
 
     // Si es 2x2, marcar las 3 celdas complementarias como hijos vinculados a la raíz
-    if (bSize > 1) {
-      for (let dy = 0; dy < bSize; dy++) {
-        for (let dx = 0; dx < bSize; dx++) {
+    if (bw > 1 || bh > 1) {
+      for (let dy = 0; dy < bh; dy++) {
+        for (let dx = 0; dx < bw; dx++) {
           if (dx === 0 && dy === 0) continue;
           const childTile = this.getTile(gx + dx, gy + dy);
           if (childTile) {
@@ -714,7 +727,7 @@ export class Grid {
     const tile = this.getTile(gx, gy);
     const b = tile && tile.building;
     if (!b || !b.isRoot || b.id === 'road') return null;
-    const days = constructionDays(CONFIG.BUILDINGS[b.id]);
+    const days = constructionDays(CONFIG.BUILDINGS[b.id], b);
     b.construction = { start: time, days };
     return b.construction;
   }
@@ -755,6 +768,9 @@ export class Grid {
 
     if (b.construction) {
       return { success: false, reason: 'El edificio sigue en obras' };
+    }
+    if (b.zone) {
+      return { success: false, reason: 'Las zonas recreativas no se mejoran: para ampliar, construye otra al lado' };
     }
     const nextLevel = (b.level || 1) + 1;
     if (nextLevel > 3) {
@@ -841,12 +857,14 @@ export class Grid {
     if (!rootTile || !rootTile.building) return false;
 
     const bSize = rootTile.building.size || 1;
+    const bw = rootTile.building.w || bSize;
+    const bh = rootTile.building.h || bSize;
     const wasRoad = rootTile.building.id === 'road';
     this._counts = null;
 
     // Limpiar todas las celdas del bloque
-    for (let dy = 0; dy < bSize; dy++) {
-      for (let dx = 0; dx < bSize; dx++) {
+    for (let dy = 0; dy < bh; dy++) {
+      for (let dx = 0; dx < bw; dx++) {
         const t = this.getTile(rootGx + dx, rootGy + dy);
         if (t) {
           t.building = null;

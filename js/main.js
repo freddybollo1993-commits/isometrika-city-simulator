@@ -17,7 +17,7 @@ import { Simulation } from './game/simulation.js';
 import { AudioManager } from './game/audio.js';
 import { StorageManager } from './game/storage.js';
 import { UIManager } from './game/ui.js';
-import { planArea, planRoadLine, isAreaBuildable } from './game/area-planner.js';
+import { planArea, planRoadLine, planRecreation, isAreaBuildable } from './game/area-planner.js';
 import { Traffic } from './engine/traffic.js';
 import { setupInitialTown } from './game/initial-town.js';
 
@@ -249,13 +249,14 @@ export class Game {
       const g = IsoMath.isoToGrid(worldPos.x, worldPos.y);
       const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
       const bSize = def ? (def.size || 1) : 1;
+      const dims = this.zoneDimsOf(this.ghostState.buildingId) || { w: bSize, h: bSize };
 
       // Si el toque cae dentro del área de la estructura fantasma (+ margen de holgura)
       if (
         g.gx >= this.ghostState.gx - 0.5 &&
-        g.gx <= this.ghostState.gx + bSize + 0.5 &&
+        g.gx <= this.ghostState.gx + dims.w + 0.5 &&
         g.gy >= this.ghostState.gy - 0.5 &&
-        g.gy <= this.ghostState.gy + bSize + 0.5
+        g.gy <= this.ghostState.gy + dims.h + 0.5
       ) {
         this.isDraggingGhost = true;
         this.ghostDragOffset = {
@@ -361,7 +362,7 @@ export class Game {
 
       // CASO 2: COLOCACIÓN FANTASMA ACTIVA (Un toque en el suelo reubica el fantasma)
       if (this.ghostState.active && this.ghostState.buildingId) {
-        if (this.ghostState.area) this.clearArea();
+        if (this.ghostState.area && this.ghostState.buildingId !== 'recreation_zone') this.clearArea();
         this.setGhostPosition(gx, gy);
         this.audio.playClick();
         return;
@@ -481,6 +482,7 @@ export class Game {
 
     // El edificio queda centrado bajo el punto elegido
     this.ghostState = { active: true, buildingId, gx: 0, gy: 0, rotation: 0 };
+    this.zoneDims = { w: bSize, h: bSize }; // la zona recreativa parte de su tamaño mínimo
     this.setGhostPosition(targetGx - Math.floor((bSize - 1) / 2), targetGy - Math.floor((bSize - 1) / 2));
 
     this.audio.playClick();
@@ -490,10 +492,24 @@ export class Game {
   /** Mueve el fantasma sin salirse del mapa; las carreteras encajan en su rejilla de 2×2. */
   setGhostPosition(gx, gy) {
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-    const maxG = this.grid.size - (def ? (def.size || 1) : 1);
+    const dims = this.zoneDimsOf(this.ghostState.buildingId) || { w: def ? (def.size || 1) : 1, h: def ? (def.size || 1) : 1 };
     const snapped = this.grid.snapPosition(this.ghostState.buildingId, gx, gy);
-    this.ghostState.gx = Math.max(0, Math.min(maxG, snapped.gx));
-    this.ghostState.gy = Math.max(0, Math.min(maxG, snapped.gy));
+    this.ghostState.gx = Math.max(0, Math.min(this.grid.size - dims.w, snapped.gx));
+    this.ghostState.gy = Math.max(0, Math.min(this.grid.size - dims.h, snapped.gy));
+    if (this.ghostState.buildingId === 'recreation_zone') this.syncZoneArea();
+  }
+
+  /** Tamaño actual de la zona recreativa en edición (null para cualquier otro edificio). */
+  zoneDimsOf(buildingId) {
+    return buildingId === 'recreation_zone' ? (this.zoneDims || { w: 4, h: 4 }) : null;
+  }
+
+  /** La zona recreativa siempre muestra su plan: rectángulo en la posición del fantasma. */
+  syncZoneArea() {
+    const { w, h } = this.zoneDimsOf('recreation_zone');
+    const { gx, gy } = this.ghostState;
+    this.ghostState.area = { gx0: gx, gy0: gy, gx1: gx + w - 1, gy1: gy + h - 1 };
+    this.replanArea();
   }
 
   nudgeGhost(dir) {
@@ -509,6 +525,13 @@ export class Game {
 
   rotateGhost() {
     if (!this.ghostState.active) return;
+    // En la zona recreativa "rotar" es rediseñar: otra semilla, otra composición
+    if (this.ghostState.buildingId === 'recreation_zone') {
+      this.ghostState.rotation += 1;
+      this.replanArea();
+      this.audio.playClick();
+      return;
+    }
     this.ghostState.rotation = (this.ghostState.rotation + 1) % 4;
     this.audio.playClick();
   }
@@ -520,8 +543,8 @@ export class Game {
   startAreaPress(clientX, clientY) {
     this.cancelAreaPress();
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-    // Las obras del Estado van una a una, salvo la carretera, que se traza en línea recta
-    if (def.id !== 'road' && !isAreaBuildable(def, this.simulation)) return;
+    // Las obras del Estado van una a una, salvo la carretera (línea recta) y la zona recreativa
+    if (def.id !== 'road' && !def.zone && !isAreaBuildable(def, this.simulation)) return;
     const timer = setTimeout(() => this.beginAreaSelection(), AREA_PRESS_MS);
     this.ghostPress = { x: clientX, y: clientY, timer };
   }
@@ -543,22 +566,33 @@ export class Game {
     this.ghostPress = null;
     if (!this.isDraggingGhost || !this.ghostState.active) return;
     const def = CONFIG.BUILDINGS[this.ghostState.buildingId];
-    const size = def.size || 1;
+    const dims = this.zoneDimsOf(def.id) || { w: def.size || 1, h: def.size || 1 };
     const { gx, gy } = this.ghostState;
     this.isDraggingGhost = false;
     this.isDraggingArea = true;
-    this.ghostState.area = { gx0: gx, gy0: gy, gx1: gx + size - 1, gy1: gy + size - 1 };
+    this.ghostState.area = { gx0: gx, gy0: gy, gx1: gx + dims.w - 1, gy1: gy + dims.h - 1 };
     this.replanArea();
     if (navigator.vibrate) navigator.vibrate(25);
     this.audio.playClick();
     this.ui.showToast(def.id === 'road'
       ? '🛣️ Arrastra en línea recta para trazar la carretera'
-      : '📐 Arrastra para marcar el área a construir');
+      : def.zone
+        ? '🌳 Arrastra para dar tamaño a la zona (de 4×4 a 16×16)'
+        : '📐 Arrastra para marcar el área a construir');
   }
 
   replanArea() {
     const { area, buildingId } = this.ghostState;
     if (!area) return;
+    if (buildingId === 'recreation_zone') {
+      const plan = planRecreation({ grid: this.grid, sim: this.simulation, rect: area, salt: this.ghostState.rotation });
+      this.ghostState.plan = plan;
+      this.zoneDims = { w: plan.rect.gx1 - plan.rect.gx0 + 1, h: plan.rect.gy1 - plan.rect.gy0 + 1 };
+      this.ghostState.gx = plan.rect.gx0;
+      this.ghostState.gy = plan.rect.gy0;
+      this.ui.showAreaPlan(plan);
+      return;
+    }
     this.ghostState.plan = buildingId === 'road'
       ? planRoadLine({ grid: this.grid, sim: this.simulation, anchor: { gx: area.gx0, gy: area.gy0 }, target: { gx: area.gx1, gy: area.gy1 } })
       : planArea({ grid: this.grid, sim: this.simulation, buildingId, rect: area });
@@ -571,6 +605,8 @@ export class Game {
     this.isDraggingGhost = false;
     if (this.isDraggingArea) {
       this.isDraggingArea = false;
+      // La zona queda con su rectángulo normalizado (esquina mínima y tamaño final)
+      if (this.ghostState.buildingId === 'recreation_zone' && this.ghostState.plan) this.ghostState.area = { ...this.ghostState.plan.rect };
       this.suppressNextClick = true;
       setTimeout(() => { this.suppressNextClick = false; }, 400);
     }
@@ -583,7 +619,40 @@ export class Game {
     if (this.ghostState.active) this.ui.showAreaPlan(null);
   }
 
+  /** Construye la zona recreativa marcada: un solo edificio con el diseño generado. */
+  confirmZone() {
+    this.replanArea();
+    const plan = this.ghostState.plan;
+    if (!plan || !plan.zone) return;
+    if (!plan.valid) {
+      this.ui.showToast(`⚠️ ${plan.reason}`);
+      return;
+    }
+    const def = CONFIG.BUILDINGS.recreation_zone;
+    const cost = plan.totalCost;
+    if (!plan.zone.affordable || this.simulation.stateFunds < cost) {
+      this.ui.showToast(`💸 Faltan fondos del Estado: la zona cuesta $${cost.toLocaleString()}`);
+      return;
+    }
+    const z = plan.zone;
+    const zone = { w: z.w, h: z.h, seed: z.seed, tier: z.tier, elements: z.elements, stats: z.stats, cost: z.cost, serves: z.serves, radius: z.radius, counts: z.counts };
+    if (!this.grid.placeZone(z.gx, z.gy, zone)) {
+      this.ui.showToast('⚠️ No se pudo construir la zona recreativa');
+      return;
+    }
+    const obra = this.grid.startConstruction(z.gx, z.gy, this.simTime());
+    this.simulation.spendForBuilding(def, cost);
+    this.audio.playBuild();
+    this.ui.showToast(`🌳 Zona recreativa ${z.w}×${z.h} (-$${cost.toLocaleString()}) · obra de ${String(obra.days).replace('.', ',')} días`);
+    this.ui.updateHUD(this.simulation, this.research);
+    this.cancelGhostPlacement();
+  }
+
   confirmAreaPlacement() {
+    if (this.ghostState.buildingId === 'recreation_zone') {
+      this.confirmZone();
+      return;
+    }
     this.replanArea(); // el dinero o la población pueden haber cambiado desde que se marcó
     const plan = this.ghostState.plan;
     if (!plan || !plan.items.length) {

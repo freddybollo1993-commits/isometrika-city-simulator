@@ -853,6 +853,25 @@ export const CONFIG = {
       colorRight: '#16a34a',
       botanical: true,
     },
+    recreation_zone: {
+      id: 'recreation_zone',
+      name: 'Zona Recreativa',
+      category: 'nature',
+      zone: true, // rectángulo de tamaño libre cuyo interior se diseña solo (recreation-zone.js)
+      variableSize: true,
+      size: 4, // tamaño mínimo (de 4×4 a 16×16)
+      height: 14,
+      cost: 740, // precio desde: 4×4 con plaza, farolas y árboles
+      upkeep: 12,
+      levels: {
+        1: { cost: 740, upkeep: 12, happiness: 23, pollutionReduction: 3, power: 2, water: 3 },
+      },
+      maxBonus: 'Pulmón de la ciudad: un solo bloque con sus propios senderos, arboledas y plazas.',
+      description: 'Marca el espacio que quieras (de 4×4 a 16×16) y el parque se diseña solo: senderos, un jardín o plaza central, arboledas, farolas y árboles según el tamaño y el dinero. Un solo bloque para gestionarlo y mantenerlo.',
+      colorTop: '#86efac',
+      colorLeft: '#4ade80',
+      colorRight: '#22c55e',
+    },
     deco_lamp: {
       id: 'deco_lamp',
       name: 'Alumbrado y Señalética',
@@ -1073,6 +1092,12 @@ const HOUSING = {
   // vivienda social: 16 casillas, de 4 a 10 pisos
   residential_social: { floors: [4, 7, 10], density: 0.375, floorPx: 12 },
 };
+
+/** Datos de nivel de una instancia: las zonas recreativas llevan los suyos, calculados de su diseño. */
+export function levelDataOf(building, def, level = 1) {
+  if (building && building.zone) return building.zone.stats;
+  return (def.levels && def.levels[level]) ? def.levels[level] : def;
+}
 
 /** Altura en píxeles de un edificio según su nivel (las viviendas, por pisos; el resto, como antes). */
 export function buildingHeight(def, level = 1) {

@@ -164,6 +164,10 @@ export class Renderer {
     // Construcción por área: casillas marcadas y los edificios planificados
     if (ghost.area) {
       const plan = ghost.plan || { items: [] };
+      if (plan.zone) {
+        this.renderZonePlanOverlay(ctx, plan);
+        return;
+      }
       const covered = new Set();
       for (const it of plan.items) {
         for (let dy = 0; dy < it.size; dy++) for (let dx = 0; dx < it.size; dx++) covered.add(`${it.gx + dx},${it.gy + dy}`);
@@ -522,7 +526,7 @@ export class Renderer {
   constructionBarRect(building, gx, gy) {
     const def = CONFIG.BUILDINGS[building.id] || {};
     const size = building.size || def.size || 1;
-    const c = IsoMath.gridToIso(gx + (size - 1) / 2, gy + (size - 1) / 2);
+    const c = IsoMath.gridToIso(gx + ((building.w || size) - 1) / 2, gy + ((building.h || size) - 1) / 2);
     const w = Math.max(30, Math.min(70, 18 * size));
     const top = c.y - Math.max(16, (def.height || 24) * 0.85) - 34;
     return { x: c.x - w / 2, y: top, w, h: 6 };
@@ -536,6 +540,194 @@ export class Renderer {
     ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(r.x, r.y, r.w * progress, r.h);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Zona recreativa procedural
+  // ---------------------------------------------------------------------------
+
+  /** Etapa de la obra de una zona (0–5); 6 = terminada. Cada etapa añade un grupo de elementos. */
+  zoneStage(building) {
+    if (!building.construction) return 6;
+    const game = window.gameInstance;
+    const p = game ? game.constructionProgress(building) : 0;
+    return Math.min(5, Math.floor(p * 6));
+  }
+
+  /**
+   * Dibuja el interior diseñado de una zona recreativa. (x, y) es el vértice superior de su
+   * rectángulo. En obras solo se ven los grupos ya construidos: tierra, senderos, punto focal,
+   * arboledas y plazas, farolas y, al final, los árboles.
+   */
+  renderRecreationZone(ctx, building, x, y) {
+    const z = building.zone;
+    const tw = CONFIG.CANVAS.TILE_WIDTH;
+    const th = CONFIG.CANVAS.TILE_HEIGHT;
+    const P = (u, v) => [x + (u - v) * (tw / 2), y + (u + v) * (th / 2)];
+    const poly = (pts, fill, stroke = null, lw = 1) => {
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = lw;
+        ctx.stroke();
+      }
+    };
+    const rect = (u0, v0, u1, v1, fill, stroke) => poly([P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], fill, stroke);
+    const stage = this.zoneStage(building);
+    const night = this.currentDayProgress >= 0.75;
+
+    // Suelo: tierra al empezar la obra y césped después, con borde de piedra
+    rect(0, 0, z.w, z.h, stage < 1 ? '#b09274' : '#86c995', '#d6d3d1');
+
+    // Elementos visibles, de atrás hacia delante
+    const visible = z.elements
+      .filter((e) => e.g <= stage - 1)
+      .sort((a, b) => (a.x + a.y + a.w + a.h) - (b.x + b.y + b.w + b.h));
+
+    const tree = (cx, cy, size, v) => {
+      const crown = ['#22c55e', '#16a34a', '#4ade80'][v % 3];
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(cx - 1, cy - 3, 2, 5);
+      ctx.beginPath();
+      ctx.arc(cx, cy - size * 0.55, size * 0.42, 0, Math.PI * 2);
+      ctx.fillStyle = crown;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx - size * 0.12, cy - size * 0.68, size * 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(220, 252, 231, 0.65)';
+      ctx.fill();
+    };
+
+    for (const e of visible) {
+      if (e.t === 'path') {
+        rect(e.x, e.y, e.x + 1, e.y + 1, '#ece4d3');
+      } else if (e.t === 'tree') {
+        const [cx, cy] = P(e.x + 0.5, e.y + 0.5);
+        tree(cx, cy + 3, [12, 14, 16][e.v % 3], e.v);
+      } else if (e.t === 'lamp') {
+        const [cx, cy] = P(e.x + 0.5, e.y + 0.5);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(cx - 0.8, cy - 13, 1.6, 15);
+        ctx.beginPath();
+        ctx.arc(cx, cy - 14, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = night ? '#fef08a' : '#e2e8f0';
+        ctx.fill();
+        if (night) {
+          ctx.fillStyle = 'rgba(254, 240, 138, 0.2)';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + 1, 9, 4.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (e.t === 'park') {
+        rect(e.x, e.y, e.x + 2, e.y + 2, '#6db97d', '#5aa36b');
+        [[0.55, 0.5], [1.5, 0.7], [0.9, 1.55]].forEach(([du, dv], i) => {
+          const [cx, cy] = P(e.x + du, e.y + dv);
+          tree(cx, cy + 3, 15, i + e.x);
+        });
+      } else if (e.t === 'plaza') {
+        rect(e.x, e.y, e.x + 2, e.y + 2, '#e5e7eb', '#cbd5e1');
+        const [cx, cy] = P(e.x + 1, e.y + 1);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 9, 4.6, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#7dd3fc';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy - 6);
+        ctx.stroke();
+        ctx.fillStyle = '#92400e';
+        [[0.18, 0.18], [1.82, 0.18], [1.82, 1.82], [0.18, 1.82]].forEach(([du, dv]) => {
+          const [bx, by] = P(e.x + du, e.y + dv);
+          ctx.fillRect(bx - 2, by - 1, 4, 2);
+        });
+      } else if (e.t === 'botanical') {
+        rect(e.x, e.y, e.x + 5, e.y + 5, '#bbf7d0', '#86efac');
+        const [cx, cy] = P(e.x + 2.5, e.y + 2.5);
+        const bw = 5 * tw * 0.84;
+        const bh = 5 * th * 0.84;
+        IsoMath.drawIsoBlock(ctx, cx, cy - bh / 2, bw, bh, 7, '#4ade80', '#22c55e', '#16a34a');
+        ctx.beginPath();
+        ctx.arc(cx, cy - 7, bw * 0.24, Math.PI, 0);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(186, 230, 253, 0.65)';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 7);
+        ctx.lineTo(cx, cy - 7 - bw * 0.24);
+        ctx.moveTo(cx - bw * 0.12, cy - 7);
+        ctx.quadraticCurveTo(cx - bw * 0.1, cy - 7 - bw * 0.2, cx, cy - 7 - bw * 0.24);
+        ctx.moveTo(cx + bw * 0.12, cy - 7);
+        ctx.quadraticCurveTo(cx + bw * 0.1, cy - 7 - bw * 0.2, cx, cy - 7 - bw * 0.24);
+        ctx.stroke();
+      }
+    }
+
+    // En obras: valla naranja alrededor y una grúa en una esquina
+    if (building.construction) {
+      const lift = (pt, dy) => [pt[0], pt[1] - dy];
+      const corners = [P(0, 0), P(z.w, 0), P(z.w, z.h), P(0, z.h)];
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      corners.forEach((c, i) => {
+        const t = lift(c, 6);
+        if (i) ctx.lineTo(t[0], t[1]);
+        else ctx.moveTo(t[0], t[1]);
+      });
+      ctx.closePath();
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      corners.forEach((c) => {
+        ctx.beginPath();
+        ctx.moveTo(c[0], c[1]);
+        ctx.lineTo(c[0], c[1] - 6);
+        ctx.stroke();
+      });
+      const [gx, gy] = P(z.w * 0.82, z.h * 0.18);
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.lineTo(gx, gy - 34);
+      ctx.lineTo(gx - 22, gy - 32);
+      ctx.moveTo(gx, gy - 34);
+      ctx.lineTo(gx + 8, gy - 31);
+      ctx.stroke();
+    }
+  }
+
+  /** Vista previa del plan en el Canvas 2D: la zona ya diseñada, translúcida, sobre su huella. */
+  renderZonePlanOverlay(ctx, plan) {
+    const z = plan.zone;
+    const tw = CONFIG.CANVAS.TILE_WIDTH;
+    const th = CONFIG.CANVAS.TILE_HEIGHT;
+    const o = IsoMath.gridToIso(z.gx, z.gy);
+    const P = (u, v) => [o.x + (u - v) * (tw / 2), o.y + (u + v) * (th / 2)];
+    ctx.save();
+    ctx.beginPath();
+    [P(0, 0), P(z.w, 0), P(z.w, z.h), P(0, z.h)].forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.closePath();
+    ctx.fillStyle = plan.valid ? 'rgba(74, 222, 128, 0.35)' : 'rgba(239, 68, 68, 0.45)';
+    ctx.fill();
+    ctx.strokeStyle = plan.valid ? '#22c55e' : '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (plan.valid) {
+      ctx.globalAlpha = 0.72;
+      this.renderRecreationZone(ctx, { zone: z, construction: null }, o.x, o.y);
+    }
+    ctx.restore();
   }
 
   /**
@@ -555,6 +747,12 @@ export class Renderer {
     const isoTop = IsoMath.gridToIso(gx, gy);
     const x = isoTop.x;
     const y = isoTop.y;
+
+    // Zona recreativa: composición procedural (con su propio aspecto de obra por etapas)
+    if (building.zone) {
+      this.renderRecreationZone(ctx, building, x, y);
+      return;
+    }
 
     // En obras: solar con andamios y el edificio a medio levantar (la barra va aparte)
     if (building.construction) {

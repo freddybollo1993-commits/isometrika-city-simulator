@@ -32,6 +32,7 @@ export const SERVICE_DEMANDS = {
       deco_park: { serves: [40, 80, 150] },
       deco_plaza: { serves: [40, 80, 150] },
       deco_botanical: { serves: [120, 250, 500] },
+      recreation_zone: { serves: [0, 0, 0] }, // la capacidad de cada zona sale de su tamaño (b.zone.serves)
     },
   },
   security: {
@@ -100,8 +101,8 @@ export class DemandSystem {
         const def = CONFIG.BUILDINGS[b.id];
         if (!def) continue;
         const size = b.size || def.size || 1;
-        const cx = gx + (size - 1) / 2;
-        const cy = gy + (size - 1) / 2;
+        const cx = gx + ((b.w || size) - 1) / 2;
+        const cy = gy + ((b.h || size) - 1) / 2;
         if (def.category === 'residential') {
           const n = b.residents ? b.residents.length : 0;
           if (n > 0 && !b.closed) homes.push({ cx, cy, n });
@@ -115,8 +116,8 @@ export class DemandSystem {
         const ld = (def.levels && def.levels[level]) || def;
         providers[svc.demandId].push({
           b, def, cx, cy, level,
-          radius: ld.radius || def.radius || DEFAULT_RADIUS,
-          cap: Math.round(svc.spec.serves[level - 1] * wearFactor(b)),
+          radius: b.zone ? b.zone.radius : (ld.radius || def.radius || DEFAULT_RADIUS),
+          cap: Math.round((b.zone ? b.zone.serves : svc.spec.serves[level - 1]) * wearFactor(b)),
           happiness: svc.spec.happiness ? svc.spec.happiness[level - 1] : 0,
           served: 0,
         });

@@ -5,7 +5,7 @@
  * Se actualiza en vivo con cada día de juego.
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG, levelDataOf } from './config.js';
 import { CONDITION_LABELS } from './maintenance.js';
 
 const CATEGORY_COLOR = {
@@ -80,7 +80,7 @@ export class BuildingCard {
     if (!def) return;
     const sim = this.game.simulation;
     const level = building.level || 1;
-    const ld = (def.levels && def.levels[level]) || def;
+    const ld = levelDataOf(building, def, level);
     const priceIndex = sim.region ? sim.region.priceIndex : 1;
     const funding = sim.getFundingType(def);
     const isPublic = funding === 'public';
@@ -144,6 +144,16 @@ export class BuildingCard {
       if (ld.logisticsCapacity) tiles.push(this._tile('🚚', 'Logística', `${money(ld.logisticsCapacity)}/d`, 'pos'));
       if (ld.coverageCapacity) tiles.push(this._tile('🛠️', 'Mantiene', `${ld.coverageCapacity} edif.`, 'pos'));
       if (ld.radius) tiles.push(this._tile('📡', 'Radio', `${ld.radius} casillas`));
+      // Zona recreativa: tamaño y composición del diseño
+      if (building.zone) {
+        const z = building.zone;
+        const c = z.counts || {};
+        const parts = [['botanical', 'jardín'], ['plaza', 'plazas'], ['park', 'arboledas'], ['lamp', 'farolas'], ['tree', 'árboles']]
+          .filter(([t]) => c[t]).map(([t, n]) => `${c[t]} ${n}`);
+        tiles.push(this._tile('📐', 'Tamaño', `${z.w}×${z.h} casillas`));
+        tiles.push(this._tile('🌳', 'Diseño', parts.join(' · ') || '—'));
+        tiles.push(this._tile('😊', 'Felicidad', `+${z.stats.happiness}`, 'pos'));
+      }
       // Vecinos que atiende frente a su capacidad (si se satura, reparte menos felicidad)
       if (building.serviceLoad) {
         const { served, cap } = building.serviceLoad;
@@ -175,7 +185,9 @@ export class BuildingCard {
 
     // Acción de mejora
     let upgrade = '';
-    if (def.category === 'residential') {
+    if (building.zone) {
+      upgrade = '<button class="bk-act" disabled>🌳 Para ampliar, construye otra al lado</button>';
+    } else if (def.category === 'residential') {
       upgrade = `<button class="bk-act" disabled>🌱 ${level < 3 ? 'Crece con el ahorro' : 'Nivel máximo'}</button>`;
     } else if (def.levels && level < 3) {
       const cost = sim.getBuildingCost(def, level + 1);
@@ -183,13 +195,13 @@ export class BuildingCard {
     } else {
       upgrade = '<button class="bk-act" disabled>★ Nivel máximo</button>';
     }
-    const canRotate = def.id !== 'road';
+    const canRotate = def.id !== 'road' && !building.zone;
 
     this.root.style.setProperty('--c', color);
     this.root.innerHTML = `
       <header class="bk-head">
         <span class="bk-icon">${icon}</span>
-        <div class="bk-title"><b>${def.name}</b><small><span class="bk-stars">${'★'.repeat(level)}</span><span class="bk-stars-off">${'★'.repeat(Math.max(0, 3 - level))}</span> Nivel ${level}</small></div>
+        <div class="bk-title"><b>${def.name}</b><small>${building.zone ? `${building.zone.w}×${building.zone.h} · diseño único` : `<span class="bk-stars">${'★'.repeat(level)}</span><span class="bk-stars-off">${'★'.repeat(Math.max(0, 3 - level))}</span> Nivel ${level}`}</small></div>
         <button class="bk-close" data-action="close" aria-label="Cerrar ficha">✕</button>
       </header>
       <div class="bk-chips">${chips.join('')}</div>

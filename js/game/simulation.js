@@ -14,6 +14,7 @@ import { difficultyOf } from './difficulty.js';
 import { MaintenanceSystem, wearFactor } from './maintenance.js';
 import { DemandSystem, SERVICE_DEMANDS } from './demands.js';
 import { MissionSystem } from './missions.js';
+import { levelDataOf } from './config.js';
 
 export class Simulation {
   constructor(grid, corporations, research, disasters, audio, economy = null) {
@@ -116,7 +117,7 @@ export class Simulation {
         if (!def) continue;
 
         const level = b.level || 1;
-        const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+        const levelData = levelDataOf(b, def, level);
         const isSuspended = !!(b.suspended || b.closed || b.construction);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
 
@@ -199,7 +200,7 @@ export class Simulation {
     if (def.category === 'residential') return 1.0;
 
     const level = b.level || 1;
-    const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+    const levelData = levelDataOf(b, def, level);
     // Daño de catástrofes y desgaste por falta de mantenimiento
     const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100) * wearFactor(b);
 
@@ -467,13 +468,19 @@ export class Simulation {
   /**
    * Coste actual de construir o mejorar: precio de catálogo × índice de precios × estación.
    */
-  getBuildingCost(def, level = 1) {
+  /** Precio actual respecto al catálogo: índice de precios regional × recargo de la estación. */
+  get costMultiplier() {
+    return this.region.priceIndex * ((this.season && this.season.constructionCost) || 1);
+  }
+
+  getBuildingCost(def, level = 1, building = null) {
     if (!def) return 0;
-    const base = (def.levels && def.levels[level] && def.levels[level].cost)
-      ? def.levels[level].cost
-      : (def.cost || 0);
-    const seasonMult = (this.season && this.season.constructionCost) || 1;
-    return Math.round(base * this.region.priceIndex * seasonMult);
+    const base = building && building.zone
+      ? building.zone.cost
+      : ((def.levels && def.levels[level] && def.levels[level].cost)
+        ? def.levels[level].cost
+        : (def.cost || 0));
+    return Math.round(base * this.costMultiplier);
   }
 
   canAffordBuilding(def, level = 1) {
@@ -604,7 +611,7 @@ export class Simulation {
         if (!def) continue;
 
         const level = b.level || 1;
-        const levelData = (def.levels && def.levels[level]) ? def.levels[level] : def;
+        const levelData = levelDataOf(b, def, level);
         const healthFactor = Math.max(0.1, (100 - (tile.damage || 0)) / 100) * wearFactor(b);
         const isSuspended = !!(b.suspended || b.closed || b.construction);
         const opEff = isSuspended ? 0 : this.getBuildingEfficiency(tile, def, isPioneerPhase);
