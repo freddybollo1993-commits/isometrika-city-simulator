@@ -34,6 +34,7 @@ const MAX_PARTICLES = 160;
 const BAKE_MS = 8; // Tiempo máximo de horneado en un fotograma de sincronización (siempre se permite uno)
 const CACHE_MB = { 1: 48, 2: 128, 4: 192 }; // Memoria de vídeo para imágenes de edificios según el detalle gráfico
 const MAX_JOBS = 8; // Horneados simultáneos en los trabajadores
+const BAKE_TIMEOUT = 15000; // Un trabajador que tarda más se da por colgado y se reinicia
 
 // Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural
 const PIXEL_HOUSES = PIXEL_ART_IDS;
@@ -70,7 +71,8 @@ export class PixiRenderer {
     this.slowFrames = 0;
     this.workers = null; // trabajadores de horneado (null: se hornea en el hilo principal)
     this.pending = new Map(); // firma → id del trabajo en curso
-    this.jobs = new Map(); // id del trabajo → firma
+    this.jobs = new Map(); // id del trabajo → { sig, t, w }
+    this.badSigs = new Set(); // firmas cuyo horneado se colgó: se dibujan con el estilo sencillo
     this.jobId = 0;
     this.workerTurn = 0;
     this.waterSprites = [];
@@ -390,15 +392,38 @@ export class PixiRenderer {
     try {
       const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
       const list = [];
-      for (let i = 0; i < n; i++) {
-        const w = new Worker(new URL('./pixel/bake-worker.js', import.meta.url), { type: 'module' });
-        w.onmessage = (e) => this._onBaked(e.data);
-        w.onerror = () => this._disableWorkers();
-        list.push(w);
-      }
+      for (let i = 0; i < n; i++) list.push(this._spawnWorker());
       this.workers = list;
     } catch (err) {
       this.workers = null;
+    }
+  }
+
+  _spawnWorker() {
+    const w = new Worker(new URL('./pixel/bake-worker.js', import.meta.url), { type: 'module' });
+    w.onmessage = (e) => this._onBaked(e.data);
+    w.onerror = () => this._disableWorkers();
+    return w;
+  }
+
+  /**
+   * Un horneado que no vuelve bloquearía la cola para siempre (y con ella todos los edificios nuevos):
+   * se reinicia ese trabajador y su edificio pasa al dibujo sencillo.
+   */
+  _reapStuckJobs() {
+    const now = performance.now();
+    for (const [, job] of this.jobs) {
+      if (now - job.t < BAKE_TIMEOUT || !this.workers) continue;
+      const slot = job.w;
+      this.workers[slot].terminate();
+      this.workers[slot] = this._spawnWorker();
+      for (const [jid, j] of this.jobs) {
+        if (j.w !== slot) continue;
+        this.jobs.delete(jid);
+        this.pending.delete(j.sig);
+      }
+      this.badSigs.add(job.sig);
+      recordError('Horneado colgado: ' + job.sig.split('|')[0] + ' (se dibuja con el estilo sencillo)');
     }
   }
 
@@ -410,17 +435,20 @@ export class PixiRenderer {
   }
 
   _requestBake(sig, building, def, dayProgress) {
-    if (this.pending.has(sig) || this.pending.size >= MAX_JOBS) return;
+    this._reapStuckJobs();
+    if (!this.workers || this.pending.has(sig) || this.pending.size >= MAX_JOBS) return;
     const job = this._pixelJob(building, def, dayProgress);
     const id = ++this.jobId;
+    const w = this.workerTurn++ % this.workers.length;
     this.pending.set(sig, id);
-    this.jobs.set(id, sig);
-    this.workers[this.workerTurn++ % this.workers.length].postMessage({ id, kind: job.kind, params: job.params });
+    this.jobs.set(id, { sig, t: performance.now(), w });
+    this.workers[w].postMessage({ id, kind: job.kind, params: job.params });
   }
 
   _onBaked(msg) {
-    const sig = this.jobs.get(msg.id);
-    if (sig === undefined) return;
+    const job = this.jobs.get(msg.id);
+    if (job === undefined) return;
+    const sig = job.sig;
     this.jobs.delete(msg.id);
     this.pending.delete(sig);
     if (msg.error) {
@@ -442,8 +470,8 @@ export class PixiRenderer {
     this.textureCache.set(sig, entry);
   }
 
-  _bakeBuilding(building, def, dayProgress, frame) {
-    if (PIXEL_HOUSES.has(def.id) && !building.construction) return this._bakePixelHouse(building, def, dayProgress);
+  _bakeBuilding(building, def, dayProgress, frame, pixel = true) {
+    if (pixel && PIXEL_HOUSES.has(def.id) && !building.construction) return this._bakePixelHouse(building, def, dayProgress);
     const p = this.painter;
     const b = building.size || def.size || 1;
     const W = CONFIG.CANVAS.TILE_WIDTH * b + 96;
@@ -528,7 +556,8 @@ export class PixiRenderer {
     const sig = this._signature(building, def, dayProgress, sim);
     let entry = this.textureCache.get(sig);
     if (!entry) {
-      if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !building.construction) {
+      const bad = this.badSigs.has(sig);
+      if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !building.construction && !bad) {
         this._requestBake(sig, building, def, dayProgress);
         return { sig, entry: null };
       }
@@ -536,7 +565,7 @@ export class PixiRenderer {
       if (allowDefer && this.bakedThisFrame > 0 && performance.now() > this.bakeDeadline) return { sig, entry: null };
       this.bakedThisFrame++;
       const frame = Number(sig.slice(sig.lastIndexOf('|') + 1));
-      entry = this._bakeBuilding(building, def, dayProgress, frame);
+      entry = this._bakeBuilding(building, def, dayProgress, frame, !bad);
       entry.bytes = this._entryBytes(entry);
       this.cacheBytes += entry.bytes;
       this.textureCache.set(sig, entry);

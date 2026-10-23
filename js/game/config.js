@@ -1283,6 +1283,11 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  farm_organic: [
+    { name: 'Huerta', walls: ['#bef264', '#a3e635', '#65a30d'] },
+    { name: 'Frutales y viñedo', walls: ['#d9f99d', '#86a83a', '#5b7a2a'] },
+    { name: 'Ganadería mixta', walls: ['#d9c48a', '#a3e635', '#8b5e3c'] },
+  ],
   commercial_maintenance: [
     { name: 'Mantenimiento general', walls: ['#c3c9d0', '#a3abb5', '#7d8590'] },
     { name: 'Cuadrilla eléctrica', walls: ['#a3b1c2', '#7d8ea3', '#5f6f82'] },

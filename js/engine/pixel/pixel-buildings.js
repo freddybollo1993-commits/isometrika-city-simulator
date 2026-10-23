@@ -21,9 +21,10 @@ import { renderLogistics } from './logistics-art.js';
 import { renderQuarry } from './quarry-art.js';
 import { renderComponents } from './components-art.js';
 import { renderMaintenance } from './maintenance-art.js';
+import { renderFarm } from './farm-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
-export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance']);
+export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -43,8 +44,9 @@ export function seasonState(day, dayProgress) {
       cover: Math.round(raw.cover * 8) / 8,
       tint: Math.round(raw.tint * 6) / 6,
       lawn,
+      phase: Math.round(raw.phase * 40) / 40, // momento del año para los cultivos (mismo paso que el césped)
     },
-    key: `${Math.round(raw.snow * 12)}.${Math.round(raw.cover * 8)}.${Math.round(raw.tint * 6)}.${lawn.join(',')}`,
+    key: `${Math.round(raw.snow * 12)}.${Math.round(raw.cover * 8)}.${Math.round(raw.tint * 6)}.${lawn.join(',')}.${Math.round(raw.phase * 40)}`,
   };
 }
 
@@ -85,6 +87,9 @@ export function pixelJob(building, def, dayProgress, look, S) {
     season: look,
     seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
   };
+  if (def.id === 'farm_organic') {
+    return { kind: 'farm', params: { ...common, kind: variant } };
+  }
   if (def.id === 'commercial_maintenance') {
     return { kind: 'maintenance', params: { ...common, kind: variant } };
   }
@@ -146,5 +151,6 @@ export function renderPixelJob(job) {
   if (job.kind === 'quarry') return renderQuarry(job.params);
   if (job.kind === 'components') return renderComponents(job.params);
   if (job.kind === 'maintenance') return renderMaintenance(job.params);
+  if (job.kind === 'farm') return renderFarm(job.params);
   return job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
 }

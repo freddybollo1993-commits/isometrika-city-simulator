@@ -190,7 +190,8 @@ export class PixelCanvas {
     const S = this.S;
     const t = Math.max(1, S >> 1);
     const o = S >> 1;
-    x0 = x0 * S + o; y0 = y0 * S + o; x1 = x1 * S + o; y1 = y1 * S + o;
+    // extremos enteros: con coordenadas fraccionarias el bucle nunca llegaría al final exacto
+    x0 = Math.round(x0 * S) + o; y0 = Math.round(y0 * S) + o; x1 = Math.round(x1 * S) + o; y1 = Math.round(y1 * S) + o;
     let dx = Math.abs(x1 - x0);
     const sx = x0 < x1 ? 1 : -1;
     let dy = -Math.abs(y1 - y0);
