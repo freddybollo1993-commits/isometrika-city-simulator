@@ -8,8 +8,8 @@
  *
  * Variación: 3 hospitales × 4 lotes (jardín, aparcamiento, estanque, pérgola) × 3 niveles.
  *   0. Moderno blanco con ventanas corridas. 1. Histórico de ladrillo con cúpula. 2. De cristal azul.
- *   Nivel 1: torre de cuatro plantas y urgencias · Nivel 2: una planta más y segunda ala · Nivel 3:
- *   seis plantas, helicóptero, placas solares y cargadores para las ambulancias.
+ *   Nivel 1: torre de cinco plantas y urgencias · Nivel 2: una planta más y segunda ala · Nivel 3:
+ *   siete plantas, helicóptero, placas solares y cargadores para las ambulancias.
  */
 
 import { PixelCanvas, hex, shade, ramp, hash01 } from './pixel-canvas.js';
@@ -78,7 +78,7 @@ export function renderHospital(o) {
   // -------------------------------------------------------------------------
 
   const floorH = 5.5;
-  const floors = kind === 1 ? (tier3 ? 5 : tier2 ? 4 : 3) : tier3 ? 6 : tier2 ? 5 : 4;
+  const floors = kind === 1 ? (tier3 ? 6 : tier2 ? 5 : 4) : tier3 ? 7 : tier2 ? 6 : 5;
   const base = (over) => ({
     floorH, wall: ramp(st.wall), tex: st.tex, win: st.win, pitch: st.pitch, frame: ramp(st.frame),
     cornice: ramp(st.cornice), roofColor: ramp(kind === 1 ? '#57534e' : '#cbd2da'), feats: [], bands: [], ...over,

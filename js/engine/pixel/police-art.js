@@ -78,7 +78,7 @@ export function renderPolice(o) {
 
   const floorH = 5.5;
   const M = {
-    key: 1, F0: 0.35, F1: 1.75, L0: 0.3, L1: 1.8, h: tier2 ? 13.5 : 9, floorH,
+    key: 1, F0: 0.35, F1: 1.75, L0: 0.3, L1: 1.8, h: (tier2 ? 3 : 2) * floorH, floorH,
     wall: ramp(st.wall), tex: st.tex, win: st.win, pitch: 5, frame: ramp(st.frame), cornice: ramp(st.cornice),
     roofColor: ramp(kind === 1 ? '#6b7280' : '#cbd2da'), feats: [], bands: [],
   };
