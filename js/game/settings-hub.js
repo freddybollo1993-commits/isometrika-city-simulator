@@ -158,12 +158,12 @@ export class SettingsHub {
     const results = engineResults();
     const mark = (id) => {
       const res = results[resolveEngine(id)];
-      return id === 'canvas' || !res ? '' : res.ok ? ' ✅' : ' ❌';
+      return id === 'canvas' || !res ? '' : res.ok ? ' ✅' : res.unavailable ? ' —' : ' ❌';
     };
     const engineButtons = ENGINES.map((e) => `<button data-action="engine" data-v="${e.id}" class="${e.id === choice ? 'on' : ''}">${e.short}${mark(e.id)}</button>`).join('');
     const resultLines = ENGINES.filter((e) => e.id !== 'auto' && e.id !== 'canvas').map((e) => {
       const res = results[e.id];
-      const txt = !res ? 'sin probar' : res.ok ? `✅ ${res.info}` : `❌ falló (${res.info})`;
+      const txt = !res ? 'sin probar' : res.ok ? `✅ ${res.info}` : res.unavailable ? `— ${res.info}` : `❌ falló (${res.info})`;
       return `${e.label}: ${txt}`;
     }).join(' · ');
     const errs = recentErrors();
@@ -198,7 +198,7 @@ export class SettingsHub {
             <div class="st-lab">Motor gráfico</div>
             <div class="st-engines">${engineButtons}</div>
           </div>
-          <p class="st-note">Al cambiarlo el juego se guarda y se recarga. ${choice === 'auto' ? `Automático usa ${engineName(resolveEngine('auto'))}. ` : ''}Si un motor falla, el juego vuelve solo al compatible y lo anota aquí. Resultados en este dispositivo: ${resultLines.replace(/</g, '&lt;')}</p>
+          <p class="st-note">Al cambiarlo el juego se guarda y se recarga. ${choice === 'auto' ? `Automático usa ${engineName(resolveEngine('auto'))} (el mejor que ya funcionó aquí). ` : ''}Si un motor falla, el juego vuelve solo al compatible y lo anota aquí. Resultados en este dispositivo: ${resultLines.replace(/</g, '&lt;')}</p>
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${engineLabel} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
           ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
           ${errorNote}

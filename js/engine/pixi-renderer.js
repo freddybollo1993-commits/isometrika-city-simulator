@@ -15,7 +15,7 @@ import { Application, Container, Sprite, Texture, Graphics, Batcher } from '../v
 import { CONFIG, variantAt } from '../game/config.js';
 import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
 import { Preferences } from '../game/preferences.js';
-import { recordError, markGpuFailed, setEngineResult } from '../game/diagnostics.js';
+import { recordError, markGpuFailed, setEngineResult, setCurrentEngine } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
@@ -97,7 +97,11 @@ export class PixiRenderer {
       webgl: { preferWebGLVersion: this.engine === 'webgl1' ? 1 : 2 },
     });
     if (this.engine === 'webgpu' && this.app.renderer.name !== 'webgpu') {
+      // El navegador no ofrece WebGPU: se anota como «no disponible» y lo que pase cuenta para WebGL 2
       recordError('WebGPU no está disponible en este navegador: se usa WebGL');
+      setEngineResult('webgpu', false, 'no disponible en este navegador', true);
+      this.engine = 'webgl2';
+      setCurrentEngine('webgl2');
     }
 
     this._initWorkers();

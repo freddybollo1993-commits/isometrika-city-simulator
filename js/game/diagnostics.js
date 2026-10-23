@@ -32,8 +32,20 @@ export function engineChoice() {
   return ENGINES.some((e) => e.id === v) ? v : 'auto';
 }
 
-/** Motor concreto que corresponde a una elección ('auto' → WebGL 2 seguro en móviles). */
-export const resolveEngine = (choice) => (choice === 'auto' ? (isMobile() ? 'webgl2-safe' : 'webgl2') : choice);
+// Automático prefiere, por este orden, un motor que ya funcionó en este dispositivo
+const AUTO_ORDER = ['webgl2', 'webgpu', 'webgl2-safe', 'webgl1'];
+
+/**
+ * Motor concreto que corresponde a una elección. 'auto' usa el mejor motor que ya funcionó aquí;
+ * si no hay ninguno probado, WebGL 2 seguro en móviles y WebGL 2 en escritorio.
+ */
+export function resolveEngine(choice) {
+  if (choice !== 'auto') return choice;
+  const res = engineResults();
+  const ok = AUTO_ORDER.find((id) => res[id] && res[id].ok);
+  if (ok) return ok;
+  return isMobile() ? 'webgl2-safe' : 'webgl2';
+}
 
 let currentEngine = 'webgl2';
 export const setCurrentEngine = (id) => { currentEngine = id; };
@@ -72,10 +84,11 @@ export function engineResults() {
   }
 }
 
-export function setEngineResult(id, ok, info) {
+/** `unavailable`: el navegador no ofrece ese motor (no es un fallo de la GPU ni impide arrancar). */
+export function setEngineResult(id, ok, info, unavailable = false) {
   try {
     const map = engineResults();
-    map[id] = { ok, info: String(info).slice(0, 300), at: Date.now() };
+    map[id] = { ok, info: String(info).slice(0, 300), at: Date.now(), ...(unavailable ? { unavailable: true } : {}) };
     localStorage.setItem(ENGINES_KEY, JSON.stringify(map));
     localStorage.removeItem(LEGACY_GPU_KEY);
   } catch (e) {
@@ -88,7 +101,7 @@ export const markGpuFailed = (info) => setEngineResult(currentEngine, false, inf
 
 export function gpuFailure(id = currentEngine) {
   const r = engineResults()[id];
-  return r && !r.ok ? r : null;
+  return r && !r.ok && !r.unavailable ? r : null;
 }
 
 export function clearGpuFailure(id = currentEngine) {
