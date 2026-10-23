@@ -27,6 +27,11 @@ export class Camera {
     this.touchStartDist = 0;
     this.isPinching = false;
 
+    // Zoom híbrido: animación hacia el escalón y último punto de enfoque
+    this.zoomAnim = null;
+    this.zoomFocus = null;
+    this.snapTimer = null;
+
     // Teclas de dirección activas (WASD y flechas)
     this.keys = {
       ArrowUp: false,
@@ -106,7 +111,7 @@ export class Camera {
       (e) => {
         e.preventDefault();
         const zoomDelta = e.deltaY < 0 ? 1.12 : 0.89;
-        this.applyZoomAt(zoomDelta, e.clientX, e.clientY);
+        this.applyZoomAt(zoomDelta, e.clientX, e.clientY, true);
       },
       { passive: false }
     );
@@ -174,8 +179,11 @@ export class Camera {
 
     // 7. TÁCTIL: Fin
     window.addEventListener('touchend', () => {
+      const wasPinching = this.isPinching;
       this.isMouseDown = false;
       this.isPinching = false;
+      // Al soltar el pellizco, el zoom se acomoda al escalón más cercano
+      if (wasPinching) this.snapZoom();
       setTimeout(() => {
         this.isDragging = false;
       }, 80);
@@ -206,23 +214,73 @@ export class Camera {
   }
 
   /**
-   * Aplica zoom centrado en un punto de la pantalla
+   * Zoom HÍBRIDO: durante el gesto (pellizco o rueda) es continuo y fluido; al soltar, la cámara se
+   * acomoda suavemente al escalón más cercano (ZOOM_STEPS) para que el pixel art quede siempre nítido
+   * (1 píxel del dibujo = un número entero de píxeles de pantalla).
    */
-  applyZoomAt(factor, screenX, screenY) {
-    const newZoom = Math.max(
-      CONFIG.CANVAS.MIN_ZOOM,
-      Math.min(CONFIG.CANVAS.MAX_ZOOM, this.zoom * factor)
-    );
 
-    if (newZoom === this.zoom) return;
+  /** Escalón de zoom más cercano (en proporción, no en diferencia). */
+  nearestStep(zoom) {
+    const steps = CONFIG.CANVAS.ZOOM_STEPS;
+    return steps.reduce((best, s) => (Math.abs(Math.log(s / zoom)) < Math.abs(Math.log(best / zoom)) ? s : best), steps[0]);
+  }
 
+  /** Cambia el zoom dejando fijo el punto de pantalla indicado. */
+  setZoomAround(newZoom, screenX, screenY) {
     const rect = this.canvas.getBoundingClientRect();
-    const mouseX = screenX - rect.left;
-    const mouseY = screenY - rect.top;
-
-    this.x = mouseX - (mouseX - this.x) * (newZoom / this.zoom);
-    this.y = mouseY - (mouseY - this.y) * (newZoom / this.zoom);
+    const px = screenX - rect.left;
+    const py = screenY - rect.top;
+    this.x = px - (px - this.x) * (newZoom / this.zoom);
+    this.y = py - (py - this.y) * (newZoom / this.zoom);
     this.zoom = newZoom;
+  }
+
+  /**
+   * Aplica zoom continuo centrado en un punto de la pantalla (durante un gesto).
+   * Con `autoSnap` (rueda del ratón) programa el acomodo al escalón cuando el gesto se detiene.
+   */
+  applyZoomAt(factor, screenX, screenY, autoSnap = false) {
+    this.zoomAnim = null;
+    const newZoom = Math.max(CONFIG.CANVAS.MIN_ZOOM, Math.min(CONFIG.CANVAS.MAX_ZOOM, this.zoom * factor));
+    this.zoomFocus = { x: screenX, y: screenY };
+    if (newZoom !== this.zoom) this.setZoomAround(newZoom, screenX, screenY);
+    if (autoSnap) {
+      clearTimeout(this.snapTimer);
+      this.snapTimer = setTimeout(() => this.snapZoom(), CONFIG.CANVAS.ZOOM_SNAP_DELAY_MS);
+    }
+  }
+
+  /** Anima el zoom hasta `target` manteniendo fijo el punto de pantalla. */
+  animateZoomTo(target, screenX, screenY) {
+    if (Math.abs(target - this.zoom) < 0.005) {
+      this.zoomAnim = null;
+      return;
+    }
+    this.zoomAnim = {
+      from: this.zoom, to: target, x: screenX, y: screenY,
+      start: performance.now(), duration: CONFIG.CANVAS.ZOOM_SNAP_MS,
+    };
+  }
+
+  /** Acomoda el zoom al escalón más cercano (al soltar el pellizco o dejar de girar la rueda). */
+  snapZoom() {
+    clearTimeout(this.snapTimer);
+    const f = this.zoomFocus || { x: this.canvas.clientWidth / 2, y: this.canvas.clientHeight / 2 };
+    this.animateZoomTo(this.nearestStep(this.zoom), f.x, f.y);
+  }
+
+  /** Botones de zoom: sube o baja un escalón desde el más cercano al zoom actual. */
+  stepZoom(direction, screenX, screenY) {
+    const steps = CONFIG.CANVAS.ZOOM_STEPS;
+    const current = steps.indexOf(this.nearestStep(this.zoom));
+    // Si el zoom está entre escalones, el primer paso lleva al escalón en esa dirección
+    const between = Math.abs(Math.log(steps[current] / this.zoom)) > 0.02;
+    let index = current;
+    if (between) index = direction > 0 ? (steps[current] > this.zoom ? current : current + 1) : (steps[current] < this.zoom ? current : current - 1);
+    else index = current + (direction > 0 ? 1 : -1);
+    index = Math.max(0, Math.min(steps.length - 1, index));
+    this.zoomFocus = { x: screenX, y: screenY };
+    this.animateZoomTo(steps[index], screenX, screenY);
   }
 
   triggerShake(intensity = 15) {
@@ -246,8 +304,10 @@ export class Camera {
     const centerX = rect.width / 2;
     const centerY = rect.height / 2.2;
 
+    this.zoomAnim = null;
     if (targetZoom !== null) {
-      this.zoom = Math.max(CONFIG.CANVAS.MIN_ZOOM, Math.min(CONFIG.CANVAS.MAX_ZOOM, targetZoom));
+      // Los zoom pedidos por el juego también caen en un escalón nítido
+      this.zoom = this.nearestStep(Math.max(CONFIG.CANVAS.MIN_ZOOM, Math.min(CONFIG.CANVAS.MAX_ZOOM, targetZoom)));
     }
 
     this.x = centerX - iso.x * this.zoom;
@@ -258,6 +318,18 @@ export class Camera {
    * Actualiza el desplazamiento continuo por teclado y sacudida cada frame
    */
   update() {
+    // 0. Zoom híbrido: avance suave hacia el escalón elegido
+    if (this.zoomAnim) {
+      const a = this.zoomAnim;
+      const t = Math.min(1, (performance.now() - a.start) / a.duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.setZoomAround(a.from + (a.to - a.from) * eased, a.x, a.y);
+      if (t >= 1) {
+        this.zoom = a.to;
+        this.zoomAnim = null;
+      }
+    }
+
     // 1. Navegación fluida con flechas de dirección y teclas WASD
     const speed = 14 / this.zoom;
 

@@ -356,8 +356,8 @@ export class UIManager {
     document.querySelectorAll('[data-zoom]').forEach((btn) => {
       const z = btn.dataset.zoom;
       btn.addEventListener('click', () => {
-        const factor = z === 'in' ? 1.2 : 0.82;
-        this.game.camera.applyZoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
+        // Cada pulsación sube o baja un escalón del zoom (0,5 · 1 · 2 · 3)
+        this.game.camera.stepZoom(z === 'in' ? 1 : -1, window.innerWidth / 2, window.innerHeight / 2);
         if (this.game.audio) this.game.audio.playClick();
       });
     });

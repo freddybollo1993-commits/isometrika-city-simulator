@@ -10,8 +10,11 @@ export const CONFIG = {
     TILE_WIDTH: 32, // casillas a la mitad que en la v2 (ver ESCALA DEL MAPA al final)
     TILE_HEIGHT: 16,
     GRID_SIZE: 88, // tamaño máximo con las dos expansiones; al fundar solo se usa el centro
-    MIN_ZOOM: 0.4,
-    MAX_ZOOM: 3.0,
+    MIN_ZOOM: 0.4, // límites del gesto continuo; al soltar se acomoda a ZOOM_STEPS
+    MAX_ZOOM: 3.2,
+    ZOOM_STEPS: [0.5, 1, 2, 3], // escalones nítidos del pixel art (1 píxel del dibujo = 1, 2 o 3 de pantalla)
+    ZOOM_SNAP_MS: 180, // duración del acomodo
+    ZOOM_SNAP_DELAY_MS: 160, // pausa de la rueda antes de acomodar
     DEFAULT_ZOOM: 1.0,
   },
 
