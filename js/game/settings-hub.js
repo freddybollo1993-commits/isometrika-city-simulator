@@ -136,7 +136,7 @@ export class SettingsHub {
       const err = sessionStorage.getItem('isometrica_gpu_error');
       if (err) canvasWhy = `Error de la GPU: ${err}`;
       else if (new URLSearchParams(window.location.search).has('canvas2d')) canvasWhy = 'La dirección contiene ?canvas2d, que fuerza este modo.';
-      else canvasWhy = 'Este navegador no ofrece WebGL.';
+      else canvasWhy = 'El navegador no ofrece WebGL ahora mismo. Tras un fallo de la GPU, Chrome lo bloquea para la página hasta que se cierra del todo (Ajustes del móvil → Aplicaciones → Chrome → Forzar detención).';
     } catch (e) {
       // sin almacenamiento de sesión
     }
@@ -149,7 +149,7 @@ export class SettingsHub {
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
     const engineName = this.game.renderer ? this.game.renderer.constructor.name : '';
     const gpu = engineName !== 'Renderer'; // Renderer = Canvas 2D de respaldo
-    const engineLabel = engineName === 'PixiRenderer' ? 'GPU (PixiJS)' : engineName === 'Renderer' ? 'compatible (Canvas, dibujo antiguo)' : 'GPU (iniciando…)';
+    const engineLabel = engineName === 'PixiRenderer' ? 'GPU (PixiJS)' : engineName === 'Renderer' ? 'compatible (Canvas)' : 'GPU (iniciando…)';
     const errs = recentErrors();
     const errorNote = errs.length ? `<p class="st-note">Errores recientes: ${errs.map((t) => t.replace(/</g, '&lt;')).join(' | ')}</p>` : '';
     let diagNote = '';
@@ -184,7 +184,7 @@ export class SettingsHub {
           <button class="st-btn" data-action="diag">🩺 ${this.showDiag ? 'Ocultar diagnóstico' : 'Diagnóstico del motor'}</button>
           ${diagNote}
           ${engineName === 'PixiRenderer' ? '<button class="st-btn" data-action="canvas">🐢 Usar motor compatible (si el mapa sale en blanco)</button>' : ''}
-          ${gpu ? '' : `<p class="st-note">⚠️ Estás en el motor de respaldo, que no usa el pixel art nuevo. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
+          ${gpu ? '' : `<p class="st-note">ℹ️ Estás en el motor compatible: dibuja el pixel art (hasta el nivel Alto) sin usar la GPU. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
         </div>
         <div class="st-col st-actions">
           <button class="st-btn" data-action="center">🎯 Centrar vista</button>

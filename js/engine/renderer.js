@@ -8,6 +8,11 @@
 import { CONFIG, variantAt, buildingHeight, designOf } from '../game/config.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 import { IsoMath } from './iso.js';
+import { Preferences } from '../game/preferences.js';
+import { DETAIL_LEVELS, defaultDetail, isPixelBuilding, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
+
+const PIXEL_CACHE = 160; // imágenes de pixel art guardadas (dos lienzos cada una)
+const PIXEL_BAKE_MS = 8; // tiempo máximo de horneado por fotograma (siempre se permite uno)
 
 export class Renderer {
   constructor(canvas, ctx) {
@@ -16,12 +21,50 @@ export class Renderer {
     this.animationTick = 0;
     this.particles = [];
     this.currentDayProgress = 0;
+    this.dpr = 1;
+    this.pixelCache = new Map(); // firma → { ground, body, ox, oy, W, H }
+    this.pixelLast = new Map(); // casilla → última imagen dibujada (mientras se hornea la nueva)
+    this.detailS = 1;
+    this.detailPending = 1;
+    this.detailVotes = 0;
+  }
+
+  /**
+   * Imagen de pixel art de un edificio (suelo y volumen). Hornea en el hilo principal con un
+   * presupuesto de tiempo; si se agota, devuelve la última imagen de esa casilla (o null).
+   */
+  _pixelEntry(building, def, gx, gy, dayProgress) {
+    const variant = building.variant !== undefined ? building.variant : variantAt(def, gx, gy);
+    const sig = `${def.id}|${variant}|${building.level || 1}|${building.rotation || 0}|${dayProgress >= 0.78 ? 1 : 0}|${building.closed ? 1 : 0}${building.suspended ? 1 : 0}|${pixelKey(building, this.season.key, this.detailS)}`;
+    const cell = `${gx},${gy}`;
+    let e = this.pixelCache.get(sig);
+    if (!e) {
+      if (this.pixelBaked > 0 && performance.now() > this.pixelDeadline) return this.pixelLast.get(cell) || null;
+      this.pixelBaked++;
+      const out = renderPixelJob(pixelJob({ ...building, gx, gy }, def, dayProgress, this.season.look, this.detailS));
+      e = { ground: out.ground.toCanvas(), body: out.body.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H };
+      this.pixelCache.set(sig, e);
+      if (this.pixelCache.size > PIXEL_CACHE) this.pixelCache.delete(this.pixelCache.keys().next().value);
+    }
+    this.pixelLast.set(cell, e);
+    return e;
+  }
+
+  /** Densidad de detalle según el zoom (cambia tras unos fotogramas estables). Aquí, como mucho Alto. */
+  _updateDetail(camera) {
+    const p = Preferences.get('detail');
+    const max = Math.min(2, DETAIL_LEVELS.includes(p) ? p : defaultDetail());
+    const want = detailFor(camera.zoom, this.dpr, max);
+    if (want === this.detailS) { this.detailPending = want; this.detailVotes = 0; return; }
+    if (want !== this.detailPending) { this.detailPending = want; this.detailVotes = 0; }
+    if (++this.detailVotes >= 12) this.detailS = want;
   }
 
   /**
    * Ajusta el lienzo al tamaño de la vista con la densidad de píxeles indicada.
    */
   resize(width, height, dpr) {
+    this.dpr = dpr;
     this.canvas.width = Math.round(width * dpr);
     this.canvas.height = Math.round(height * dpr);
     if (this.ctx) this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -30,6 +73,11 @@ export class Renderer {
   render(grid, camera, hoverTile, ghostState, disasters, dayProgress = 0) {
     this.animationTick += 0.05;
     this.currentDayProgress = dayProgress;
+    const sim = window.gameInstance ? window.gameInstance.simulation : null;
+    this.season = seasonState(sim ? sim.day : 0, dayProgress);
+    this._updateDetail(camera);
+    this.pixelBaked = 0;
+    this.pixelDeadline = performance.now() + PIXEL_BAKE_MS;
 
     const ctx = this.ctx;
     const w = this.canvas.width;
@@ -78,13 +126,35 @@ export class Renderer {
       else this._fadeAlpha.set(key, next);
     }
 
+    const pixelFrame = new Map();
+    ctx.imageSmoothingEnabled = false;
+    for (const { gx, gy } of drawables) {
+      const b = grid.tiles[gy][gx].building;
+      if (!b || !b.isRoot) continue;
+      const def = CONFIG.BUILDINGS[b.id];
+      if (!isPixelBuilding(b, def)) continue;
+      const e = this._pixelEntry(b, def, gx, gy, dayProgress);
+      if (!e) continue;
+      const iso = IsoMath.gridToIso(gx, gy);
+      ctx.drawImage(e.ground, iso.x - e.ox, iso.y - e.oy, e.W, e.H);
+      pixelFrame.set(`${gx},${gy}`, e);
+    }
+
     for (const { gx, gy } of drawables) {
       {
         const tile = grid.tiles[gy][gx];
         const iso = IsoMath.gridToIso(gx, gy);
 
         // Si hay edificio y es celda raíz, dibujarlo
-        if (tile.building && tile.building.isRoot) {
+        const pe = pixelFrame.get(`${gx},${gy}`);
+        if (pe) {
+          // Volumen en pixel art: el estado (cerrado, sin servicio) ya va dibujado; solo se aplica la transparencia
+          const fade = this._fadeAlpha.get(`b${gx},${gy}`);
+          ctx.save();
+          if (fade !== undefined) ctx.globalAlpha = fade;
+          ctx.drawImage(pe.body, iso.x - pe.ox, iso.y - pe.oy, pe.W, pe.H);
+          ctx.restore();
+        } else if (tile.building && tile.building.isRoot) {
           if (tile.building.suspended || tile.building.closed) {
             ctx.save();
             ctx.globalAlpha = 0.65;

@@ -12,11 +12,8 @@
  */
 
 import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pixi.min.mjs';
-import { CONFIG, variantAt, designOf } from '../game/config.js';
-import { seasonLook, seasonPhase } from '../game/calendar.js';
-import { renderHouse } from './pixel/house-art.js';
-import { renderShop } from './pixel/shop-art.js';
-import { hash01 } from './pixel/pixel-canvas.js';
+import { CONFIG, variantAt } from '../game/config.js';
+import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
 import { Preferences } from '../game/preferences.js';
 import { recordError } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
@@ -33,11 +30,9 @@ const MAX_PARTICLES = 160;
 const BAKE_MS = 8; // Tiempo máximo de horneado en un fotograma de sincronización (siempre se permite uno)
 const CACHE_MB = { 1: 48, 2: 128, 4: 192 }; // Memoria de vídeo para imágenes de edificios según el detalle gráfico
 const MAX_JOBS = 8; // Horneados simultáneos en los trabajadores
-const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
-const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
 
 // Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural
-const PIXEL_HOUSES = new Set(['residential_tiny', 'residential_low', 'commercial_store']);
+const PIXEL_HOUSES = PIXEL_ART_IDS;
 
 // Rasgos de edificio que se animan con el reloj (radar, sirenas, paneles, turbinas...)
 const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'siren', 'seismicRadar'];
@@ -87,7 +82,7 @@ export class PixiRenderer {
       height,
       resolution,
       autoDensity: true,
-      antialias: true,
+      antialias: false,
       background: '#e9eef3',
       autoStart: false, // el bucle de main.js decide cuándo dibujar
       preference: 'webgl',
@@ -98,10 +93,13 @@ export class PixiRenderer {
     this.contextLostAt = 0;
     this.contextLostCount = 0;
     const cv = this.app.canvas || this.canvas;
+    const startedAt = performance.now();
     cv.addEventListener('webglcontextlost', () => {
       this.contextLostAt = performance.now();
       this.contextLostCount++;
-      recordError('WebGL: contexto perdido');
+      // Foto del estado en ese momento, para saber qué lo provocó
+      const r = this.app.renderer;
+      recordError(`WebGL: contexto perdido a los ${((this.contextLostAt - startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`);
     });
     cv.addEventListener('webglcontextrestored', () => {
       this.contextLostAt = 0;
@@ -296,57 +294,20 @@ export class PixiRenderer {
   /** Aspecto de la estación cuantizado: cada paso cambia muy poco, así que el cambio se ve gradual. */
   _updateSeason(dayProgress) {
     const sim = window.gameInstance ? window.gameInstance.simulation : null;
-    const raw = seasonLook(sim ? seasonPhase(sim.day, dayProgress) : 0.375);
-    const lawn = seasonLook(Math.round(raw.phase * 40) / 40).lawn;
-    this.qLook = {
-      snow: Math.round(raw.snow * 12) / 12,
-      cover: Math.round(raw.cover * 8) / 8,
-      tint: Math.round(raw.tint * 6) / 6,
-      lawn,
-    };
-    this.seasonKey = `${Math.round(raw.snow * 12)}.${Math.round(raw.cover * 8)}.${Math.round(raw.tint * 6)}.${lawn.join(',')}`;
-  }
-
-  _lotOf(building) {
-    if (building.lot !== undefined) return building.lot;
-    return Math.floor(hash01(building.gx || 0, building.gy || 0, 9) * 4);
+    const st = seasonState(sim ? sim.day : 0, dayProgress);
+    this.qLook = st.look;
+    this.seasonKey = st.key;
   }
 
   _pixelKey(building) {
-    const wear = building.wear || 0;
-    return `px${this._lotOf(building)}:${this.seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${this.detailS}`;
+    return pixelKey(building, this.seasonKey, this.detailS);
   }
 
-  /** Parámetros de dibujo de una casa o tienda en pixel art (aptos para enviar a un trabajador). */
   _pixelJob(building, def, dayProgress) {
-    const level = building.level || 1;
-    const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
-    const design = designOf(def, variant);
-    const common = {
-      S: this.detailS,
-      lot: this._lotOf(building),
-      level,
-      rotation: building.rotation || 0,
-      night: dayProgress >= 0.78,
-      wear: building.wear || 0,
-      closed: !!building.closed,
-      suspended: !!building.suspended,
-      season: this.qLook,
-      seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
-    };
-    if (def.id === 'commercial_store') {
-      return {
-        kind: 'shop',
-        params: { ...common, kind: variant, walls: design.walls || [def.colorTop, def.colorLeft, def.colorRight], accent: design.accent },
-      };
-    }
-    return {
-      kind: 'house',
-      params: { ...common, w: def.size, design, floors: def.floors[Math.min(level, def.floors.length) - 1], floorPx: def.floorPx },
-    };
+    return pixelJob(building, def, dayProgress, this.qLook, this.detailS);
   }
 
-  /** Entrada de caché a partir de las tres capas ya dibujadas (lienzos o ImageBitmap). */
+  /** Entrada de caché a partir de las tres capas ya dibujadas (lienzos). */
   _makePixelEntry(layers, ox, oy, S, emitters) {
     const tex = (src) => {
       const t = Texture.from(src);
@@ -369,8 +330,7 @@ export class PixiRenderer {
 
   /** Horneado en el hilo principal (vista previa, respaldo si no hay trabajadores). */
   _bakePixelHouse(building, def, dayProgress) {
-    const job = this._pixelJob(building, def, dayProgress);
-    const out = job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
+    const out = renderPixelJob(this._pixelJob(building, def, dayProgress));
     return this._makePixelEntry(
       { body: out.body.toCanvas(), ground: out.ground.toCanvas(), comp: out.comp.toCanvas() },
       out.ox, out.oy, out.S, out.emitters,
@@ -382,7 +342,7 @@ export class PixiRenderer {
   // ---------------------------------------------------------------------------
 
   _initWorkers() {
-    if (typeof Worker === 'undefined' || typeof createImageBitmap !== 'function' || Preferences.get('workers') === false) return;
+    if (typeof Worker === 'undefined' || Preferences.get('workers') === false) return;
     try {
       const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
       const list = [];
@@ -424,11 +384,15 @@ export class PixiRenderer {
       this._disableWorkers();
       return;
     }
-    if (this.textureCache.has(sig)) {
-      [msg.body, msg.ground, msg.comp].forEach((b) => b.close());
-      return;
-    }
-    const entry = this._makePixelEntry({ body: msg.body, ground: msg.ground, comp: msg.comp }, msg.ox, msg.oy, msg.S, msg.emitters);
+    if (this.textureCache.has(sig)) return;
+    const toCanvas = (l) => {
+      const c = document.createElement('canvas');
+      c.width = l.w;
+      c.height = l.h;
+      c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(l.buf), l.w, l.h), 0, 0);
+      return c;
+    };
+    const entry = this._makePixelEntry({ body: toCanvas(msg.body), ground: toCanvas(msg.ground), comp: toCanvas(msg.comp) }, msg.ox, msg.oy, msg.S, msg.emitters);
     entry.bytes = this._entryBytes(entry);
     this.cacheBytes += entry.bytes;
     this.textureCache.set(sig, entry);
@@ -578,8 +542,7 @@ export class PixiRenderer {
     }
     if (this.detailS > this.detailMax) this.detailS = this.detailMax;
     const dpr = (this.app && this.app.renderer && this.app.renderer.resolution) || 1;
-    const px = (camera.zoom * dpr) / 1.5;
-    const want = Math.min(this.detailMax, px >= 4 ? 4 : px >= 2 ? 2 : 1);
+    const want = detailFor(camera.zoom, dpr, this.detailMax);
     if (want === this.detailS) { this.detailPending = want; this.detailVotes = 0; return; }
     if (want !== this.detailPending) { this.detailPending = want; this.detailVotes = 0; }
     if (++this.detailVotes >= 12) this.detailS = want;

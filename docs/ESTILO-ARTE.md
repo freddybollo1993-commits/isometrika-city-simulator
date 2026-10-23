@@ -237,3 +237,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 - El horneado de casas y tiendas se hace en **trabajadores en segundo plano** (`pixel/bake-worker.js`, hasta 3,
   según los núcleos): devuelven las tres capas como `ImageBitmap` y el hilo principal solo crea texturas.
   Si el navegador no los admite o fallan, se hornea en el hilo principal con el mismo presupuesto de tiempo.
+- El motor compatible (Canvas 2D) también dibuja casas y tiendas en pixel art (hasta Alto, horneado en el
+  hilo principal con presupuesto de tiempo). El módulo común es `pixel/pixel-buildings.js`.
+- El motor GPU no usa suavizado de bordes (antialias) ni ImageBitmap: los trabajadores devuelven búferes RGBA.
+  Si el móvil pierde el contexto WebGL, se anota una foto del estado y a los 3 s se pasa al motor compatible.
