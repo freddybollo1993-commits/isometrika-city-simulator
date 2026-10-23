@@ -260,6 +260,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 | Complejo Tecnológico | `pixel/tech-art.js` | 3 × 4 × 3 (laboratorio en voladizo, anexo de servidores, ala con pasarela, torre con corona, LED de noche) |
 | Complejo Agroindustrial | `pixel/agro-art.js` | 3 × 4 × 3 (molino con silos y torre elevadora, lácteos con cámaras y tanques, empacadora con granero e invernaderos; biogás en nivel 3) |
 | Centro de Distribución | `pixel/logistics-art.js` | 3 × 4 × 3 (gran nave con muelles y camiones; mensajería con furgonetas y cinta; frío con remolques frigoríficos; almacén automático en nivel 3) |
+| Cantera y Aserradero | `pixel/quarry-art.js` | 3 × 4 × 3 (cantera de granito con foso en terrazas, aserradero con nave y troncos, gravera con charca; planta de trituración en nivel 2; máquinas eléctricas, cintas cubiertas y aspersores en nivel 3) |
 | Mercado Popular | `pixel/market-art.js` | 3 × 4 × 3 (puestos al aire libre en nivel 1, nave cubierta en 2, torre del reloj en 3) |
 
 Las piezas comunes de los lotes comerciales (pavimento, plazas, setos, árboles, farolas, coches, letras de
