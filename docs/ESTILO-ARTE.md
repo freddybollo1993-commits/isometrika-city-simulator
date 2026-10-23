@@ -245,3 +245,16 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
   WebGL 2 seguro (lotes de 4 texturas y terreno ≤ 2048 px), WebGL 1, WebGPU (Vulkan en Android) y Compatible
   (Canvas 2D). Cada motor anota en el dispositivo si funcionó (1 min sin fallos) o falló (con la foto del
   momento); si el elegido falló, se arranca con el compatible hasta que se reintente.
+
+## 9. Familias en pixel art
+
+| Familia | Archivo | Diseños × lotes × niveles |
+|---|---|---|
+| Casitas y casas | `pixel/house-art.js` | 6 × 4 × 3 |
+| Tienda de Barrio | `pixel/shop-art.js` | 4 × 4 × 3 |
+| Supermercado de Abasto | `pixel/super-art.js` | 3 × 4 × 3 (aparcamiento, muelle con camión, planta de cristal en nivel 3) |
+
+Las piezas comunes de los lotes comerciales (pavimento, plazas, setos, árboles, farolas, coches, letras de
+los rótulos) están en `pixel/lot-kit.js`. Para añadir una familia: su archivo de arte, el id en
+`PIXEL_ART_IDS` y `pixelJob` (`pixel-buildings.js`), su función en `bake-worker.js` y el reparto de lotes en
+`area-planner.js`.

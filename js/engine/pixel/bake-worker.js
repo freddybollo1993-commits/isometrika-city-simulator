@@ -8,13 +8,16 @@
 
 import { renderHouse } from './house-art.js';
 import { renderShop } from './shop-art.js';
+import { renderSupermarket } from './super-art.js';
+
+const RENDER = { house: renderHouse, shop: renderShop, super: renderSupermarket };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
 
 self.onmessage = (e) => {
   const { id, kind, params } = e.data;
   try {
-    const out = kind === 'shop' ? renderShop(params) : renderHouse(params);
+    const out = (RENDER[kind] || renderHouse)(params);
     const body = layer(out.body);
     const ground = layer(out.ground);
     const comp = layer(out.comp);

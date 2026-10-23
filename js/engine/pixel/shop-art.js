@@ -15,6 +15,7 @@
  */
 
 import { PixelCanvas, hex, mix, shade, ramp, hash01 } from './pixel-canvas.js';
+import { textHit, textWidth } from './lot-kit.js';
 
 export const SHOP_LOT_DESIGNS = ['Estacionamiento lateral', 'Terraza con mesas', 'Carga y descarga', 'Bicis y jardinera'];
 export const SHOP_KINDS = ['Verdulería', 'Panadería', 'Floristería', 'Kiosco'];
@@ -36,24 +37,7 @@ const GOODS = [
   ['#38bdf8', '#f87171', '#facc15', '#e2e8f0'], // prensa y revistas
 ];
 
-// Letras 3×5 (de arriba abajo, 3 bits por fila) para los rótulos legibles de Ultra
-const FONT = {
-  A: '010101111101101', C: '011100100100011', E: '111100110100111', F: '111100110100100',
-  I: '111010010010111', K: '101101110101101', L: '100100100100111', N: '101111111111101',
-  O: '111101101101111', P: '111101111100100', R: '110101110101101', S: '011100010001110',
-  T: '111010010010010', U: '101101101101111',
-};
 const SHOP_NAMES = ['FRUTAS', 'PAN', 'FLORES', 'KIOSCO'];
-const textWidth = (name, cell) => name.length * 4 * cell - cell;
-const textHit = (name, a, zt, aStart, cell) => {
-  const rel = a - aStart;
-  const i = Math.floor(rel / (4 * cell));
-  if (i < 0 || i >= name.length) return false;
-  const cx = Math.floor((rel - i * 4 * cell) / cell);
-  const cz = Math.floor(zt / cell);
-  if (cx < 0 || cx > 2 || cz < 0 || cz > 4) return false;
-  return FONT[name[i]][cz * 3 + cx] === '1';
-};
 
 const lerpStops = (stops, t) => {
   const p = Math.max(0, Math.min(0.999, t)) * (stops.length - 1);
