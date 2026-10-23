@@ -253,6 +253,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 | Casitas y casas | `pixel/house-art.js` | 6 × 4 × 3 |
 | Tienda de Barrio | `pixel/shop-art.js` | 4 × 4 × 3 |
 | Supermercado de Abasto | `pixel/super-art.js` | 3 × 4 × 3 (aparcamiento, muelle con camión, planta de cristal en nivel 3) |
+| Puesto Popular de Comida | `pixel/stall-art.js` | 4 × 4 × 3 (carrito con sombrilla, quiosco con toldo o casita de madera, rótulo y bombillas) |
 | Mercado Popular | `pixel/market-art.js` | 3 × 4 × 3 (puestos al aire libre en nivel 1, nave cubierta en 2, torre del reloj en 3) |
 
 Las piezas comunes de los lotes comerciales (pavimento, plazas, setos, árboles, farolas, coches, letras de
