@@ -31,6 +31,7 @@ const MAX_TEXTURES = 360; // Tope de imágenes de edificios en memoria de vídeo
 const MAX_PARTICLES = 160;
 const BAKE_MS = 8; // Tiempo máximo de horneado en un fotograma de sincronización (siempre se permite uno)
 const CACHE_MB = { 1: 48, 2: 128, 4: 192 }; // Memoria de vídeo para imágenes de edificios según el detalle gráfico
+const MAX_JOBS = 8; // Horneados simultáneos en los trabajadores
 const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
 
@@ -64,6 +65,11 @@ export class PixiRenderer {
     this.detailVotes = 0;
     this.lastRender = 0;
     this.slowFrames = 0;
+    this.workers = null; // trabajadores de horneado (null: se hornea en el hilo principal)
+    this.pending = new Map(); // firma → id del trabajo en curso
+    this.jobs = new Map(); // id del trabajo → firma
+    this.jobId = 0;
+    this.workerTurn = 0;
     this.waterSprites = [];
     this.emitters = []; // chimeneas activas en coordenadas de mundo
     this.dynamicTiles = { flooded: [], fire: [] };
@@ -86,6 +92,7 @@ export class PixiRenderer {
       preference: 'webgl',
     });
 
+    this._initWorkers();
     this.world = new Container();
     this.terrainLayer = new Container();
     this.waterLayer = new Container();
@@ -263,16 +270,13 @@ export class PixiRenderer {
     return `px${this._lotOf(building)}:${this.seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${this.detailS}`;
   }
 
-  _bakePixelHouse(building, def, dayProgress) {
+  /** Parámetros de dibujo de una casa o tienda en pixel art (aptos para enviar a un trabajador). */
+  _pixelJob(building, def, dayProgress) {
     const level = building.level || 1;
     const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
-    const S = this.detailS;
     const design = designOf(def, variant);
-    const out = def.id === 'commercial_store' ? renderShop({
-      S,
-      kind: variant,
-      walls: design.walls || [def.colorTop, def.colorLeft, def.colorRight],
-      accent: design.accent,
+    const common = {
+      S: this.detailS,
       lot: this._lotOf(building),
       level,
       rotation: building.rotation || 0,
@@ -282,39 +286,105 @@ export class PixiRenderer {
       suspended: !!building.suspended,
       season: this.qLook,
       seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
-    }) : renderHouse({
-      S,
-      w: def.size,
-      design: designOf(def, variant),
-      lot: this._lotOf(building),
-      floors: def.floors[Math.min(level, def.floors.length) - 1],
-      floorPx: def.floorPx,
-      level,
-      rotation: building.rotation || 0,
-      night: dayProgress >= 0.78,
-      wear: building.wear || 0,
-      closed: !!building.closed,
-      suspended: !!building.suspended,
-      season: this.qLook,
-      seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
-    });
-    const tex = (pc) => {
-      const t = Texture.from(pc.toCanvas());
+    };
+    if (def.id === 'commercial_store') {
+      return {
+        kind: 'shop',
+        params: { ...common, kind: variant, walls: design.walls || [def.colorTop, def.colorLeft, def.colorRight], accent: design.accent },
+      };
+    }
+    return {
+      kind: 'house',
+      params: { ...common, w: def.size, design, floors: def.floors[Math.min(level, def.floors.length) - 1], floorPx: def.floorPx },
+    };
+  }
+
+  /** Entrada de caché a partir de las tres capas ya dibujadas (lienzos o ImageBitmap). */
+  _makePixelEntry(layers, ox, oy, S, emitters) {
+    const tex = (src) => {
+      const t = Texture.from(src);
       t.source.scaleMode = 'nearest'; // píxeles nítidos
       return t;
     };
     return {
-      texture: tex(out.body),
-      lotTexture: tex(out.ground),
-      combinedTexture: tex(out.comp),
-      offX: -out.ox,
-      offY: -out.oy,
+      texture: tex(layers.body),
+      lotTexture: tex(layers.ground),
+      combinedTexture: tex(layers.comp),
+      offX: -ox,
+      offY: -oy,
       scale: 1 / S, // la textura tiene S×S píxeles reales por píxel lógico
       S,
       pixel: true,
-      emitters: out.emitters.map((e) => ({ x: e.x, y: e.y, color: '120, 113, 108', size: 1.6 })),
+      emitters: emitters.map((e) => ({ x: e.x, y: e.y, color: '120, 113, 108', size: 1.6 })),
       lastUsed: this.frame,
     };
+  }
+
+  /** Horneado en el hilo principal (vista previa, respaldo si no hay trabajadores). */
+  _bakePixelHouse(building, def, dayProgress) {
+    const job = this._pixelJob(building, def, dayProgress);
+    const out = job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
+    return this._makePixelEntry(
+      { body: out.body.toCanvas(), ground: out.ground.toCanvas(), comp: out.comp.toCanvas() },
+      out.ox, out.oy, out.S, out.emitters,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Trabajadores de horneado: dibujan el pixel art en segundo plano
+  // ---------------------------------------------------------------------------
+
+  _initWorkers() {
+    if (typeof Worker === 'undefined' || typeof createImageBitmap !== 'function' || Preferences.get('workers') === false) return;
+    try {
+      const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
+      const list = [];
+      for (let i = 0; i < n; i++) {
+        const w = new Worker(new URL('./pixel/bake-worker.js', import.meta.url), { type: 'module' });
+        w.onmessage = (e) => this._onBaked(e.data);
+        w.onerror = () => this._disableWorkers();
+        list.push(w);
+      }
+      this.workers = list;
+    } catch (err) {
+      this.workers = null;
+    }
+  }
+
+  _disableWorkers() {
+    if (this.workers) this.workers.forEach((w) => w.terminate());
+    this.workers = null;
+    this.pending.clear();
+    this.jobs.clear();
+  }
+
+  _requestBake(sig, building, def, dayProgress) {
+    if (this.pending.has(sig) || this.pending.size >= MAX_JOBS) return;
+    const job = this._pixelJob(building, def, dayProgress);
+    const id = ++this.jobId;
+    this.pending.set(sig, id);
+    this.jobs.set(id, sig);
+    this.workers[this.workerTurn++ % this.workers.length].postMessage({ id, kind: job.kind, params: job.params });
+  }
+
+  _onBaked(msg) {
+    const sig = this.jobs.get(msg.id);
+    if (sig === undefined) return;
+    this.jobs.delete(msg.id);
+    this.pending.delete(sig);
+    if (msg.error) {
+      console.warn('Horneado en segundo plano desactivado:', msg.error);
+      this._disableWorkers();
+      return;
+    }
+    if (this.textureCache.has(sig)) {
+      [msg.body, msg.ground, msg.comp].forEach((b) => b.close());
+      return;
+    }
+    const entry = this._makePixelEntry({ body: msg.body, ground: msg.ground, comp: msg.comp }, msg.ox, msg.oy, msg.S, msg.emitters);
+    entry.bytes = this._entryBytes(entry);
+    this.cacheBytes += entry.bytes;
+    this.textureCache.set(sig, entry);
   }
 
   _bakeBuilding(building, def, dayProgress, frame) {
@@ -403,6 +473,10 @@ export class PixiRenderer {
     const sig = this._signature(building, def, dayProgress, sim);
     let entry = this.textureCache.get(sig);
     if (!entry) {
+      if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !building.construction) {
+        this._requestBake(sig, building, def, dayProgress);
+        return { sig, entry: null };
+      }
       // Sin tiempo de horneado este fotograma (pasa siempre al menos uno): se conserva la imagen anterior
       if (allowDefer && this.bakedThisFrame > 0 && performance.now() > this.bakeDeadline) return { sig, entry: null };
       this.bakedThisFrame++;

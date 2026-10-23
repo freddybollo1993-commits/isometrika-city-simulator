@@ -234,3 +234,6 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
   que está lista la fina (mejora progresiva).
 - Si el juego va por debajo de ~22 fps de forma sostenida, baja solo un nivel y avisa.
 - «Probar rendimiento» mide el dibujo real en el dispositivo y aplica el nivel recomendado.
+- El horneado de casas y tiendas se hace en **trabajadores en segundo plano** (`pixel/bake-worker.js`, hasta 3,
+  según los núcleos): devuelven las tres capas como `ImageBitmap` y el hilo principal solo crea texturas.
+  Si el navegador no los admite o fallan, se hornea en el hilo principal con el mismo presupuesto de tiempo.
