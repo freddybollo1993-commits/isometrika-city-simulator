@@ -18,10 +18,11 @@ import { renderTech } from './tech-art.js';
 import { renderAgro } from './agro-art.js';
 import { renderLogistics } from './logistics-art.js';
 import { renderQuarry } from './quarry-art.js';
+import { renderComponents } from './components-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
-  stall: renderStall, boulevard: renderBoulevard, office: renderOffice, factory: renderFactory, tech: renderTech, agro: renderAgro, logistics: renderLogistics, quarry: renderQuarry,
+  stall: renderStall, boulevard: renderBoulevard, office: renderOffice, factory: renderFactory, tech: renderTech, agro: renderAgro, logistics: renderLogistics, quarry: renderQuarry, components: renderComponents,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
