@@ -8,6 +8,7 @@ import { Preferences } from './preferences.js';
 import { renderHouse } from '../engine/pixel/house-art.js';
 import { renderShop } from '../engine/pixel/shop-art.js';
 import { CONFIG, designOf } from './config.js';
+import { APP_BUILD } from '../version.js';
 
 const DETAIL_NAMES = { 1: 'Estándar', 2: 'Alto', 4: 'Ultra' };
 const DETAIL_DEFAULT = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -47,6 +48,18 @@ export class SettingsHub {
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
   }
 
+  /** Pregunta al servidor cuál es la versión publicada (sin usar la caché) y avisa si hay una más nueva. */
+  async _checkVersion() {
+    try {
+      const res = await fetch(new URL('../version.js', import.meta.url).href + '?c=' + Date.now(), { cache: 'no-store' });
+      const m = /APP_BUILD\s*=\s*'([^']+)'/.exec(await res.text());
+      this.latestBuild = m ? m[1] : null;
+    } catch (e) {
+      this.latestBuild = null; // sin conexión: solo se muestra la versión cargada
+    }
+    if (this.root) this.render();
+  }
+
   get isOpen() {
     return !!this.root;
   }
@@ -73,6 +86,7 @@ export class SettingsHub {
     document.body.appendChild(root);
     this.root = root;
     this.render();
+    this._checkVersion();
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if (this.root === root) root.classList.add('open');
     }));
@@ -143,7 +157,8 @@ export class SettingsHub {
           </div>
           <p class="st-note">${detail === 4 ? 'Ultra usa mucha memoria y puede dar tirones en móviles modestos. ' : ''}El detalle real sube al acercar el zoom.${benchNote}</p>
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
-          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
+          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
+          ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
         </div>
         <div class="st-col st-actions">
           <button class="st-btn" data-action="center">🎯 Centrar vista</button>
@@ -174,6 +189,10 @@ export class SettingsHub {
       ui.updateSmartDock();
     } else if (action === 'xray') {
       Preferences.set('xray', yes);
+    } else if (action === 'reload') {
+      game.storage.save();
+      window.location.reload();
+      return;
     } else if (action === 'detail') {
       Preferences.set('detail', parseInt(btn.dataset.v, 10));
     } else if (action === 'detail-test') {
