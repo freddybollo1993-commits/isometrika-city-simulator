@@ -1283,6 +1283,11 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  commercial_maintenance: [
+    { name: 'Mantenimiento general', walls: ['#c3c9d0', '#a3abb5', '#7d8590'] },
+    { name: 'Cuadrilla eléctrica', walls: ['#a3b1c2', '#7d8ea3', '#5f6f82'] },
+    { name: 'Fontanería y obras', walls: ['#c47a64', '#a35a43', '#7c3d2c'] },
+  ],
   supply_components: [
     { name: 'Taller de electrónica', walls: ['#a5a8e6', '#6c70c8', '#4d51a6'] },
     { name: 'Mecanizado de precisión', walls: ['#c1ccd6', '#8a9bad', '#677a8e'] },
