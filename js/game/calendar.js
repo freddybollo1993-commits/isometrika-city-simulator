@@ -100,3 +100,60 @@ export class Calendar {
     return entries[entries.length - 1][0];
   }
 }
+
+// =============================================================================
+// FASE DEL AÑO CONTINUA (aspecto de las estaciones)
+// Las estaciones no cambian de golpe: el aspecto del mundo es función de una fase continua
+// (0–1 en cada año) que avanza en cada fotograma. Cada estación tiene su punto "puro" a mitad de
+// periodo y entre dos puntos todo se mezcla con una curva suave.
+//   primavera 0,125 · verano 0,375 · otoño 0,625 · invierno 0,875
+// =============================================================================
+
+const smooth = (x) => {
+  const t = Math.max(0, Math.min(1, x));
+  return t * t * (3 - 2 * t);
+};
+
+/** Fase del año (0–1): el día 1 abre la primavera. `dayProgress` es la fracción del día en curso. */
+export function seasonPhase(day, dayProgress = 0) {
+  return ((Math.max(1, day) - 1 + dayProgress) % DAYS_PER_YEAR) / DAYS_PER_YEAR;
+}
+
+// Color del césped en el punto puro de cada estación (primavera, verano, otoño, invierno)
+const LAWN_KEYS = [[127, 192, 130], [150, 196, 120], [185, 172, 105], [210, 224, 232]];
+
+/**
+ * Aspecto del mundo en una fase del año:
+ *  - snow:  cobertura de nieve 0–1 (cuaja desde finales de otoño, cubre el invierno y se derrite a inicios de primavera)
+ *  - cover: hojas que conserva la vegetación 0–1 (caen en otoño, brotan de nuevo desde finales de invierno)
+ *  - tint:  cuánto han virado las hojas de verde a amarillo, naranja y rojo (0–1)
+ *  - lawn:  color [r, g, b] del césped, mezclado entre las cuatro estaciones
+ */
+export function seasonLook(phase) {
+  const t = ((phase % 1) + 1) % 1;
+
+  let snow = 0;
+  if (t >= 0.78) snow = smooth((t - 0.78) / 0.1);
+  else if (t < 0.09) snow = 1 - smooth(t / 0.09);
+
+  let cover;
+  if (t < 0.1) cover = smooth((t + 0.03) / 0.13);
+  else if (t < 0.64) cover = 1;
+  else if (t < 0.82) cover = 1 - smooth((t - 0.64) / 0.18);
+  else if (t < 0.97) cover = 0;
+  else cover = smooth((t - 0.97) / 0.13);
+
+  let tint = 0;
+  if (t >= 0.5 && t < 0.66) tint = smooth((t - 0.5) / 0.16);
+  else if (t >= 0.66 && t < 0.82) tint = 1;
+
+  // Césped: mezcla circular entre las cuatro claves (a 0,125 · 0,375 · 0,625 · 0,875)
+  const pos = ((t - 0.125) * 4 + 4) % 4;
+  const i = Math.floor(pos);
+  const k = smooth(pos - i);
+  const a = LAWN_KEYS[i % 4];
+  const b = LAWN_KEYS[(i + 1) % 4];
+  const lawn = [0, 1, 2].map((c) => Math.round(a[c] + (b[c] - a[c]) * k));
+
+  return { phase: t, snow, cover, tint, lawn };
+}

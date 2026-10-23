@@ -12,7 +12,10 @@
  */
 
 import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pixi.min.mjs';
-import { CONFIG, variantAt } from '../game/config.js';
+import { CONFIG, variantAt, designOf } from '../game/config.js';
+import { seasonLook, seasonPhase } from '../game/calendar.js';
+import { renderHouse } from './pixel/house-art.js';
+import { hash01 } from './pixel/pixel-canvas.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
@@ -25,6 +28,9 @@ const ANIM_STEP = 0.35; // Avance del reloj de animación entre fotogramas prege
 const MAX_TEXTURES = 360; // Tope de imágenes de edificios en memoria de vídeo
 const MAX_PARTICLES = 160;
 const BAKES_PER_FRAME = 2; // Horneados nuevos permitidos por fotograma (evita tirones)
+
+// Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural
+const PIXEL_HOUSES = new Set(['residential_tiny', 'residential_low']);
 
 // Rasgos de edificio que se animan con el reloj (radar, sirenas, paneles, turbinas...)
 const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'siren', 'seismicRadar'];
@@ -210,11 +216,77 @@ export class PixiRenderer {
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,
       Math.round((building.damage || 0) / 5), (building.suspended || building.closed) ? 1 : building.construction ? 'obra' : 0,
       building.zone ? `z${building.zone.seed}:${building.w}x${building.h}:${this.painter.zoneStage(building)}` : '',
+      PIXEL_HOUSES.has(def.id) ? this._pixelKey(building) : '',
       building.statusState || 'stable', arrow, dayProgress >= 0.78 ? 1 : 0, outage, building.roadMask || 0, building.variant || 0, frame,
     ].join('|');
   }
 
+  // ---------------------------------------------------------------------------
+  // Pixel art de las casas: estación continua (cuantizada) y lote de cada ejemplar
+  // ---------------------------------------------------------------------------
+
+  /** Aspecto de la estación cuantizado: cada paso cambia muy poco, así que el cambio se ve gradual. */
+  _updateSeason(dayProgress) {
+    const sim = window.gameInstance ? window.gameInstance.simulation : null;
+    const raw = seasonLook(sim ? seasonPhase(sim.day, dayProgress) : 0.375);
+    const lawn = seasonLook(Math.round(raw.phase * 40) / 40).lawn;
+    this.qLook = {
+      snow: Math.round(raw.snow * 12) / 12,
+      cover: Math.round(raw.cover * 8) / 8,
+      tint: Math.round(raw.tint * 6) / 6,
+      lawn,
+    };
+    this.seasonKey = `${Math.round(raw.snow * 12)}.${Math.round(raw.cover * 8)}.${Math.round(raw.tint * 6)}.${lawn.join(',')}`;
+  }
+
+  _lotOf(building) {
+    if (building.lot !== undefined) return building.lot;
+    return Math.floor(hash01(building.gx || 0, building.gy || 0, 9) * 4);
+  }
+
+  _pixelKey(building) {
+    const wear = building.wear || 0;
+    return `px${this._lotOf(building)}:${this.seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}`;
+  }
+
+  _bakePixelHouse(building, def, dayProgress) {
+    const level = building.level || 1;
+    const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
+    const out = renderHouse({
+      w: def.size,
+      design: designOf(def, variant),
+      lot: this._lotOf(building),
+      floors: def.floors[Math.min(level, def.floors.length) - 1],
+      floorPx: def.floorPx,
+      level,
+      rotation: building.rotation || 0,
+      night: dayProgress >= 0.78,
+      wear: building.wear || 0,
+      closed: !!building.closed,
+      suspended: !!building.suspended,
+      season: this.qLook,
+      seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
+    });
+    const tex = (pc) => {
+      const t = Texture.from(pc.toCanvas());
+      t.source.scaleMode = 'nearest'; // píxeles nítidos
+      return t;
+    };
+    return {
+      texture: tex(out.body),
+      lotTexture: tex(out.ground),
+      combinedTexture: tex(out.comp),
+      offX: -out.ox,
+      offY: -out.oy,
+      scale: 1,
+      pixel: true,
+      emitters: out.emitters.map((e) => ({ x: e.x, y: e.y, color: '120, 113, 108', size: 1.6 })),
+      lastUsed: this.frame,
+    };
+  }
+
   _bakeBuilding(building, def, dayProgress, frame) {
+    if (PIXEL_HOUSES.has(def.id) && !building.construction) return this._bakePixelHouse(building, def, dayProgress);
     const p = this.painter;
     const b = building.size || def.size || 1;
     const W = CONFIG.CANVAS.TILE_WIDTH * b + 96;
@@ -317,6 +389,8 @@ export class PixiRenderer {
       .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
     for (const [sig, entry] of old.slice(0, this.textureCache.size - MAX_TEXTURES + 40)) {
       if (entry.texture !== Texture.EMPTY) entry.texture.destroy(true);
+      if (entry.lotTexture) entry.lotTexture.destroy(true);
+      if (entry.combinedTexture) entry.combinedTexture.destroy(true);
       this.textureCache.delete(sig);
     }
   }
@@ -380,10 +454,28 @@ export class PixiRenderer {
         }
         if (obj.sig !== sig) {
           obj.sprite.texture = texture;
+          obj.sprite.scale.set(entry && entry.scale ? entry.scale : 1 / BAKE_SCALE);
           obj.sig = sig;
         }
         obj.entry = entry;
-        if (entry) {
+        // Capa de suelo de las casas en pixel art (nunca se vuelve translúcida)
+        if (entry && entry.lotTexture) {
+          if (!obj.lot) {
+            obj.lot = new Sprite(entry.lotTexture);
+            this.objectLayer.addChild(obj.lot);
+          }
+          if (obj.lot.texture !== entry.lotTexture) obj.lot.texture = entry.lotTexture;
+          obj.lot.scale.set(entry.scale || 1);
+          obj.lot.zIndex = (gx + gy) * 4 - 1;
+          obj.lot.visible = true;
+          obj.lot.position.set(Math.round(iso.x + entry.offX), Math.round(iso.y + entry.offY));
+        } else if (obj.lot) {
+          obj.lot.visible = false;
+        }
+        if (entry && entry.pixel) {
+          obj.sprite.position.set(Math.round(iso.x + entry.offX), Math.round(iso.y + entry.offY));
+          entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
+        } else if (entry) {
           obj.sprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
           entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
         } else {
@@ -395,6 +487,7 @@ export class PixiRenderer {
     for (const [key, obj] of this.objects) {
       if (!seen.has(key)) {
         obj.sprite.destroy();
+        if (obj.lot) obj.lot.destroy();
         this.objects.delete(key);
       }
     }
@@ -605,10 +698,11 @@ export class PixiRenderer {
         // Reordena según profundidad para que los de delante tapen a los de atrás
         this.ghostLayer.setChildIndex(s, Math.min(this.ghostLayer.children.length - 1, i + 2));
         const d = CONFIG.BUILDINGS[it.id];
-        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, variant: it.variant !== undefined ? it.variant : variantAt(d, it.gx, it.gy) };
+        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, gx: it.gx, gy: it.gy, variant: it.variant !== undefined ? it.variant : variantAt(d, it.gx, it.gy) };
         const { entry } = this._entryFor(mock, d, 0.4, null);
         const iso = IsoMath.gridToIso(it.gx, it.gy);
-        s.texture = entry.texture;
+        s.texture = entry.combinedTexture || entry.texture;
+        s.scale.set(entry.pixel ? 1 : 1 / BAKE_SCALE);
         s.position.set(iso.x + entry.offX, iso.y + entry.offY);
       });
       return;
@@ -639,11 +733,11 @@ export class PixiRenderer {
         .stroke({ color: 0x38bdf8, alpha: 0.5, width: 1.5 });
     }
 
-    const mock = { id: ghost.buildingId, level: 1, rotation: ghost.rotation || 0, size: bSize, isRoot: true, damage: 0, variant: variantAt(def, ghost.gx, ghost.gy) };
+    const mock = { id: ghost.buildingId, level: 1, rotation: ghost.rotation || 0, size: bSize, isRoot: true, damage: 0, gx: ghost.gx, gy: ghost.gy, variant: variantAt(def, ghost.gx, ghost.gy) };
     const { entry } = this._entryFor(mock, def, 0.4, null);
     const iso = IsoMath.gridToIso(ghost.gx, ghost.gy);
-    this.ghostSprite.texture = entry.texture;
-    this.ghostSprite.scale.set(1 / BAKE_SCALE);
+    this.ghostSprite.texture = entry.combinedTexture || entry.texture;
+    this.ghostSprite.scale.set(entry.pixel ? 1 : 1 / BAKE_SCALE);
     this.ghostSprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
   }
 
@@ -678,7 +772,8 @@ export class PixiRenderer {
     this.bakeBudget = BAKES_PER_FRAME;
 
     // Cámara: un solo cambio de transformación en la GPU
-    this.world.position.set(camera.x + (camera.shakeOffsetX || 0), camera.y + (camera.shakeOffsetY || 0));
+    this._updateSeason(dayProgress);
+    this.world.position.set(Math.round(camera.x + (camera.shakeOffsetX || 0)), Math.round(camera.y + (camera.shakeOffsetY || 0)));
     this.world.scale.set(camera.zoom);
 
     const key = this._terrainKey(grid);
