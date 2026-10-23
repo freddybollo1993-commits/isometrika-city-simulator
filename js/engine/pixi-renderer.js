@@ -17,6 +17,7 @@ import { seasonLook, seasonPhase } from '../game/calendar.js';
 import { renderHouse } from './pixel/house-art.js';
 import { renderShop } from './pixel/shop-art.js';
 import { hash01 } from './pixel/pixel-canvas.js';
+import { Preferences } from '../game/preferences.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
@@ -28,7 +29,10 @@ const ANIM_FRAMES = 12; // Fotogramas pregenerados para edificios animados
 const ANIM_STEP = 0.35; // Avance del reloj de animación entre fotogramas pregenerados
 const MAX_TEXTURES = 360; // Tope de imágenes de edificios en memoria de vídeo
 const MAX_PARTICLES = 160;
-const BAKES_PER_FRAME = 2; // Horneados nuevos permitidos por fotograma (evita tirones)
+const BAKE_MS = 8; // Tiempo máximo de horneado en un fotograma de sincronización (siempre se permite uno)
+const CACHE_MB = { 1: 48, 2: 128, 4: 192 }; // Memoria de vídeo para imágenes de edificios según el detalle gráfico
+const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
+const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
 
 // Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural
 const PIXEL_HOUSES = new Set(['residential_tiny', 'residential_low', 'commercial_store']);
@@ -51,6 +55,15 @@ export class PixiRenderer {
 
     this.objects = new Map(); // clave de casilla → { sprite, sig, entry }
     this.textureCache = new Map(); // firma → { texture, offX, offY, emitters, lastUsed }
+    this.cacheBytes = 0; // memoria de vídeo ocupada por las imágenes de edificios
+    this.bakedThisFrame = 0;
+    this.bakeDeadline = 0;
+    this.detailMax = defaultDetail(); // detalle elegido por el jugador (tope)
+    this.detailS = 1; // densidad en uso: sigue al zoom sin pasar del tope
+    this.detailPending = 1;
+    this.detailVotes = 0;
+    this.lastRender = 0;
+    this.slowFrames = 0;
     this.waterSprites = [];
     this.emitters = []; // chimeneas activas en coordenadas de mundo
     this.dynamicTiles = { flooded: [], fire: [] };
@@ -247,14 +260,16 @@ export class PixiRenderer {
 
   _pixelKey(building) {
     const wear = building.wear || 0;
-    return `px${this._lotOf(building)}:${this.seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}`;
+    return `px${this._lotOf(building)}:${this.seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${this.detailS}`;
   }
 
   _bakePixelHouse(building, def, dayProgress) {
     const level = building.level || 1;
     const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
+    const S = this.detailS;
     const design = designOf(def, variant);
     const out = def.id === 'commercial_store' ? renderShop({
+      S,
       kind: variant,
       walls: design.walls || [def.colorTop, def.colorLeft, def.colorRight],
       accent: design.accent,
@@ -268,6 +283,7 @@ export class PixiRenderer {
       season: this.qLook,
       seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
     }) : renderHouse({
+      S,
       w: def.size,
       design: designOf(def, variant),
       lot: this._lotOf(building),
@@ -293,7 +309,8 @@ export class PixiRenderer {
       combinedTexture: tex(out.comp),
       offX: -out.ox,
       offY: -out.oy,
-      scale: 1,
+      scale: 1 / S, // la textura tiene S×S píxeles reales por píxel lógico
+      S,
       pixel: true,
       emitters: out.emitters.map((e) => ({ x: e.x, y: e.y, color: '120, 113, 108', size: 1.6 })),
       lastUsed: this.frame,
@@ -386,27 +403,80 @@ export class PixiRenderer {
     const sig = this._signature(building, def, dayProgress, sim);
     let entry = this.textureCache.get(sig);
     if (!entry) {
-      if (allowDefer && this.bakeBudget <= 0) return { sig, entry: null };
-      this.bakeBudget--;
+      // Sin tiempo de horneado este fotograma (pasa siempre al menos uno): se conserva la imagen anterior
+      if (allowDefer && this.bakedThisFrame > 0 && performance.now() > this.bakeDeadline) return { sig, entry: null };
+      this.bakedThisFrame++;
       const frame = Number(sig.slice(sig.lastIndexOf('|') + 1));
       entry = this._bakeBuilding(building, def, dayProgress, frame);
+      entry.bytes = this._entryBytes(entry);
+      this.cacheBytes += entry.bytes;
       this.textureCache.set(sig, entry);
     }
     entry.lastUsed = this.frame;
     return { sig, entry };
   }
 
+  /** Bytes de vídeo de las texturas de una entrada. */
+  _entryBytes(entry) {
+    let n = 0;
+    for (const t of [entry.texture, entry.lotTexture, entry.combinedTexture]) {
+      if (!t || t === Texture.EMPTY) continue;
+      n += ((t.source && t.source.pixelWidth) || t.width || 0) * ((t.source && t.source.pixelHeight) || t.height || 0) * 4;
+    }
+    return n;
+  }
+
   _evictTextures() {
-    if (this.textureCache.size <= MAX_TEXTURES) return;
+    const budget = (CACHE_MB[this.detailMax] || CACHE_MB[1]) * 1048576;
+    if (this.textureCache.size <= MAX_TEXTURES && this.cacheBytes <= budget) return;
     const inUse = new Set([...this.objects.values()].map((o) => o.sig));
     const old = [...this.textureCache.entries()]
       .filter(([sig]) => !inUse.has(sig))
       .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-    for (const [sig, entry] of old.slice(0, this.textureCache.size - MAX_TEXTURES + 40)) {
+    let n = this.textureCache.size;
+    for (const [sig, entry] of old) {
+      if (n <= MAX_TEXTURES - 40 && this.cacheBytes <= budget * 0.85) break;
       if (entry.texture !== Texture.EMPTY) entry.texture.destroy(true);
       if (entry.lotTexture) entry.lotTexture.destroy(true);
       if (entry.combinedTexture) entry.combinedTexture.destroy(true);
+      this.cacheBytes -= entry.bytes || 0;
       this.textureCache.delete(sig);
+      n--;
+    }
+  }
+
+  /**
+   * Densidad de detalle de los edificios en pixel art: la que la pantalla puede mostrar con el zoom
+   * actual (un píxel de arte ≥ 1,5 píxeles del dispositivo), sin pasar del tope que eligió el jugador.
+   * Cambia solo tras unos fotogramas estables, para no hornear durante un gesto de zoom.
+   */
+  _updateDetail(camera) {
+    if (this.frame % 20 === 1) {
+      const p = Preferences.get('detail');
+      this.detailMax = DETAIL_LEVELS.includes(p) ? p : defaultDetail();
+    }
+    if (this.detailS > this.detailMax) this.detailS = this.detailMax;
+    const dpr = (this.app && this.app.renderer && this.app.renderer.resolution) || 1;
+    const px = (camera.zoom * dpr) / 1.5;
+    const want = Math.min(this.detailMax, px >= 4 ? 4 : px >= 2 ? 2 : 1);
+    if (want === this.detailS) { this.detailPending = want; this.detailVotes = 0; return; }
+    if (want !== this.detailPending) { this.detailPending = want; this.detailVotes = 0; }
+    if (++this.detailVotes >= 12) this.detailS = want;
+  }
+
+  /** Si el juego va a menos de ~22 fps de forma sostenida, baja un nivel el detalle y avisa. */
+  _watchPerformance(now) {
+    const dt = now - this.lastRender;
+    this.lastRender = now;
+    if (dt <= 0 || dt > 1000 || document.visibilityState !== 'visible') return;
+    this.slowFrames = dt > 45 ? this.slowFrames + 1 : Math.max(0, this.slowFrames - 2);
+    if (this.slowFrames > 120 && this.detailMax > 1) {
+      const lower = this.detailMax === 4 ? 2 : 1;
+      Preferences.set('detail', lower);
+      this.detailMax = lower;
+      this.slowFrames = 0;
+      const ui = window.gameInstance && window.gameInstance.ui;
+      if (ui && ui.showToast) ui.showToast(`⚠️ El juego iba lento: detalle gráfico bajado a ${lower === 2 ? 'Alto' : 'Estándar'}`);
     }
   }
 
@@ -438,9 +508,10 @@ export class PixiRenderer {
           key = `b${gx},${gy}`;
           if (tile.building.construction) sites.push({ b: tile.building, gx, gy });
           const existing = this.objects.get(key);
-          ({ sig, entry } = this._entryFor(tile.building, def, dayProgress, sim, !!existing));
+          ({ sig, entry } = this._entryFor(tile.building, def, dayProgress, sim, true));
           if (!entry) {
             // Sin presupuesto este fotograma: se mantiene la imagen actual y se reintenta luego
+            if (!existing) continue; // aún sin imagen: aparece en cuanto haya tiempo de horneado
             seen.add(key);
             existing.entry.emitters.forEach((e) => emitters.push({ x: existing.sprite.x - existing.entry.offX + e.x, y: existing.sprite.y - existing.entry.offY + e.y, color: e.color, size: e.size }));
             continue;
@@ -483,12 +554,12 @@ export class PixiRenderer {
           obj.lot.scale.set(entry.scale || 1);
           obj.lot.zIndex = (gx + gy) * 4 - 1;
           obj.lot.visible = true;
-          obj.lot.position.set(Math.round(iso.x + entry.offX), Math.round(iso.y + entry.offY));
+          obj.lot.position.set(Math.round((iso.x + entry.offX) * entry.S) / entry.S, Math.round((iso.y + entry.offY) * entry.S) / entry.S);
         } else if (obj.lot) {
           obj.lot.visible = false;
         }
         if (entry && entry.pixel) {
-          obj.sprite.position.set(Math.round(iso.x + entry.offX), Math.round(iso.y + entry.offY));
+          obj.sprite.position.set(Math.round((iso.x + entry.offX) * entry.S) / entry.S, Math.round((iso.y + entry.offY) * entry.S) / entry.S);
           entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
         } else if (entry) {
           obj.sprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
@@ -717,7 +788,7 @@ export class PixiRenderer {
         const { entry } = this._entryFor(mock, d, 0.4, null);
         const iso = IsoMath.gridToIso(it.gx, it.gy);
         s.texture = entry.combinedTexture || entry.texture;
-        s.scale.set(entry.pixel ? 1 : 1 / BAKE_SCALE);
+        s.scale.set(entry.scale || 1 / BAKE_SCALE);
         s.position.set(iso.x + entry.offX, iso.y + entry.offY);
       });
       return;
@@ -752,7 +823,7 @@ export class PixiRenderer {
     const { entry } = this._entryFor(mock, def, 0.4, null);
     const iso = IsoMath.gridToIso(ghost.gx, ghost.gy);
     this.ghostSprite.texture = entry.combinedTexture || entry.texture;
-    this.ghostSprite.scale.set(entry.pixel ? 1 : 1 / BAKE_SCALE);
+    this.ghostSprite.scale.set(entry.scale || 1 / BAKE_SCALE);
     this.ghostSprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
   }
 
@@ -784,7 +855,10 @@ export class PixiRenderer {
     if (!this.ready) return;
     this.frame++;
     this.animationTick += 0.05;
-    this.bakeBudget = BAKES_PER_FRAME;
+    this.bakedThisFrame = 0;
+    this.bakeDeadline = performance.now() + BAKE_MS;
+    this._watchPerformance(performance.now());
+    this._updateDetail(camera);
 
     // Cámara: un solo cambio de transformación en la GPU
     this._updateSeason(dayProgress);

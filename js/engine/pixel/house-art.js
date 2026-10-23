@@ -80,8 +80,9 @@ export function renderHouse(o) {
   const H = 16 * w + wallH + peak + 20 + 3;
   const ox = W / 2;
   const oy = H - 16 * w - 3;
-  const ground = new PixelCanvas(W, H, ox, oy);
-  const body = new PixelCanvas(W, H, ox, oy);
+  const S = o.S || 1; // densidad de detalle: 1, 2 o 4 píxeles reales por píxel lógico
+  const ground = new PixelCanvas(W, H, ox, oy, S);
+  const body = new PixelCanvas(W, H, ox, oy, S);
   const emitters = [];
 
   // Geometría: la casa ocupa el centro de la parcela, el resto es jardín
@@ -109,6 +110,11 @@ export function renderHouse(o) {
   const shutters = !flat && texture !== 'siding' && tier2;
   const lintels = (texture === 'brick' || texture === 'stone') && tier2;
   const frameCol = flat ? hex('#3b4a5e') : WHITE.light;
+  // Densidad de detalle: en Alto (S ≥ 2) y Ultra (S ≥ 4) las texturas pasan a líneas de 1 píxel real
+  const hd = S >= 2;
+  const uhd = S >= 4;
+  const pt = 1 / S;
+  const CURTAINS = ['#e2e8f0', '#fca5a5', '#fde68a', '#bae6fd'];
 
   // -------------------------------------------------------------------------
   // SUELO
@@ -118,6 +124,11 @@ export function renderHouse(o) {
   const lawnShade = (u, v, z, x, y) => {
     const n = hash01(x, y, seed);
     let col = n < 0.07 ? shade(lawn, 0.9) : n > 0.95 ? shade(lawn, 1.08) : lawn;
+    if (hd) {
+      if (hash01(x, y >> 1, seed + 4) < 0.14) col = shade(lawn, 0.86);
+      else if (hash01(x >> 1, y, seed + 8) < 0.06) col = shade(lawn, 1.12);
+      if (uhd && look.cover > 0.4 && hash01(x, y, seed + 12) < 0.004) col = hex(['#ffffff', '#fde047', '#f9a8d4'][Math.floor(hash01(x, y, seed + 13) * 3)]);
+    }
     // hojas caídas en el césped durante el otoño
     if (look.tint > 0.55 && look.cover < 0.92 && hash01(x, y, seed + 9) < 0.05) col = lerpStops(LEAF_STOPS, 0.4 + hash01(x, y, seed + 2) * 0.6);
     if (snowAt(x, y, 1.04)) col = hash01(x, y, seed + 6) < 0.25 ? SNOW.mid : SNOW.light;
@@ -129,7 +140,7 @@ export function renderHouse(o) {
     if (snowAt(x, y, 0.8)) col = SNOW.light;
     return col;
   };
-  const dim = (f) => (u, v, z, x, y) => shade(ground.get(x, y), f); // sombras sobre lo ya dibujado
+  const dim = (f) => (u, v, z, x, y) => shade(ground.getPhys(x, y), f); // sombras sobre lo ya dibujado
 
   ground.floor(0, w, 0, w, 0, lawnShade);
 
@@ -418,7 +429,34 @@ export function renderHouse(o) {
 
   const wallTexture = (rp, a, z, x, y) => {
     let col = rp.mid;
-    if (texture === 'siding') {
+    if (hd && texture === 'siding') {
+      const m = z - Math.floor(z / 3) * 3;
+      col = m < pt ? shade(rp.mid, 0.78) : m < 2 * pt ? shade(rp.mid, 1.07) : uhd && hash01(Math.floor(a * S), Math.floor(z / 3), seed + 54) < 0.1 ? shade(rp.mid, 0.95) : rp.mid;
+    } else if (hd && texture === 'brick') {
+      const bh = 1.5;
+      const bl = 3;
+      const row = Math.floor(z / bh);
+      const ax = a + (row % 2 ? bl / 2 : 0);
+      const bi = Math.floor(ax / bl);
+      const m = z - row * bh;
+      if (m < pt || ax - bi * bl < pt) col = rp.light;
+      else {
+        col = shade(rp.mid, 0.9 + hash01(bi, row, seed + 51) * 0.2);
+        if (m < 2 * pt) col = shade(col, 1.1);
+      }
+    } else if (hd && texture === 'stone') {
+      const row = Math.floor(z / 4);
+      const ax = a + (row % 2 ? 2.5 : 0);
+      const bi = Math.floor(ax / 5);
+      const m = z - row * 4;
+      if (m < pt || ax - bi * 5 < pt) col = rp.dark;
+      else {
+        const n = hash01(bi, row, seed + 52);
+        col = n < 0.33 ? rp.mid : n < 0.66 ? rp.light : shade(rp.mid, 0.9);
+        if (m < 2 * pt || ax - bi * 5 < 2 * pt) col = shade(col, 1.1);
+        else if (m > 4 - 2 * pt) col = shade(col, 0.88);
+      }
+    } else if (texture === 'siding') {
       if (Math.floor(z) % 3 === 0) col = shade(rp.mid, 0.88);
     } else if (texture === 'brick') {
       const row = Math.floor(z / 2);
@@ -436,6 +474,7 @@ export function renderHouse(o) {
       col = n < 0.06 ? rp.light : n > 0.96 ? shade(rp.mid, 0.9) : rp.mid;
     }
     if (z < 2) col = rp.dark; // zócalo
+    if (hd && z > wallH - 1 - 2 * pt && z <= wallH - 1) col = shade(rp.mid, 0.8); // sombra bajo la cornisa
     if (z > wallH - 1) col = rp.light; // cornisa
     // desgaste: grietas y manchas
     if (wear >= 50 && hash01(Math.floor(a / 2), Math.floor(z / 2), seed + 61) < (wear >= 75 ? 0.1 : 0.05)) col = rp.shadow;
@@ -457,13 +496,27 @@ export function renderHouse(o) {
     for (const wn of wins[side]) {
       if (a >= wn.a0 && a < wn.a1 && z >= wn.z0 && z < wn.z1) {
         if (o.closed) return Math.floor(a + z) % 4 < 2 ? WOOD.mid : WOOD.dark; // cegada con tablas
-        const edge = a < wn.a0 + 1 || a >= wn.a1 - 1 || z < wn.z0 + 1 || z >= wn.z1 - 1;
+        const ft = hd ? 0.55 : 1;
+        const edge = a < wn.a0 + ft || a >= wn.a1 - ft || z < wn.z0 + ft || z >= wn.z1 - ft;
         if (edge) return frameCol;
-        if (flat ? Math.floor(a - wn.a0) % 3 === 0 : Math.abs(a - (wn.a0 + wn.a1) / 2) < 0.5 && winW >= 5) return flat ? frameCol : WHITE.mid; // travesaño
+        const midA = (wn.a0 + wn.a1) / 2;
+        const mull = flat ? Math.floor(a - wn.a0) % 3 === 0
+          : hd ? Math.abs(a - midA) < 0.75 * pt || (winH >= 6 && Math.abs(z - (wn.z0 + wn.z1) / 2) < 0.75 * pt)
+            : Math.abs(a - midA) < 0.5 && winW >= 5;
+        if (mull) return flat ? frameCol : WHITE.mid; // travesaño
         const lit = !o.suspended && hash01(Math.floor(wn.a0), Math.floor(wn.z0), seed + 71) < (tier3 ? 0.95 : tier2 ? 0.75 : 0.5);
         const g = night ? glassNight(lit) : glassDay;
-        if (!night && a < wn.a0 + 2 && z >= wn.z1 - 2) return hex('#ffffff'); // reflejo
-        return z < (wn.z0 + wn.z1) / 2 ? g[1] : g[0];
+        let gc = z < (wn.z0 + wn.z1) / 2 ? g[1] : g[0];
+        if (!hd) {
+          if (!night && a < wn.a0 + 2 && z >= wn.z1 - 2) return hex('#ffffff'); // reflejo
+          return gc;
+        }
+        if (uhd && z > wn.z0 + (wn.z1 - wn.z0) * 0.35 && (a < wn.a0 + ft + 0.9 || a >= wn.a1 - ft - 0.9)) {
+          return hex(CURTAINS[Math.floor(hash01(Math.floor(wn.a0), Math.floor(wn.z0), seed + 74) * CURTAINS.length)]);
+        }
+        if (!night && ((a - wn.a0) + (z - wn.z0)) % 4 < 1) gc = mix(gc, [255, 255, 255, 255], 0.55); // reflejo en diagonal
+        if (z >= wn.z1 - ft - pt || a < wn.a0 + ft + pt) gc = shade(gc, 0.8); // sombra interior
+        return gc;
       }
       // alféizar y jardinera con flores
       if (tier2 && design.extra === 'flowers' && a >= wn.a0 - 0.5 && a < wn.a1 + 0.5 && z >= wn.z0 - 2 && z < wn.z0) {
@@ -527,9 +580,24 @@ export function renderHouse(o) {
   const zw = wallH;
   const roofColor = (kind) => (u, v, z, x, y) => {
     const base = roofRamp[kind];
-    let col = y % 3 === 0 ? shade(base, 0.82) : ((x + Math.floor(y / 3) * 2) % 5 === 0 ? shade(base, 0.93) : base);
+    let col;
+    let line;
+    if (hd) {
+      const rh = 1.6 * S;
+      const row = Math.floor(y / rh);
+      const m = y - row * rh;
+      const tw = 3 * S;
+      const xo = (row % 2) * (tw / 2);
+      const tx = (x + xo) % tw;
+      line = m < 1;
+      col = line ? shade(base, 0.8) : tx < 1 ? shade(base, 0.9) : m < 2 ? shade(base, 1.06) : base;
+      if (uhd) col = shade(col, 0.94 + hash01(Math.floor((x + xo) / tw), row, seed + 83) * 0.12);
+    } else {
+      line = y % 3 === 0;
+      col = line ? shade(base, 0.82) : ((x + Math.floor(y / 3) * 2) % 5 === 0 ? shade(base, 0.93) : base);
+    }
     if (wear >= 50 && hash01(x, y, seed + 81) < (wear >= 75 ? 0.07 : 0.03)) col = roofRamp.shadow;
-    if (snowAt(x, y, 1.15, 7)) col = y % 3 === 0 ? SNOW.mid : SNOW.light;
+    if (snowAt(x, y, 1.15, 7)) col = line ? SNOW.mid : SNOW.light;
     return col;
   };
   const roofZ = (u, v) => {
@@ -764,9 +832,9 @@ export function renderHouse(o) {
   body.outline(0.62);
 
   // Composición (útil para la vista previa y las pruebas)
-  const comp = new PixelCanvas(W, H, ox, oy);
+  const comp = new PixelCanvas(W, H, ox, oy, S);
   comp.draw(ground);
   comp.draw(body);
 
-  return { ground, body, comp, ox, oy, W, H, emitters, wallH };
+  return { ground, body, comp, ox, oy, W, H, S, emitters, wallH };
 }

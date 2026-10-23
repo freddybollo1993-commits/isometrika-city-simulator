@@ -36,6 +36,25 @@ const GOODS = [
   ['#38bdf8', '#f87171', '#facc15', '#e2e8f0'], // prensa y revistas
 ];
 
+// Letras 3×5 (de arriba abajo, 3 bits por fila) para los rótulos legibles de Ultra
+const FONT = {
+  A: '010101111101101', C: '011100100100011', E: '111100110100111', F: '111100110100100',
+  I: '111010010010111', K: '101101110101101', L: '100100100100111', N: '101111111111101',
+  O: '111101101101111', P: '111101111100100', R: '110101110101101', S: '011100010001110',
+  T: '111010010010010', U: '101101101101111',
+};
+const SHOP_NAMES = ['FRUTAS', 'PAN', 'FLORES', 'KIOSCO'];
+const textWidth = (name, cell) => name.length * 4 * cell - cell;
+const textHit = (name, a, zt, aStart, cell) => {
+  const rel = a - aStart;
+  const i = Math.floor(rel / (4 * cell));
+  if (i < 0 || i >= name.length) return false;
+  const cx = Math.floor((rel - i * 4 * cell) / cell);
+  const cz = Math.floor(zt / cell);
+  if (cx < 0 || cx > 2 || cz < 0 || cz > 4) return false;
+  return FONT[name[i]][cz * 3 + cx] === '1';
+};
+
 const lerpStops = (stops, t) => {
   const p = Math.max(0, Math.min(0.999, t)) * (stops.length - 1);
   const i = Math.floor(p);
@@ -83,8 +102,12 @@ export function renderShop(o) {
   const H = 16 * w + wallH + 14 + 22 + 3;
   const ox = W / 2;
   const oy = H - 16 * w - 3;
-  const ground = new PixelCanvas(W, H, ox, oy);
-  const body = new PixelCanvas(W, H, ox, oy);
+  const S = o.S || 1; // densidad de detalle: 1, 2 o 4 píxeles reales por píxel lógico
+  const hd = S >= 2; // Alto
+  const uhd = S >= 4; // Ultra
+  const pt = 1 / S;
+  const ground = new PixelCanvas(W, H, ox, oy, S);
+  const body = new PixelCanvas(W, H, ox, oy, S);
   const emitters = [];
 
   // Geometría: el local ocupa el fondo de la parcela; delante queda el frontis y la acera; al lado, el aparcamiento
@@ -301,16 +324,7 @@ export function renderShop(o) {
   // Charco de luz cálida sobre el suelo (solo de noche)
   function lightPool(f, l, r, strength) {
     const [cx, cy] = ground.project(...uv(f, l), 0);
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r * 2; dx <= r * 2; dx++) {
-        const d = Math.hypot(dx / 2, dy);
-        if (d > r) continue;
-        const px = cx + dx;
-        const py = cy + dy;
-        if (!ground.isOpaque(px, py)) continue;
-        ground.set(px, py, mix(ground.get(px, py), [255, 214, 120, 255], strength * (1 - d / r)));
-      }
-    }
+    ground.glow(cx, cy, r, [255, 214, 120, 255], strength);
   }
 
   // Elementos comunes del lote
@@ -391,9 +405,12 @@ export function renderShop(o) {
     const showInterior = night ? lit : true;
     if (lz < 1.5) return WOOD.mid;
     if (showInterior) {
-      const row = Math.floor((lz - 1.5) / 3);
-      if ((lz - 1.5) % 3 < 1 && hash01(Math.floor(a), row, seed + 77) < 0.7) {
-        return goods[Math.floor(hash01(Math.floor(a), row, seed + 78) * goods.length)];
+      const rowH = hd ? 2 : 3;
+      const itemH = hd ? 0.9 : 1;
+      const q = hd ? 2 : 1;
+      const row = Math.floor((lz - 1.5) / rowH);
+      if ((lz - 1.5) % rowH < itemH && hash01(Math.floor(a * q), row, seed + 77) < 0.7) {
+        return goods[Math.floor(hash01(Math.floor(a * q), row, seed + 78) * goods.length)];
       }
     }
     if (night) return lit ? (lz < (z1 - z0) / 2 ? glassNightLit[1] : glassNightLit[0]) : glassNightOff[lz < (z1 - z0) / 2 ? 1 : 0];
@@ -413,9 +430,10 @@ export function renderShop(o) {
     // escaparate
     if (a >= winA[0] && a < winA[1] && z >= winZ[0] && z < winZ[1]) {
       if (o.closed) return shutter(a, z);
-      const edge = a < winA[0] + 0.9 || a >= winA[1] - 0.9 || z < winZ[0] + 0.9 || z >= winZ[1] - 0.9;
+      const ft = hd ? 0.55 : 0.9;
+      const edge = a < winA[0] + ft || a >= winA[1] - ft || z < winZ[0] + ft || z >= winZ[1] - ft;
       if (edge) return WHITE.light;
-      if (Math.floor(a - winA[0]) === 5) return WHITE.mid; // travesaño
+      if (hd ? Math.abs(a - (winA[0] + 5.5)) < 0.75 * pt : Math.floor(a - winA[0]) === 5) return WHITE.mid; // travesaño
       return glassAt(a, z, winZ[0] + 0.9, winZ[1], false);
     }
     if (a >= winA[0] - 0.8 && a < winA[1] + 0.8 && z >= winZ[0] - 1 && z < winZ[0]) return WHITE.mid; // alféizar
@@ -423,7 +441,14 @@ export function renderShop(o) {
     if (fasciaZ && z >= fasciaZ[0] && z < fasciaZ[1] && a >= 0.5 && a < Wf - 0.5) {
       const border = z < fasciaZ[0] + 0.8 || z >= fasciaZ[1] - 0.8 || a < 1.3 || a >= Wf - 1.3;
       if (border) return accent.light;
-      const text = a > 2.5 && a < Wf - 2.5 && hash01(Math.floor(a / 1.5), Math.floor(z - fasciaZ[0]), seed + 91) < 0.55;
+      let text;
+      if (uhd) {
+        const name = SHOP_NAMES[kind];
+        const cell = 0.45;
+        text = textHit(name, a, fasciaZ[1] - 0.8 - 0.075 - z, Wf / 2 - textWidth(name, cell) / 2, cell);
+      } else {
+        text = a > 2.5 && a < Wf - 2.5 && hash01(Math.floor(a / 1.5), Math.floor(z - fasciaZ[0]), seed + 91) < 0.55;
+      }
       if (text) return night && lit ? hex('#fff7d6') : WHITE.light;
       return night && lit ? shade(accent.mid, 1.18) : accent.dark;
     }
@@ -516,7 +541,14 @@ export function renderShop(o) {
       if (snowAt(x, y, 1.0, 11)) return SNOW.light;
       return awnStripe(u, v) ? accent.light : WHITE.light;
     });
-    body.surface([sv(F1 + awnOut, aw0, awnZ - 3.5), sv(F1 + awnOut, aw1, awnZ - 3.5), sv(F1 + awnOut, aw1, awnZ - 5.5), sv(F1 + awnOut, aw0, awnZ - 5.5)], (u, v) => (awnStripe(u, v) ? accent.mid : WHITE.mid));
+    body.surface([sv(F1 + awnOut, aw0, awnZ - 3.5), sv(F1 + awnOut, aw1, awnZ - 3.5), sv(F1 + awnOut, aw1, awnZ - 5.5), sv(F1 + awnOut, aw0, awnZ - 5.5)], (u, v, z) => {
+      if (hd) {
+        const L = (front === 'u' ? v : u) * 16;
+        const s = Math.abs((((L % 2.2) + 2.2) % 2.2) / 2.2 - 0.5) * 2;
+        if (z < awnZ - 5.5 + (1 - s) * 1.1) return null;
+      }
+      return awnStripe(u, v) ? accent.mid : WHITE.mid;
+    });
   }
   // Toldo lateral sobre la puerta de servicio (nivel 2+)
   // Balcón de la segunda planta (nivel 3)
@@ -549,7 +581,12 @@ export function renderShop(o) {
       const a = Math.abs((front === 'u' ? v : u) - lat(0)) * 16;
       const zz = z - (wallH + 5);
       if (zz < 0.8 || zz >= 5.2 || a < (L1 - sl1) * 16 + 0.8 || a >= (L1 - sl0) * 16 - 0.8 - 0.01 * 0) return accent.light;
-      if (hash01(Math.floor(a / 1.5), Math.floor(zz), seed + 92) < 0.55) return night && lit ? hex('#fff7d6') : WHITE.light;
+      if (uhd) {
+        const name = SHOP_NAMES[kind];
+        const cell = 0.55;
+        const mid = ((L1 - sl1) * 16 + (L1 - sl0) * 16) / 2;
+        if (textHit(name, a, 5 - 0.8 - (3.4 - 5 * cell) / 2 - zz, mid - textWidth(name, cell) / 2, cell)) return night && lit ? hex('#fff7d6') : WHITE.light;
+      } else if (hash01(Math.floor(a / 1.5), Math.floor(zz), seed + 92) < 0.55) return night && lit ? hex('#fff7d6') : WHITE.light;
       return night && lit ? shade(accent.mid, 1.18) : accent.dark;
     };
     box(sf0, sf0 + 0.04, sl0, sl1, wallH + 5, wallH + 10, accent, front === 'u' ? { right: signShader, left: () => accent.dark, top: () => accent.light } : { left: signShader, right: () => accent.dark, top: () => accent.light });
@@ -576,9 +613,9 @@ export function renderShop(o) {
   }
   body.outline(0.62);
 
-  const comp = new PixelCanvas(W, H, ox, oy);
+  const comp = new PixelCanvas(W, H, ox, oy, S);
   comp.draw(ground);
   comp.draw(body);
 
-  return { ground, body, comp, ox, oy, W, H, emitters, wallH };
+  return { ground, body, comp, ox, oy, W, H, S, emitters, wallH };
 }

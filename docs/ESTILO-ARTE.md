@@ -213,3 +213,24 @@ Opciones:
 - **Escalones:** 0,5 · 1 · 2 · 3. Siempre nítido, pero el zoom salta de un nivel a otro.
 - **Híbrido (recomendado):** mientras haces el gesto de pellizcar el zoom es continuo, y **al soltar se acomoda
   suavemente** al escalón más cercano. Se siente fluido y el pixel art queda siempre nítido al quedarse quieto.
+
+## 8. Niveles de detalle gráfico (densidad del píxel de arte)
+
+El arte se dibuja siempre en coordenadas lógicas (casilla de 32×16) y el lienzo (`PixelCanvas`) tiene `S×S`
+píxeles reales por cada píxel lógico. La silueta es idéntica en las tres densidades; lo que cambia es la
+finura de texturas (juntas de ladrillo y tejas de 1 píxel real, marcos de ventana con cruceta, reflejos,
+cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
+
+| Nivel | S | Píxel | Memoria de caché | Cuándo se hornea |
+|---|---|---|---|---|
+| Estándar | 1 | 1/32 de casilla | 48 MB | siempre que el zoom no justifique más |
+| Alto | 2 | 1/64 | 128 MB | cuando un píxel de arte ocupa ≥ 3 px de dispositivo |
+| Ultra | 4 | 1/128 | 192 MB | cuando un píxel de arte ocupa ≥ 6 px de dispositivo |
+
+- El jugador elige el **tope** en Ajustes → Detalle gráfico; la densidad real sigue al zoom y al
+  `devicePixelRatio` (un píxel de arte ≥ 1,5 px de dispositivo) y solo cambia tras 12 fotogramas estables.
+- El horneado tiene un presupuesto de tiempo por fotograma de sincronización (siempre se permite uno);
+  los edificios nuevos aparecen cuando hay tiempo y los existentes conservan su imagen anterior hasta
+  que está lista la fina (mejora progresiva).
+- Si el juego va por debajo de ~22 fps de forma sostenida, baja solo un nivel y avisa.
+- «Probar rendimiento» mide el dibujo real en el dispositivo y aplica el nivel recomendado.

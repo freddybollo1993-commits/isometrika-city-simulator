@@ -586,7 +586,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px 40px;
-  align-content: center;
+  align-content: safe center;
+  overflow-y: auto; /* con las opciones nuevas no cabe todo en un móvil horizontal */
+  -webkit-overflow-scrolling: touch;
   padding: 10px max(28px, env(safe-area-inset-right)) 10px max(28px, env(safe-area-inset-left));
 }
 
@@ -623,6 +625,11 @@
   font-weight: 900;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
   cursor: pointer;
+}
+
+.st-tg.three button {
+  font-size: 0.82rem;
+  padding: 0 2px;
 }
 
 .st-tg button.on {

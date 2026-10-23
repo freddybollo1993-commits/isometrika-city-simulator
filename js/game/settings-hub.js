@@ -5,6 +5,38 @@
  */
 
 import { Preferences } from './preferences.js';
+import { renderHouse } from '../engine/pixel/house-art.js';
+import { renderShop } from '../engine/pixel/shop-art.js';
+import { CONFIG, designOf } from './config.js';
+
+const DETAIL_NAMES = { 1: 'Estándar', 2: 'Alto', 4: 'Ultra' };
+const DETAIL_DEFAULT = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
+
+/** Mide cuánto tarda dibujar un edificio a cada densidad de detalle en este dispositivo (ms, mediana). */
+function benchmarkDetail() {
+  const look = { snow: 0, cover: 1, tint: 0, lawn: [127, 192, 130] };
+  const house = CONFIG.BUILDINGS.residential_low;
+  const shop = CONFIG.BUILDINGS.commercial_store;
+  const out = {};
+  for (const S of [1, 2, 4]) {
+    const times = [];
+    for (let i = 0; i < 6; i++) {
+      const t0 = performance.now();
+      if (i % 2 === 0) {
+        renderHouse({ S, w: 2, design: designOf(house, i % 6), lot: i % 4, floors: 2, floorPx: 14, level: 2, rotation: 0, night: false, season: look, seed: i }).comp.toCanvas();
+      } else {
+        const d = designOf(shop, i % 4);
+        renderShop({ S, kind: i % 4, walls: d.walls || [shop.colorTop, shop.colorLeft, shop.colorRight], accent: d.accent, lot: i % 4, level: 2, rotation: 0, night: false, season: look, seed: i }).comp.toCanvas();
+      }
+      times.push(performance.now() - t0);
+    }
+    times.sort((a, b) => a - b);
+    out[S] = times[Math.floor(times.length / 2)];
+  }
+  // Recomendación: el nivel más alto cuyo dibujo cabe en un fotograma cómodo
+  out.best = out[4] <= 40 ? 4 : out[2] <= 20 ? 2 : 1;
+  return out;
+}
 
 export class SettingsHub {
   constructor(game, ui) {
@@ -81,6 +113,15 @@ export class SettingsHub {
     const smart = !!Preferences.get('smartDock');
     const xray = Preferences.get('xray') !== false;
     const sound = !(this.game.audio && this.game.audio.muted);
+    const stored = Preferences.get('detail');
+    const detail = [1, 2, 4].includes(stored) ? stored : DETAIL_DEFAULT();
+    const bench = this.benchResult;
+    const benchNote = bench
+      ? ` Prueba: Estándar ${bench[1].toFixed(0)} ms · Alto ${bench[2].toFixed(0)} ms · Ultra ${bench[4].toFixed(0)} ms por edificio → recomendado: ${DETAIL_NAMES[bench.best]}.`
+      : '';
+    const detailButtons = [1, 2, 4]
+      .map((v) => `<button data-action="detail" data-v="${v}" class="${detail === v ? 'on' : ''}">${DETAIL_NAMES[v]}</button>`)
+      .join('');
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
     const gpu = this.game.renderer && this.game.renderer.constructor.name === 'PixiRenderer';
 
@@ -96,6 +137,12 @@ export class SettingsHub {
           ${this._toggle('Edificios translúcidos', 'xray', xray)}
           ${this._toggle('Sonido', 'sound', sound)}
           ${this._toggle('Pantalla completa', 'fullscreen', full)}
+          <div class="st-row">
+            <div class="st-lab">Detalle gráfico</div>
+            <div class="st-tg three">${detailButtons}</div>
+          </div>
+          <p class="st-note">${detail === 4 ? 'Ultra usa mucha memoria y puede dar tirones en móviles modestos. ' : ''}El detalle real sube al acercar el zoom.${benchNote}</p>
+          <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
         </div>
         <div class="st-col st-actions">
@@ -127,6 +174,20 @@ export class SettingsHub {
       ui.updateSmartDock();
     } else if (action === 'xray') {
       Preferences.set('xray', yes);
+    } else if (action === 'detail') {
+      Preferences.set('detail', parseInt(btn.dataset.v, 10));
+    } else if (action === 'detail-test') {
+      if (this.benchRunning) return;
+      this.benchRunning = true;
+      this.render();
+      setTimeout(() => {
+        this.benchResult = benchmarkDetail();
+        Preferences.set('detail', this.benchResult.best);
+        this.benchRunning = false;
+        ui.showToast(`⏱ Detalle gráfico recomendado y aplicado: ${DETAIL_NAMES[this.benchResult.best]}`);
+        this.render();
+      }, 60);
+      return;
     } else if (action === 'sound') {
       if (yes === !!game.audio.muted) game.audio.toggleMute();
     } else if (action === 'fullscreen') {

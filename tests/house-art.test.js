@@ -46,3 +46,19 @@ test('cada nivel suma detalles: a igual número de pisos el dibujo es distinto y
     }
   }
 });
+
+test('las casas mantienen la silueta en las tres densidades y ganan detalle fino', () => {
+  for (const id of ['residential_tiny', 'residential_low']) {
+    const a = house(id, { level: 2, S: 1 });
+    const b = house(id, { level: 2, S: 2 });
+    const c = house(id, { level: 2, S: 4 });
+    assert.equal(b.comp.pw, a.comp.pw * 2);
+    assert.equal(c.comp.ph, a.comp.ph * 4);
+    // la altura lógica del edificio no cambia con la densidad
+    assert.equal(b.body.topRow(), a.body.topRow());
+    assert.equal(c.body.topRow(), a.body.topRow());
+    // y el dibujo no se limita a escalar píxeles: hay más variación de color
+    const colors = (o) => new Set(Array.from({ length: o.data.length / 4 }, (_, i) => o.data.slice(i * 4, i * 4 + 3).join(',')));
+    assert.ok(colors(c.body).size > colors(a.body).size, 'más matices a mayor densidad');
+  }
+});

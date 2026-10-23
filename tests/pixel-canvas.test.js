@@ -79,3 +79,32 @@ test('rampa, mezcla, ruido y contorno', () => {
   assert.deepEqual(pc.get(7, 7), [200, 200, 200, 255], 'interior intacto');
   assert.equal(pc.opaqueCount(), 64, 'el contorno no cambia el tamaño');
 });
+
+test('la densidad S multiplica los píxeles reales sin cambiar la silueta lógica', () => {
+  const base = new PixelCanvas(48, 40, 24, 8);
+  base.floor(0, 1, 0, 1, 0, () => RED);
+  for (const S of [2, 4]) {
+    const pc = new PixelCanvas(48, 40, 24, 8, S);
+    pc.floor(0, 1, 0, 1, 0, () => RED);
+    assert.equal(pc.opaqueCount(), 256 * S * S, 'S=' + S + ': mismo rombo con S×S píxeles por cada uno');
+    assert.equal(pc.pw, 48 * S);
+    // primitivas lógicas: rect y set rellenan bloques
+    const r = new PixelCanvas(10, 10, 5, 0, S);
+    r.rect(1, 1, 2, 2, RED);
+    assert.equal(r.opaqueCount(), 4 * S * S);
+    assert.ok(r.isOpaque(1, 1) && !r.isOpaque(3, 3));
+    r.outline(0.5);
+    assert.equal(r.opaqueCount(), 4 * S * S, 'el contorno no cambia el tamaño');
+  }
+});
+
+test('el sombreado de caras recibe coordenadas continuas: a más densidad, texturas más finas', () => {
+  const count = (S) => {
+    const pc = new PixelCanvas(48, 60, 24, 30, S);
+    let lines = 0;
+    // línea de 0,5 píxeles lógicos de grosor cada 2 de altura
+    pc.surface([[0, 1, 0], [1, 1, 0], [1, 1, 10], [0, 1, 10]], (u, v, z) => { if (z % 2 < 0.5) lines++; return RED; });
+    return lines;
+  };
+  assert.ok(count(4) > count(1) * 8, 'más muestras por línea con S=4');
+});

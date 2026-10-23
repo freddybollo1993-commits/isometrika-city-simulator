@@ -44,3 +44,15 @@ test('diseño, lote, nivel, noche, nieve y estados cambian el dibujo', () => {
   assert.ok(!same(base.body, shop({ closed: true }).body), 'cerrada');
   assert.ok(!same(base.body, shop({ suspended: true }).body), 'sin servicio');
 });
+
+test('las tiendas se dibujan en las tres densidades y Ultra añade el nombre en el rótulo', () => {
+  for (let kind = 0; kind < 4; kind++) {
+    const a = shop({ kind, level: 2, S: 1 });
+    const b = shop({ kind, level: 2, S: 2 });
+    const c = shop({ kind, level: 2, S: 4 });
+    assert.equal(c.comp.pw, a.comp.pw * 4);
+    assert.equal(b.body.topRow(), a.body.topRow());
+    assert.equal(c.body.topRow(), a.body.topRow());
+    assert.ok(!same(shop({ kind, level: 2, S: 4 }).body, shop({ kind: (kind + 1) % 4, level: 2, S: 4 }).body));
+  }
+});
