@@ -146,7 +146,16 @@ export class SettingsHub {
       .map((v) => `<button data-action="detail" data-v="${v}" class="${detail === v ? 'on' : ''}">${DETAIL_NAMES[v]}</button>`)
       .join('');
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const gpu = !(this.game.renderer && this.game.renderer.constructor.name === 'Renderer'); // Renderer = Canvas 2D de respaldo
+    const engineName = this.game.renderer ? this.game.renderer.constructor.name : '';
+    const gpu = engineName !== 'Renderer'; // Renderer = Canvas 2D de respaldo
+    const engineLabel = engineName === 'PixiRenderer' ? 'GPU (PixiJS)' : engineName === 'Renderer' ? 'compatible (Canvas, dibujo antiguo)' : 'GPU (iniciando…)';
+    let recentErrors = '';
+    try {
+      const list = JSON.parse(sessionStorage.getItem('isometrica_errors') || '[]');
+      if (list.length) recentErrors = `<p class="st-note">Errores recientes: ${list.map((t) => t.replace(/</g, '&lt;')).join(' | ')}</p>`;
+    } catch (e) {
+      // sin almacenamiento de sesión
+    }
 
     this.root.innerHTML = `
       <div class="st-top">
@@ -166,8 +175,9 @@ export class SettingsHub {
           </div>
           <p class="st-note">${detail === 4 ? 'Ultra usa mucha memoria y puede dar tirones en móviles modestos. ' : ''}El detalle real sube al acercar el zoom.${benchNote}</p>
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
-          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas, dibujo antiguo)'} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
+          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${engineLabel} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
           ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
+          ${recentErrors}
           ${gpu ? '' : `<p class="st-note">⚠️ Estás en el motor de respaldo, que no usa el pixel art nuevo. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
         </div>
         <div class="st-col st-actions">
@@ -212,6 +222,7 @@ export class SettingsHub {
       return;
     } else if (action === 'detail') {
       Preferences.set('detail', parseInt(btn.dataset.v, 10));
+      game.handleResize(); // el detalle también fija la resolución de dibujo
     } else if (action === 'detail-test') {
       if (this.benchRunning) return;
       this.benchRunning = true;
@@ -219,6 +230,7 @@ export class SettingsHub {
       setTimeout(() => {
         this.benchResult = benchmarkDetail();
         Preferences.set('detail', this.benchResult.best);
+        this.game.handleResize();
         this.benchRunning = false;
         ui.showToast(`⏱ Detalle gráfico recomendado y aplicado: ${DETAIL_NAMES[this.benchResult.best]}`);
         this.render();

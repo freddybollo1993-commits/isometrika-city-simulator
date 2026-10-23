@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './game/config.js';
+import { Preferences } from './game/preferences.js';
 import { Camera } from './engine/camera.js';
 import { Renderer } from './engine/renderer.js';
 import { IsoMath } from './engine/iso.js';
@@ -23,6 +24,20 @@ import { setupInitialTown } from './game/initial-town.js';
 
 // Densidad de píxeles máxima del lienzo (ver viewportSize)
 const MAX_RENDER_DPR = 1.5;
+const DPR_BY_DETAIL = { 1: 1.5, 2: 2, 4: 3 }; // con más detalle gráfico se dibuja a más resolución real (píxel de arte nítido)
+
+/** Guarda los últimos errores en la sesión para que Ajustes los muestre (diagnóstico desde el móvil). */
+function recordError(text) {
+  try {
+    const list = JSON.parse(sessionStorage.getItem('isometrica_errors') || '[]');
+    list.push(String(text).slice(0, 240));
+    sessionStorage.setItem('isometrica_errors', JSON.stringify(list.slice(-5)));
+  } catch (e) {
+    // sin almacenamiento de sesión
+  }
+}
+window.addEventListener('error', (e) => recordError(`${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
+window.addEventListener('unhandledrejection', (e) => recordError(`promesa: ${(e.reason && (e.reason.message || e.reason)) || e.reason}`));
 // Pulsación larga sobre el fantasma para pasar a construcción por área
 const AREA_PRESS_MS = 450;
 const AREA_PRESS_SLOP_PX = 10;
@@ -232,7 +247,7 @@ export class Game {
     return {
       w: window.innerWidth,
       h: window.innerHeight,
-      dpr: Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR),
+      dpr: Math.min(window.devicePixelRatio || 1, DPR_BY_DETAIL[Preferences.get('detail')] || ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : MAX_RENDER_DPR)),
     };
   }
 
@@ -922,14 +937,30 @@ export class Game {
       const season = this.simulation.season;
       this.renderer.grassPalette = (season && season.grassTint) || null;
 
-      this.renderer.render(
-        this.grid,
-        this.camera,
-        this.hoverTile,
-        this.ghostState,
-        this.disasters,
-        dayProgress
-      );
+      try {
+        this.renderer.render(
+          this.grid,
+          this.camera,
+          this.hoverTile,
+          this.ghostState,
+          this.disasters,
+          dayProgress
+        );
+        this._renderFails = 0;
+      } catch (err) {
+        // Un fallo de dibujo no debe parar el juego (antes dejaba el mapa en blanco para siempre)
+        recordError(`dibujo: ${err && (err.stack || err.message) || err}`);
+        console.error('Error al dibujar:', err);
+        this._renderFails = (this._renderFails || 0) + 1;
+        if (this._renderFails >= 30 && this.renderer.constructor.name === 'PixiRenderer') {
+          // El motor GPU falla de forma sostenida: se pasa al motor de respaldo con el aviso del motivo
+          try { sessionStorage.setItem('isometrica_gpu_error', `dibujo: ${String(err && (err.message || err)).slice(0, 200)}`); } catch (e) { /* nada */ }
+          const url = new URL(window.location.href);
+          url.searchParams.set('canvas2d', '1');
+          window.location.replace(url.toString());
+          return;
+        }
+      }
     }
 
     requestAnimationFrame(this.loop);
