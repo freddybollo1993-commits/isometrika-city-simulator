@@ -14,12 +14,12 @@ const LEGACY_GPU_KEY = 'isometrica_gpu_failed'; // versiones anteriores: un úni
 
 /** Motores que se pueden elegir en Ajustes. */
 export const ENGINES = [
-  { id: 'auto', label: 'Automático (recomendado)' },
-  { id: 'webgl2', label: 'WebGL 2' },
-  { id: 'webgl2-safe', label: 'WebGL 2 seguro (lotes pequeños)' },
-  { id: 'webgl1', label: 'WebGL 1 (más compatible)' },
-  { id: 'webgpu', label: 'WebGPU (Vulkan en Android)' },
-  { id: 'canvas', label: 'Compatible (sin GPU)' },
+  { id: 'auto', label: 'Automático (recomendado)', short: 'Automático' },
+  { id: 'webgl2', label: 'WebGL 2', short: 'WebGL 2' },
+  { id: 'webgl2-safe', label: 'WebGL 2 seguro (lotes pequeños)', short: 'WebGL 2 seguro' },
+  { id: 'webgl1', label: 'WebGL 1 (más compatible)', short: 'WebGL 1' },
+  { id: 'webgpu', label: 'WebGPU (Vulkan en Android)', short: 'WebGPU' },
+  { id: 'canvas', label: 'Compatible (sin GPU)', short: 'Compatible' },
 ];
 export const engineName = (id) => (ENGINES.find((e) => e.id === id) || ENGINES[0]).label;
 

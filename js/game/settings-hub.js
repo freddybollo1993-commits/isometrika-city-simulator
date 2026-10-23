@@ -84,7 +84,6 @@ export class SettingsHub {
       root.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
     });
     root.addEventListener('click', (e) => this._onClick(e));
-    root.addEventListener('change', (e) => this._onChange(e));
     document.body.appendChild(root);
     this.root = root;
     this.render();
@@ -157,7 +156,11 @@ export class SettingsHub {
     const engineLabel = rendererClass === 'PixiRenderer' ? `GPU (${r0.engineLabel ? r0.engineLabel() : 'PixiJS'})` : rendererClass === 'Renderer' ? 'compatible (Canvas)' : 'GPU (iniciando…)';
     const choice = engineChoice();
     const results = engineResults();
-    const engineOptions = ENGINES.map((e) => `<option value="${e.id}"${e.id === choice ? ' selected' : ''}>${e.label}</option>`).join('');
+    const mark = (id) => {
+      const res = results[resolveEngine(id)];
+      return id === 'canvas' || !res ? '' : res.ok ? ' ✅' : ' ❌';
+    };
+    const engineButtons = ENGINES.map((e) => `<button data-action="engine" data-v="${e.id}" class="${e.id === choice ? 'on' : ''}">${e.short}${mark(e.id)}</button>`).join('');
     const resultLines = ENGINES.filter((e) => e.id !== 'auto' && e.id !== 'canvas').map((e) => {
       const res = results[e.id];
       const txt = !res ? 'sin probar' : res.ok ? `✅ ${res.info}` : `❌ falló (${res.info})`;
@@ -193,7 +196,7 @@ export class SettingsHub {
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
           <div class="st-row">
             <div class="st-lab">Motor gráfico</div>
-            <select class="st-select" data-action="engine">${engineOptions}</select>
+            <div class="st-engines">${engineButtons}</div>
           </div>
           <p class="st-note">Al cambiarlo el juego se guarda y se recarga. ${choice === 'auto' ? `Automático usa ${engineName(resolveEngine('auto'))}. ` : ''}Si un motor falla, el juego vuelve solo al compatible y lo anota aquí. Resultados en este dispositivo: ${resultLines.replace(/</g, '&lt;')}</p>
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${engineLabel} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
@@ -217,10 +220,7 @@ export class SettingsHub {
   }
 
   /** Cambio de motor gráfico: se guarda la partida y se recarga con el motor nuevo. */
-  _onChange(e) {
-    const el = e.target;
-    if (!el || el.dataset.action !== 'engine') return;
-    const choice = el.value;
+  _selectEngine(choice) {
     Preferences.set('engine', choice);
     clearGpuFailure(resolveEngine(choice)); // elegirlo de nuevo es reintentarlo
     this._reloadWithoutFallback();
@@ -252,6 +252,9 @@ export class SettingsHub {
       Preferences.set('xray', yes);
     } else if (action === 'diag') {
       this.showDiag = !this.showDiag;
+    } else if (action === 'engine') {
+      this._selectEngine(btn.dataset.v);
+      return;
     } else if (action === 'gpu') {
       const choice = engineChoice() === 'canvas' ? 'auto' : engineChoice();
       Preferences.set('engine', choice);
