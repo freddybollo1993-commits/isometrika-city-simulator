@@ -22,7 +22,7 @@ test('los puestos de comida salen con los 4 diseños y el diseño es estable', (
   assert.ok(grid.placeBuilding(o.gx, o.gy + 3, 'residential_tiny'));
   const v = grid.getTile(o.gx, o.gy + 3).building.variant;
   assert.ok(v >= 0 && v < CONFIG.BUILDINGS.residential_tiny.variants);
-  const cp = CONFIG.BUILDINGS.service_police;
+  const cp = CONFIG.BUILDINGS.service_school;
   assert.equal(cp.variants, undefined, 'sin diseños, sin campo');
 });
 

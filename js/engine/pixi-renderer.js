@@ -322,7 +322,7 @@ export class PixiRenderer {
     const outage = def.category !== 'utility' && def.id !== 'road' && sim && (sim.hasPowerOutage || sim.hasWaterShortage)
       ? `${sim.hasPowerOutage ? 'p' : ''}${sim.hasWaterShortage ? 'w' : ''}`
       : '';
-    const animated = ANIMATED_FLAGS.some((f) => def[f]);
+    const animated = !PIXEL_HOUSES.has(def.id) && ANIMATED_FLAGS.some((f) => def[f]);
     const frame = animated ? Math.floor(this.animationTick / ANIM_STEP) % ANIM_FRAMES : 0;
     return [
       building.id, level, (building.rotation || 0) % 4, building.size || def.size || 1,

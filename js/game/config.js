@@ -1283,6 +1283,21 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  service_police: [
+    { name: 'Comisaría moderna', walls: ['#f8fafc', '#e2e8f0', '#2563eb'] },
+    { name: 'Comisaría clásica', walls: ['#d6cfc4', '#b8ab95', '#8f8371'] },
+    { name: 'Comisaría de barrio', walls: ['#c47a64', '#a3533f', '#1e3a8a'] },
+  ],
+  service_fire: [
+    { name: 'Parque de ladrillo', walls: ['#c46a55', '#a3402f', '#7c2d22'] },
+    { name: 'Parque moderno', walls: ['#f1f5f9', '#cbd5e1', '#facc15'] },
+    { name: 'Parque de hormigón', walls: ['#e5e7eb', '#cfd4da', '#dc2626'] },
+  ],
+  service_hospital: [
+    { name: 'Hospital moderno', walls: ['#ffffff', '#f4f6f8', '#16a34a'] },
+    { name: 'Hospital histórico', walls: ['#c47a64', '#a35a43', '#7c3d2c'] },
+    { name: 'Hospital de cristal', walls: ['#eff6ff', '#bfdbfe', '#60a5fa'] },
+  ],
   farm_organic: [
     { name: 'Huerta', walls: ['#bef264', '#a3e635', '#65a30d'] },
     { name: 'Frutales y viñedo', walls: ['#d9f99d', '#86a83a', '#5b7a2a'] },

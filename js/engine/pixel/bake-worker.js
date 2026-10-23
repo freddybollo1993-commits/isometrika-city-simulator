@@ -21,10 +21,14 @@ import { renderQuarry } from './quarry-art.js';
 import { renderComponents } from './components-art.js';
 import { renderMaintenance } from './maintenance-art.js';
 import { renderFarm } from './farm-art.js';
+import { renderPolice } from './police-art.js';
+import { renderFire } from './fire-art.js';
+import { renderHospital } from './hospital-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
   stall: renderStall, boulevard: renderBoulevard, office: renderOffice, factory: renderFactory, tech: renderTech, agro: renderAgro, logistics: renderLogistics, quarry: renderQuarry, components: renderComponents, maintenance: renderMaintenance, farm: renderFarm,
+  police: renderPolice, fire: renderFire, hospital: renderHospital,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
