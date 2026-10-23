@@ -13,10 +13,11 @@ import { renderMarket } from './market-art.js';
 import { renderStall } from './stall-art.js';
 import { renderBoulevard } from './boulevard-art.js';
 import { renderOffice } from './office-art.js';
+import { renderFactory } from './factory-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
-  stall: renderStall, boulevard: renderBoulevard, office: renderOffice,
+  stall: renderStall, boulevard: renderBoulevard, office: renderOffice, factory: renderFactory,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });

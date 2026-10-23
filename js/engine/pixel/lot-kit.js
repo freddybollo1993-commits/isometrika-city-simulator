@@ -34,6 +34,7 @@ export const FONT = {
   I: '111010010010111', K: '101101110101101', L: '100100100100111', N: '101111111111101',
   O: '111101101101111', P: '111101111100100', R: '110101110101101', S: '011100010001110',
   T: '111010010010010', U: '101101101101111', M: '101111111101101', D: '110101101101110',
+  B: '110101110101110', G: '011100101101011',
 };
 export const textWidth = (name, cell) => name.length * 4 * cell - cell;
 /** ¿El punto (a, zt) cae en un trazo del texto? a: posición a lo largo del rótulo; zt: distancia desde arriba. */
