@@ -1278,6 +1278,11 @@ export const DESIGNS = {
     { name: 'Laboratorio azul', walls: ['#dbeafe', '#60a5fa', '#2563eb'] },
     { name: 'Laboratorio violeta', walls: ['#ede9fe', '#a78bfa', '#7c3aed'] },
   ],
+  industrial_agro: [
+    { name: 'Molino de grano', walls: ['#f5ecd7', '#e6d6b0', '#c9b98f'] },
+    { name: 'Lácteos y frío', walls: ['#f8fafc', '#e2e8f0', '#93c5fd'] },
+    { name: 'Empacadora de fruta', walls: ['#fca5a5', '#b91c1c', '#7f1d1d'] },
+  ],
 };
 
 /** Diseño de un ejemplar (o null si el edificio no tiene varios). */
