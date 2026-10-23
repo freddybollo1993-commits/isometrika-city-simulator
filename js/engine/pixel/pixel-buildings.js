@@ -10,9 +10,10 @@ import { hash01 } from './pixel-canvas.js';
 import { renderHouse } from './house-art.js';
 import { renderShop } from './shop-art.js';
 import { renderSupermarket } from './super-art.js';
+import { renderMarket } from './market-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
-export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super']);
+export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -74,6 +75,9 @@ export function pixelJob(building, def, dayProgress, look, S) {
     season: look,
     seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
   };
+  if (def.id === 'commercial_market') {
+    return { kind: 'market', params: { ...common, kind: variant, accent: design.accent, accent2: design.accent2 } };
+  }
   if (def.id === 'commercial_super') {
     return { kind: 'super', params: { ...common, kind: variant, walls: design.walls, accent: design.accent } };
   }
@@ -91,5 +95,6 @@ export function pixelJob(building, def, dayProgress, look, S) {
 
 export function renderPixelJob(job) {
   if (job.kind === 'super') return renderSupermarket(job.params);
+  if (job.kind === 'market') return renderMarket(job.params);
   return job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
 }
