@@ -212,8 +212,8 @@ export function planArea({ grid, sim, buildingId, rect, budget = null }) {
     if (!d.variants) continue;
     const seq = designSequence(d, list.length, x0 * 977 + y0 * 131);
     list.forEach((it, i) => { it.variant = seq[i]; });
-    // Las viviendas tienen además 4 diseños de lote (jardín, entrada de coches, patio, huerto)
-    if (id === 'residential_tiny' || id === 'residential_low') {
+    // Viviendas y tiendas tienen además 4 diseños de lote cada una
+    if (id === 'residential_tiny' || id === 'residential_low' || id === 'commercial_store') {
       const lots = designSequence({ variants: 4 }, list.length, x0 * 131 + y0 * 977 + 7);
       list.forEach((it, i) => { it.lot = lots[i]; });
     }

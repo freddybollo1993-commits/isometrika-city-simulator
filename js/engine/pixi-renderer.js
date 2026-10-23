@@ -15,6 +15,7 @@ import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pix
 import { CONFIG, variantAt, designOf } from '../game/config.js';
 import { seasonLook, seasonPhase } from '../game/calendar.js';
 import { renderHouse } from './pixel/house-art.js';
+import { renderShop } from './pixel/shop-art.js';
 import { hash01 } from './pixel/pixel-canvas.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
@@ -30,7 +31,7 @@ const MAX_PARTICLES = 160;
 const BAKES_PER_FRAME = 2; // Horneados nuevos permitidos por fotograma (evita tirones)
 
 // Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural
-const PIXEL_HOUSES = new Set(['residential_tiny', 'residential_low']);
+const PIXEL_HOUSES = new Set(['residential_tiny', 'residential_low', 'commercial_store']);
 
 // Rasgos de edificio que se animan con el reloj (radar, sirenas, paneles, turbinas...)
 const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'siren', 'seismicRadar'];
@@ -252,7 +253,21 @@ export class PixiRenderer {
   _bakePixelHouse(building, def, dayProgress) {
     const level = building.level || 1;
     const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
-    const out = renderHouse({
+    const design = designOf(def, variant);
+    const out = def.id === 'commercial_store' ? renderShop({
+      kind: variant,
+      walls: design.walls || [def.colorTop, def.colorLeft, def.colorRight],
+      accent: design.accent,
+      lot: this._lotOf(building),
+      level,
+      rotation: building.rotation || 0,
+      night: dayProgress >= 0.78,
+      wear: building.wear || 0,
+      closed: !!building.closed,
+      suspended: !!building.suspended,
+      season: this.qLook,
+      seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
+    }) : renderHouse({
       w: def.size,
       design: designOf(def, variant),
       lot: this._lotOf(building),
