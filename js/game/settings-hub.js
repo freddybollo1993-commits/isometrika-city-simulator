@@ -9,7 +9,7 @@ import { renderHouse } from '../engine/pixel/house-art.js';
 import { renderShop } from '../engine/pixel/shop-art.js';
 import { CONFIG, designOf } from './config.js';
 import { APP_BUILD } from '../version.js';
-import { recentErrors, gpuFailure, clearGpuFailure } from './diagnostics.js';
+import { recentErrors, gpuFailure, clearGpuFailure, ENGINES, engineName, engineChoice, resolveEngine, engineResults, getCurrentEngine } from './diagnostics.js';
 
 const DETAIL_NAMES = { 1: 'Estándar', 2: 'Alto', 4: 'Ultra' };
 const DETAIL_DEFAULT = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -84,6 +84,7 @@ export class SettingsHub {
       root.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
     });
     root.addEventListener('click', (e) => this._onClick(e));
+    root.addEventListener('change', (e) => this._onChange(e));
     document.body.appendChild(root);
     this.root = root;
     this.render();
@@ -134,8 +135,9 @@ export class SettingsHub {
     let canvasWhy = 'Motivo desconocido.';
     try {
       const err = sessionStorage.getItem('isometrica_gpu_error');
-      const failed = gpuFailure();
-      if (failed) canvasWhy = `La GPU de este móvil falló (${failed.info}), así que el juego arranca con este motor. Puedes reintentar cuando quieras.`;
+      const failed = gpuFailure(getCurrentEngine());
+      if (engineChoice() === 'canvas') canvasWhy = 'Lo elegiste en «Motor gráfico».';
+      else if (failed) canvasWhy = `El motor ${engineName(getCurrentEngine())} falló en este dispositivo (${failed.info}), así que el juego arranca con este. Elige otro motor o reinténtalo.`;
       else if (err) canvasWhy = `Error de la GPU: ${err}`;
       else if (new URLSearchParams(window.location.search).has('canvas2d')) canvasWhy = 'La dirección contiene ?canvas2d, que fuerza este modo.';
       else canvasWhy = 'El navegador no ofrece WebGL ahora mismo. Tras un fallo de la GPU, Chrome lo bloquea para la página hasta que se cierra del todo (Ajustes del móvil → Aplicaciones → Chrome → Forzar detención).';
@@ -149,16 +151,25 @@ export class SettingsHub {
       .map((v) => `<button data-action="detail" data-v="${v}" class="${detail === v ? 'on' : ''}">${DETAIL_NAMES[v]}</button>`)
       .join('');
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const engineName = this.game.renderer ? this.game.renderer.constructor.name : '';
-    const gpu = engineName !== 'Renderer'; // Renderer = Canvas 2D de respaldo
-    const engineLabel = engineName === 'PixiRenderer' ? 'GPU (PixiJS)' : engineName === 'Renderer' ? 'compatible (Canvas)' : 'GPU (iniciando…)';
+    const rendererClass = this.game.renderer ? this.game.renderer.constructor.name : '';
+    const gpu = rendererClass !== 'Renderer'; // Renderer = Canvas 2D de respaldo
+    const r0 = this.game.renderer;
+    const engineLabel = rendererClass === 'PixiRenderer' ? `GPU (${r0.engineLabel ? r0.engineLabel() : 'PixiJS'})` : rendererClass === 'Renderer' ? 'compatible (Canvas)' : 'GPU (iniciando…)';
+    const choice = engineChoice();
+    const results = engineResults();
+    const engineOptions = ENGINES.map((e) => `<option value="${e.id}"${e.id === choice ? ' selected' : ''}>${e.label}</option>`).join('');
+    const resultLines = ENGINES.filter((e) => e.id !== 'auto' && e.id !== 'canvas').map((e) => {
+      const res = results[e.id];
+      const txt = !res ? 'sin probar' : res.ok ? `✅ ${res.info}` : `❌ falló (${res.info})`;
+      return `${e.label}: ${txt}`;
+    }).join(' · ');
     const errs = recentErrors();
     const errorNote = errs.length ? `<p class="st-note">Errores recientes: ${errs.map((t) => t.replace(/</g, '&lt;')).join(' | ')}</p>` : '';
     let diagNote = '';
     if (this.showDiag) {
       const r = this.game.renderer;
       const since = this.game._lastRenderAt ? `último dibujo hace ${((performance.now() - this.game._lastRenderAt) / 1000).toFixed(1)} s` : 'aún no ha dibujado';
-      const info = r && r.diagnostics ? r.diagnostics(this.game.camera) : `motor ${engineName || 'ninguno'}`;
+      const info = r && r.diagnostics ? r.diagnostics(this.game.camera) : `motor ${rendererClass || 'ninguno'}`;
       diagNote = `<p class="st-note">🩺 ${info.replace(/</g, '&lt;')} · ${since} · pantalla ${window.innerWidth}×${window.innerHeight} · DPR ${window.devicePixelRatio}</p>`;
     }
 
@@ -180,13 +191,17 @@ export class SettingsHub {
           </div>
           <p class="st-note">${detail === 4 ? 'Ultra usa mucha memoria y puede dar tirones en móviles modestos. ' : ''}El detalle real sube al acercar el zoom.${benchNote}</p>
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
+          <div class="st-row">
+            <div class="st-lab">Motor gráfico</div>
+            <select class="st-select" data-action="engine">${engineOptions}</select>
+          </div>
+          <p class="st-note">Al cambiarlo el juego se guarda y se recarga. ${choice === 'auto' ? `Automático usa ${engineName(resolveEngine('auto'))}. ` : ''}Si un motor falla, el juego vuelve solo al compatible y lo anota aquí. Resultados en este dispositivo: ${resultLines.replace(/</g, '&lt;')}</p>
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${engineLabel} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
           ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
           ${errorNote}
           <button class="st-btn" data-action="diag">🩺 ${this.showDiag ? 'Ocultar diagnóstico' : 'Diagnóstico del motor'}</button>
           ${diagNote}
-          ${engineName === 'PixiRenderer' ? '<button class="st-btn" data-action="canvas">🐢 Usar motor compatible (si el mapa sale en blanco)</button>' : ''}
-          ${gpu ? '' : `<p class="st-note">ℹ️ Estás en el motor compatible: dibuja el pixel art (hasta el nivel Alto) sin usar la GPU. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
+          ${gpu ? '' : `<p class="st-note">ℹ️ Estás en el motor compatible: dibuja el pixel art (hasta el nivel Alto) sin usar la GPU. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar ${engineName(resolveEngine(choice === 'canvas' ? 'auto' : choice))}</button>`}
         </div>
         <div class="st-col st-actions">
           <button class="st-btn" data-action="center">🎯 Centrar vista</button>
@@ -199,6 +214,24 @@ export class SettingsHub {
           <button class="st-btn st-danger" data-action="reset">⚠️ Nueva ciudad</button>
         </div>
       </div>`;
+  }
+
+  /** Cambio de motor gráfico: se guarda la partida y se recarga con el motor nuevo. */
+  _onChange(e) {
+    const el = e.target;
+    if (!el || el.dataset.action !== 'engine') return;
+    const choice = el.value;
+    Preferences.set('engine', choice);
+    clearGpuFailure(resolveEngine(choice)); // elegirlo de nuevo es reintentarlo
+    this._reloadWithoutFallback();
+  }
+
+  _reloadWithoutFallback() {
+    try { sessionStorage.removeItem('isometrica_gpu_error'); } catch (err) { /* nada */ }
+    this.game.storage.save();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('canvas2d');
+    window.location.replace(url.toString());
   }
 
   _onClick(e) {
@@ -219,19 +252,11 @@ export class SettingsHub {
       Preferences.set('xray', yes);
     } else if (action === 'diag') {
       this.showDiag = !this.showDiag;
-    } else if (action === 'canvas') {
-      game.storage.save();
-      const url = new URL(window.location.href);
-      url.searchParams.set('canvas2d', '1');
-      window.location.replace(url.toString());
-      return;
     } else if (action === 'gpu') {
-      try { sessionStorage.removeItem('isometrica_gpu_error'); } catch (e) { /* nada */ }
-      clearGpuFailure();
-      game.storage.save();
-      const url = new URL(window.location.href);
-      url.searchParams.delete('canvas2d');
-      window.location.replace(url.toString());
+      const choice = engineChoice() === 'canvas' ? 'auto' : engineChoice();
+      Preferences.set('engine', choice);
+      clearGpuFailure(resolveEngine(choice));
+      this._reloadWithoutFallback();
       return;
     } else if (action === 'reload') {
       game.storage.save();

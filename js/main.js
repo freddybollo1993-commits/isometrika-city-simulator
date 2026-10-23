@@ -7,7 +7,7 @@
 
 import { CONFIG } from './game/config.js';
 import { Preferences } from './game/preferences.js';
-import { recordError, markGpuFailed, gpuFailure } from './game/diagnostics.js';
+import { recordError, markGpuFailed, gpuFailure, engineChoice, resolveEngine, setCurrentEngine } from './game/diagnostics.js';
 import { Camera } from './engine/camera.js';
 import { Renderer } from './engine/renderer.js';
 import { IsoMath } from './engine/iso.js';
@@ -206,12 +206,17 @@ export class Game {
    * se recarga la página en modo Canvas 2D (?canvas2d).
    */
   createRenderer() {
-    const forceCanvas = new URLSearchParams(window.location.search).has('canvas2d');
-    if (!forceCanvas && !gpuFailure() && webglSupported()) {
+    // Motor elegido en Ajustes (WebGL 2, WebGL 2 seguro, WebGL 1, WebGPU o compatible); si ese motor ya
+    // falló en este dispositivo, se arranca con el compatible hasta que el jugador lo reintente
+    const engine = resolveEngine(engineChoice());
+    setCurrentEngine(engine);
+    const forceCanvas = engine === 'canvas' || new URLSearchParams(window.location.search).has('canvas2d');
+    const supported = engine === 'webgpu' ? !!navigator.gpu || webglSupported() : webglSupported();
+    if (!forceCanvas && !gpuFailure(engine) && supported) {
       const pending = { grassPalette: null, render() {}, resize() {} };
       import('./engine/pixi-renderer.js')
         .then(async ({ PixiRenderer }) => {
-          const pixi = new PixiRenderer(this.canvas);
+          const pixi = new PixiRenderer(this.canvas, engine);
           const { w, h, dpr } = this.viewportSize();
           await pixi.init(w, h, dpr);
           this.renderer = pixi;

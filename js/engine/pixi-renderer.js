@@ -15,17 +15,15 @@ import { Application, Container, Sprite, Texture, Graphics, Batcher } from '../v
 import { CONFIG, variantAt } from '../game/config.js';
 import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
 import { Preferences } from '../game/preferences.js';
-import { recordError, markGpuFailed } from '../game/diagnostics.js';
+import { recordError, markGpuFailed, setEngineResult } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 
 const BAKE_SCALE = 1.5; // Resolución de las imágenes horneadas (nitidez al hacer zoom)
 const TERRAIN_SCALE = 1.5;
-// Modo seguro de GPU en móviles: en algunas GPU Adreno el sombreador de lotes con 16 texturas y las
-// subidas de texturas muy grandes provocan reinicios de la GPU («GL_GUILTY_CONTEXT_RESET»)
-const MOBILE = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
-const SAFE_GPU = MOBILE && Preferences.get('gpuSafe') !== false;
+// Modo seguro (motor «WebGL 2 seguro»): en algunas GPU Adreno el sombreador de lotes con 16 texturas y
+// las subidas de texturas muy grandes provocan reinicios de la GPU («GL_GUILTY_CONTEXT_RESET»)
 const SAFE_MAX_TEXTURES = 4; // texturas por lote (sombreador más simple)
 const SAFE_TERRAIN_PX = 2048; // ancho máximo de la textura del terreno
 const SYNC_EVERY = 4; // Fotogramas entre sincronizaciones con la cuadrícula (~15 por segundo)
@@ -46,8 +44,11 @@ const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'sire
 const hexToNumber = (hex) => parseInt(String(hex).replace('#', '').slice(0, 6), 16);
 
 export class PixiRenderer {
-  constructor(canvas) {
+  /** @param {string} engine 'webgl2' | 'webgl2-safe' | 'webgl1' | 'webgpu' */
+  constructor(canvas, engine = 'webgl2') {
     this.canvas = canvas;
+    this.engine = engine;
+    this.safe = engine === 'webgl2-safe';
     this.ready = false;
     this.grassPalette = null;
     this.animationTick = 0;
@@ -81,7 +82,7 @@ export class PixiRenderer {
   }
 
   async init(width, height, resolution) {
-    if (SAFE_GPU) Batcher.defaultOptions.maxTextures = SAFE_MAX_TEXTURES;
+    Batcher.defaultOptions.maxTextures = this.safe ? SAFE_MAX_TEXTURES : null;
     this.app = new Application();
     await this.app.init({
       canvas: this.canvas,
@@ -92,24 +93,25 @@ export class PixiRenderer {
       antialias: false,
       background: '#e9eef3',
       autoStart: false, // el bucle de main.js decide cuándo dibujar
-      preference: 'webgl',
+      preference: this.engine === 'webgpu' ? 'webgpu' : 'webgl',
+      webgl: { preferWebGLVersion: this.engine === 'webgl1' ? 1 : 2 },
     });
+    if (this.engine === 'webgpu' && this.app.renderer.name !== 'webgpu') {
+      recordError('WebGPU no está disponible en este navegador: se usa WebGL');
+    }
 
     this._initWorkers();
     // Si el móvil pierde el contexto WebGL el lienzo queda vacío: se anota y, si no vuelve, se pasa al motor de respaldo
     this.contextLostAt = 0;
     this.contextLostCount = 0;
     const cv = this.app.canvas || this.canvas;
-    const startedAt = performance.now();
-    cv.addEventListener('webglcontextlost', () => {
-      this.contextLostAt = performance.now();
-      this.contextLostCount++;
-      // Foto del estado en ese momento, para saber qué lo provocó
-      const r = this.app.renderer;
-      const snap = `a los ${((this.contextLostAt - startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`;
-      markGpuFailed(`contexto WebGL perdido ${snap}`);
-      recordError(`WebGL: contexto perdido a los ${((this.contextLostAt - startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`);
-    });
+    this.startedAt = performance.now();
+    this.okMarked = false;
+    cv.addEventListener('webglcontextlost', () => this._onContextLost('contexto WebGL perdido'));
+    const gpu = this.app.renderer.gpu;
+    if (gpu && gpu.device && gpu.device.lost) {
+      gpu.device.lost.then((info) => this._onContextLost(`dispositivo WebGPU perdido (${(info && (info.message || info.reason)) || 'sin motivo'})`));
+    }
     cv.addEventListener('webglcontextrestored', () => {
       this.contextLostAt = 0;
       recordError('WebGL: contexto recuperado');
@@ -136,6 +138,27 @@ export class PixiRenderer {
     this.ready = true;
   }
 
+  /** Se perdió la GPU: foto del estado en ese momento (para saber qué lo provocó) y paso al motor compatible. */
+  _onContextLost(kind) {
+    if (this.contextLostAt) return;
+    this.contextLostAt = performance.now();
+    this.contextLostCount++;
+    const r = this.app.renderer;
+    const cv = this.app.canvas || this.canvas;
+    const snap = `${kind} a los ${((this.contextLostAt - this.startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`;
+    markGpuFailed(snap);
+    recordError(`${this.engineLabel()}: ${snap}`);
+  }
+
+  /** Nombre del motor en uso, p. ej. «WebGL 2 seguro» o «WebGPU». */
+  engineLabel() {
+    const r = this.app && this.app.renderer;
+    if (!r) return 'GPU';
+    if (r.name === 'webgpu') return 'WebGPU';
+    const v = r.context && r.context.webGLVersion;
+    return `WebGL ${v || ''}${this.safe ? ' seguro' : ''}`.trim();
+  }
+
   /** Estado del motor para la pantalla de diagnóstico de Ajustes. */
   diagnostics(camera) {
     const r = this.app && this.app.renderer;
@@ -146,6 +169,13 @@ export class PixiRenderer {
     let version = '?';
     let lost = '?';
     try {
+      if (!gl && r && r.gpu && r.gpu.adapter) {
+        const info = r.gpu.adapter.info || {};
+        gpu = [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' ') || 'WebGPU';
+        version = 'WebGPU';
+        maxTex = r.gpu.device.limits.maxTextureDimension2D;
+        lost = this.contextLostAt ? 'sí' : 'no';
+      }
       const ext = gl.getExtension('WEBGL_debug_renderer_info');
       gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
       maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
@@ -165,7 +195,7 @@ export class PixiRenderer {
       `terreno ${this.terrainLayer ? this.terrainLayer.children.length : 0} · objetos ${this.objects.size}`,
       `caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB)`,
       `detalle S${this.detailS} (tope ${this.detailMax})`,
-      `modo seguro ${SAFE_GPU ? `sí (lotes de ${SAFE_MAX_TEXTURES} texturas, terreno ≤ ${SAFE_TERRAIN_PX} px)` : 'no'}`,
+      `motor ${this.engineLabel()}${this.safe ? ` (lotes de ${SAFE_MAX_TEXTURES} texturas, terreno ≤ ${SAFE_TERRAIN_PX} px)` : ''}`,
       `trabajadores ${this.workers ? this.workers.length : 0} · pendientes ${this.pending.size}`,
     ].join(' · ');
   }
@@ -229,7 +259,7 @@ export class PixiRenderer {
     this.painter.grassPalette = this.grassPalette;
     this.painter.animationTick = 0;
     // Muchos móviles no admiten texturas de más de 4096 px: se baja la resolución si hace falta
-    const scale = Math.min(TERRAIN_SCALE, (SAFE_GPU ? SAFE_TERRAIN_PX : 4000) / W);
+    const scale = Math.min(TERRAIN_SCALE, (this.safe ? SAFE_TERRAIN_PX : 4000) / W);
     const texture = this._canvasTexture(W, H, scale, (ctx) => {
       ctx.translate(originX, 1);
       for (let gy = 0; gy < size; gy++) {
@@ -947,9 +977,13 @@ export class PixiRenderer {
 
   render(grid, camera, hoverTile, ghostState, disasters, dayProgress = 0) {
     if (!this.ready) return;
+    if (!this.okMarked && !this.contextLostAt && performance.now() - this.startedAt > 60000) {
+      this.okMarked = true;
+      setEngineResult(this.engine, true, `${this.engineLabel()}: 1 min sin fallos`);
+    }
     if (this.contextLostAt && performance.now() - this.contextLostAt > 3000) {
       // El contexto no se recuperó: el bucle principal lo anota y cambia al motor de respaldo
-      throw new Error('WebGL: el contexto se perdió y no se recuperó');
+      throw new Error(`${this.engineLabel()}: la GPU se perdió y no se recuperó`);
     }
     this.frame++;
     this.animationTick += 0.05;

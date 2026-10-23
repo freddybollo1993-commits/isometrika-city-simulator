@@ -1,12 +1,43 @@
 /**
- * DIAGNÓSTICO
+ * DIAGNÓSTICO Y MOTOR GRÁFICO
  * Guarda en la sesión los últimos errores para que Ajustes los muestre: así se pueden diagnosticar
- * fallos desde el móvil, donde no hay consola a mano. También recuerda en el dispositivo si la GPU
- * falló, para arrancar directamente con el motor compatible en vez de dejar el mapa en blanco.
+ * fallos desde el móvil, donde no hay consola a mano. También elige el motor gráfico (el jugador
+ * puede probar varios) y recuerda en el dispositivo cuáles funcionaron y cuáles fallaron, para
+ * arrancar con el motor compatible en vez de dejar el mapa en blanco.
  */
 
+import { Preferences } from './preferences.js';
+
 const KEY = 'isometrica_errors';
-const GPU_KEY = 'isometrica_gpu_failed';
+const ENGINES_KEY = 'isometrica_engines';
+const LEGACY_GPU_KEY = 'isometrica_gpu_failed'; // versiones anteriores: un único fallo de la GPU
+
+/** Motores que se pueden elegir en Ajustes. */
+export const ENGINES = [
+  { id: 'auto', label: 'Automático (recomendado)' },
+  { id: 'webgl2', label: 'WebGL 2' },
+  { id: 'webgl2-safe', label: 'WebGL 2 seguro (lotes pequeños)' },
+  { id: 'webgl1', label: 'WebGL 1 (más compatible)' },
+  { id: 'webgpu', label: 'WebGPU (Vulkan en Android)' },
+  { id: 'canvas', label: 'Compatible (sin GPU)' },
+];
+export const engineName = (id) => (ENGINES.find((e) => e.id === id) || ENGINES[0]).label;
+
+export const isMobile = () => typeof navigator !== 'undefined'
+  && (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+
+/** Motor elegido por el jugador ('auto' si no eligió). */
+export function engineChoice() {
+  const v = Preferences.get('engine');
+  return ENGINES.some((e) => e.id === v) ? v : 'auto';
+}
+
+/** Motor concreto que corresponde a una elección ('auto' → WebGL 2 seguro en móviles). */
+export const resolveEngine = (choice) => (choice === 'auto' ? (isMobile() ? 'webgl2-safe' : 'webgl2') : choice);
+
+let currentEngine = 'webgl2';
+export const setCurrentEngine = (id) => { currentEngine = id; };
+export const getCurrentEngine = () => currentEngine;
 
 /** Anota un error (solo su primera línea y sin repetir el último). */
 export function recordError(text) {
@@ -29,26 +60,43 @@ export function recentErrors() {
   }
 }
 
-/** La GPU de este dispositivo falló: se recuerda (con el estado de ese momento) entre sesiones. */
-export function markGpuFailed(info) {
+/** Resultado de cada motor en este dispositivo: { id: { ok, info, at } }. */
+export function engineResults() {
   try {
-    localStorage.setItem(GPU_KEY, JSON.stringify({ at: Date.now(), info: String(info).slice(0, 300) }));
+    const map = JSON.parse(localStorage.getItem(ENGINES_KEY) || '{}');
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_GPU_KEY) || 'null');
+    if (legacy && !map.webgl2) map.webgl2 = { ok: false, info: legacy.info, at: legacy.at };
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+export function setEngineResult(id, ok, info) {
+  try {
+    const map = engineResults();
+    map[id] = { ok, info: String(info).slice(0, 300), at: Date.now() };
+    localStorage.setItem(ENGINES_KEY, JSON.stringify(map));
+    localStorage.removeItem(LEGACY_GPU_KEY);
   } catch (e) {
     // sin almacenamiento
   }
 }
 
-export function gpuFailure() {
-  try {
-    return JSON.parse(localStorage.getItem(GPU_KEY) || 'null');
-  } catch (e) {
-    return null;
-  }
+/** La GPU falló con el motor en uso: se recuerda (con el estado de ese momento) entre sesiones. */
+export const markGpuFailed = (info) => setEngineResult(currentEngine, false, info);
+
+export function gpuFailure(id = currentEngine) {
+  const r = engineResults()[id];
+  return r && !r.ok ? r : null;
 }
 
-export function clearGpuFailure() {
+export function clearGpuFailure(id = currentEngine) {
   try {
-    localStorage.removeItem(GPU_KEY);
+    const map = engineResults();
+    delete map[id];
+    localStorage.setItem(ENGINES_KEY, JSON.stringify(map));
+    localStorage.removeItem(LEGACY_GPU_KEY);
   } catch (e) {
     // sin almacenamiento
   }

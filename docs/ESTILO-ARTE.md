@@ -241,3 +241,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
   hilo principal con presupuesto de tiempo). El módulo común es `pixel/pixel-buildings.js`.
 - El motor GPU no usa suavizado de bordes (antialias) ni ImageBitmap: los trabajadores devuelven búferes RGBA.
   Si el móvil pierde el contexto WebGL, se anota una foto del estado y a los 3 s se pasa al motor compatible.
+- **Motor gráfico** elegible en Ajustes: Automático (WebGL 2 seguro en móviles, WebGL 2 en escritorio), WebGL 2,
+  WebGL 2 seguro (lotes de 4 texturas y terreno ≤ 2048 px), WebGL 1, WebGPU (Vulkan en Android) y Compatible
+  (Canvas 2D). Cada motor anota en el dispositivo si funcionó (1 min sin fallos) o falló (con la foto del
+  momento); si el elegido falló, se arranca con el compatible hasta que se reintente.
