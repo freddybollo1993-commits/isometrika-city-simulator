@@ -11,8 +11,9 @@ import { renderShop } from './shop-art.js';
 import { renderSupermarket } from './super-art.js';
 import { renderMarket } from './market-art.js';
 import { renderStall } from './stall-art.js';
+import { renderBoulevard } from './boulevard-art.js';
 
-const RENDER = { house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket, stall: renderStall };
+const RENDER = { house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket, stall: renderStall, boulevard: renderBoulevard };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
 
