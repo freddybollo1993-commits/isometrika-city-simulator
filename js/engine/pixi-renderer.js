@@ -15,6 +15,7 @@ import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pix
 import { CONFIG, variantAt } from '../game/config.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
+import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 
 const BAKE_SCALE = 1.5; // Resolución de las imágenes horneadas (nitidez al hacer zoom)
 const TERRAIN_SCALE = 1.5;
@@ -404,6 +405,29 @@ export class PixiRenderer {
   }
 
   // ---------------------------------------------------------------------------
+  // Transparencia de los edificios que tapan (ver occlusion.js)
+  // ---------------------------------------------------------------------------
+
+  _updateFadeTargets(grid) {
+    let fades = null;
+    if (occlusionEnabled()) {
+      const { buildings, targets } = gatherOcclusion(grid, window.gameInstance);
+      fades = computeFades(buildings, targets);
+    }
+    for (const [key, obj] of this.objects) obj.fadeTarget = fades && fades.has(key) ? FADE.ALPHA : 1;
+  }
+
+  /** Acerca el alfa de cada edificio a su objetivo, un poco por fotograma. */
+  _applyFades() {
+    for (const obj of this.objects.values()) {
+      const target = obj.fadeTarget === undefined ? 1 : obj.fadeTarget;
+      const a = obj.sprite.alpha;
+      if (a === target) continue;
+      obj.sprite.alpha = Math.abs(a - target) < 0.01 ? target : a + (target - a) * FADE.SPEED;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Capas dinámicas
   // ---------------------------------------------------------------------------
 
@@ -675,6 +699,8 @@ export class PixiRenderer {
     }
 
     if (gridChanged || this.frame % SYNC_EVERY === 0) this._syncObjects(grid, dayProgress);
+    if (gridChanged || this.frame % (SYNC_EVERY * 2) === 0) this._updateFadeTargets(grid);
+    this._applyFades();
     this._drawEffects();
     this._drawGhost(grid, ghostState);
     this._drawVehicles(grid);

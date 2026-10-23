@@ -6,6 +6,7 @@
  */
 
 import { CONFIG, variantAt, buildingHeight } from '../game/config.js';
+import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 import { IsoMath } from './iso.js';
 
 export class Renderer {
@@ -62,6 +63,21 @@ export class Renderer {
     }
     drawables.sort((a, b) => a.depth - b.depth);
 
+    // Transparencia de los edificios que tapan: objetivo cada pocos fotogramas, suavizado en cada uno
+    this._fadeFrame = (this._fadeFrame || 0) + 1;
+    this._fadeAlpha = this._fadeAlpha || new Map();
+    if (this._fadeFrame % 8 === 1) {
+      this._fadeSet = occlusionEnabled() ? computeFades(...Object.values(gatherOcclusion(grid, window.gameInstance))) : new Set();
+    }
+    const fadeNow = this._fadeSet || new Set();
+    for (const key of new Set([...this._fadeAlpha.keys(), ...fadeNow])) {
+      const cur = this._fadeAlpha.has(key) ? this._fadeAlpha.get(key) : 1;
+      const target = fadeNow.has(key) ? FADE.ALPHA : 1;
+      const next = Math.abs(cur - target) < 0.01 ? target : cur + (target - cur) * FADE.SPEED;
+      if (next === 1) this._fadeAlpha.delete(key);
+      else this._fadeAlpha.set(key, next);
+    }
+
     for (const { gx, gy } of drawables) {
       {
         const tile = grid.tiles[gy][gx];
@@ -88,7 +104,13 @@ export class Renderer {
             ctx.fillText('⏸️', iso.x, iso.y - bH - 10);
             ctx.restore();
           } else {
+            const fade = this._fadeAlpha.get(`b${gx},${gy}`);
+            if (fade !== undefined) {
+              ctx.save();
+              ctx.globalAlpha = fade;
+            }
             this.renderBuildingInstance(ctx, tile.building, gx, gy);
+            if (fade !== undefined) ctx.restore();
             if (tile.building.construction && window.gameInstance) {
               this.drawConstructionBar(ctx, tile.building, gx, gy, window.gameInstance.constructionProgress(tile.building));
             }

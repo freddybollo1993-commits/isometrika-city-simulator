@@ -79,6 +79,7 @@ export class SettingsHub {
   render() {
     if (!this.root) return;
     const smart = !!Preferences.get('smartDock');
+    const xray = Preferences.get('xray') !== false;
     const sound = !(this.game.audio && this.game.audio.muted);
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
     const gpu = this.game.renderer && this.game.renderer.constructor.name === 'PixiRenderer';
@@ -92,6 +93,7 @@ export class SettingsHub {
       <div class="st-body">
         <div class="st-col">
           ${this._toggle('Modo inteligente', 'smart', smart)}
+          ${this._toggle('Edificios translúcidos', 'xray', xray)}
           ${this._toggle('Sonido', 'sound', sound)}
           ${this._toggle('Pantalla completa', 'fullscreen', full)}
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s</p>
@@ -123,6 +125,8 @@ export class SettingsHub {
     } else if (action === 'smart') {
       Preferences.set('smartDock', yes);
       ui.updateSmartDock();
+    } else if (action === 'xray') {
+      Preferences.set('xray', yes);
     } else if (action === 'sound') {
       if (yes === !!game.audio.muted) game.audio.toggleMute();
     } else if (action === 'fullscreen') {
