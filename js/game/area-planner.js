@@ -9,7 +9,7 @@
  * confirmarlo después.
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG, designSequence } from './config.js';
 import { designZone, zoneSeed, ZONE_LIMITS } from './recreation-zone.js';
 
 /** Familia de un edificio: los que pueden sustituirse entre sí al rellenar un área. */
@@ -201,6 +201,17 @@ export function planArea({ grid, sim, buildingId, rect, budget = null }) {
         result.counts[def.id] = (result.counts[def.id] || 0) + 1;
       }
     }
+  }
+
+  // Obra en masa: cada tipo reparte sus diseños sin repetir hasta agotarlos, para que ni dos
+  // casas seguidas se parezcan ni toda la fila sea igual
+  const byId = {};
+  for (const it of result.items) (byId[it.id] = byId[it.id] || []).push(it);
+  for (const [id, list] of Object.entries(byId)) {
+    const d = CONFIG.BUILDINGS[id];
+    if (!d.variants) continue;
+    const seq = designSequence(d, list.length, x0 * 977 + y0 * 131);
+    list.forEach((it, i) => { it.variant = seq[i]; });
   }
   return result;
 }

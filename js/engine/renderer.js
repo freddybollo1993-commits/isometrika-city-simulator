@@ -5,7 +5,7 @@
  * props arquitectónicos procedurales y partículas.
  */
 
-import { CONFIG, variantAt, buildingHeight } from '../game/config.js';
+import { CONFIG, variantAt, buildingHeight, designOf } from '../game/config.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 import { IsoMath } from './iso.js';
 
@@ -208,7 +208,7 @@ export class Renderer {
       }
       ctx.globalAlpha = 0.6;
       [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach((it) => {
-        const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0, variant: variantAt(CONFIG.BUILDINGS[it.id], it.gx, it.gy) };
+        const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0, variant: it.variant !== undefined ? it.variant : variantAt(CONFIG.BUILDINGS[it.id], it.gx, it.gy) };
         this.renderBuildingInstance(ctx, mock, it.gx, it.gy);
       });
       ctx.restore();
@@ -385,6 +385,257 @@ export class Renderer {
         const s = 0.32 + i * 0.1;
         quad(s, SW * 0.2, s + 0.05, SW * 0.9, 'rgba(255, 255, 255, 0.7)');
       }
+    }
+  }
+
+  /** Aclara (f > 1) u oscurece (f < 1) un color #rrggbb. */
+  shade(hex, f) {
+    const n = parseInt(String(hex).slice(1), 16);
+    const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+    return `rgb(${c(n >> 16)}, ${c((n >> 8) & 255)}, ${c(n & 255)})`;
+  }
+
+  /**
+   * Rectángulo sobre una cara vertical de un bloque. side 'L' = cara izquierda, 'R' = derecha;
+   * u recorre la cara de 0 a 1 y z es la altura en píxeles sobre la base. (x, y) = vértice superior
+   * de la huella; el bloque se dibuja desde ahí.
+   */
+  faceQuad(ctx, x, y, tw, th, side, u0, u1, z0, z1, fill) {
+    const P = (u, z) => (side === 'L'
+      ? [x - tw / 2 + (tw / 2) * u, y + th / 2 + (th / 2) * u - z]
+      : [x + (tw / 2) * u, y + th - (th / 2) * u - z]);
+    const pts = [P(u0, z0), P(u1, z0), P(u1, z1), P(u0, z1)];
+    ctx.beginPath();
+    pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  /** Tejado sobre la cara superior (vértice superior en (x, topY)): hip, steep, gable o flat. */
+  renderRoof(ctx, shape, color, x, topY, tw, th, ph, odd) {
+    const T = [x, topY];
+    const R = [x + tw / 2, topY + th / 2];
+    const B = [x, topY + th];
+    const L = [x - tw / 2, topY + th / 2];
+    const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    const poly = (pts, fill) => {
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    if (shape === 'flat') {
+      poly([T, R, B, L], this.shade(color, 0.85));
+      const c = [x, topY + th / 2];
+      const k = 0.78; // azotea hundida dentro del parapeto
+      poly([[c[0], c[1] - (th / 2) * k], [c[0] + (tw / 2) * k, c[1]], [c[0], c[1] + (th / 2) * k], [c[0] - (tw / 2) * k, c[1]]], this.shade(color, 1.18));
+      return;
+    }
+    if (shape === 'gable') {
+      const M1 = odd ? mid(T, R) : mid(T, L);
+      const M2 = odd ? mid(L, B) : mid(R, B);
+      const M1r = [M1[0], M1[1] - ph];
+      const M2r = [M2[0], M2[1] - ph];
+      if (!odd) {
+        poly([T, R, M2r, M1r], this.shade(color, 0.7));
+        poly([L, B, M2r, M1r], this.shade(color, 1.0));
+        poly([R, B, M2r], this.shade(color, 0.85));
+      } else {
+        poly([T, L, M2r, M1r], this.shade(color, 0.7));
+        poly([R, B, M2r, M1r], this.shade(color, 1.0));
+        poly([L, B, M2r], this.shade(color, 0.85));
+      }
+      return;
+    }
+    // hip (pirámide) y steep (pirámide alta)
+    const A = [x, topY + th / 2 - (shape === 'steep' ? ph * 1.5 : ph)];
+    poly([T, L, A], this.shade(color, 0.72));
+    poly([T, R, A], this.shade(color, 0.78));
+    poly([L, B, A], this.shade(color, 0.92));
+    poly([B, R, A], this.shade(color, 1.05));
+  }
+
+  /**
+   * Casita o casa (1x1 y 2x2): tejado de su diseño, detalle (chimenea, porche, flores, terraza),
+   * una puerta en una cara y una ventana por piso en la otra. Nivel 2: arbolito; nivel 3: paneles.
+   */
+  renderHouseDesign(ctx, def, design, level, rotation, x, y, topY, tw, th) {
+    const d = design || { roof: def.roofColor || '#b45309', shape: 'hip', extra: 'chimney' };
+    const k = tw / 64;
+    const ph = d.shape === 'flat' ? 0 : Math.max(5, tw * 0.17);
+    const odd = rotation % 2 === 1;
+    this.renderRoof(ctx, d.shape, d.roof, x, topY, tw, th, ph, odd);
+
+    const floors = def.floors ? def.floors[Math.min(level, def.floors.length) - 1] : 1;
+    const fp = def.floorPx || 14;
+    const night = this.currentDayProgress >= 0.78;
+    const doorSide = odd ? 'L' : 'R';
+    const winSide = odd ? 'R' : 'L';
+
+    // Puerta y ventanas
+    this.faceQuad(ctx, x, y, tw, th, doorSide, 0.36, 0.62, 0, Math.min(fp * 0.8, 11), '#5b3417');
+    for (let f = 0; f < floors; f++) {
+      const z0 = f * fp + fp * 0.35;
+      const z1 = z0 + fp * 0.42;
+      const lit = night && ((f + (rotation | 0)) % 3 !== 2);
+      const glass = lit ? '#fef08a' : 'rgba(255, 255, 255, 0.5)';
+      this.faceQuad(ctx, x, y, tw, th, winSide, 0.3, 0.52, z0, z1, glass);
+      if (tw >= 56) this.faceQuad(ctx, x, y, tw, th, winSide, 0.66, 0.86, z0, z1, glass);
+      if (f > 0 || floors === 1) this.faceQuad(ctx, x, y, tw, th, doorSide, 0.7, 0.86, z0, z1, glass);
+    }
+
+    // Detalle del diseño
+    const cx = x;
+    const roofY = topY + th / 2;
+    if (d.extra === 'chimney') {
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(cx + tw * 0.14, roofY - ph - 5, Math.max(2, 4 * k), 8);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.25)';
+      ctx.fillRect(cx + tw * 0.14, roofY - ph - 5, Math.max(2, 4 * k), 2);
+    } else if (d.extra === 'porch') {
+      // Alero sobre la puerta y dos postes
+      this.faceQuad(ctx, x, y, tw, th, doorSide, 0.3, 0.68, Math.min(fp * 0.8, 11), Math.min(fp * 0.8, 11) + 2, this.shade(d.roof, 0.9));
+      this.faceQuad(ctx, x, y, tw, th, doorSide, 0.3, 0.33, 0, Math.min(fp * 0.8, 11), '#e7e5e4');
+      this.faceQuad(ctx, x, y, tw, th, doorSide, 0.65, 0.68, 0, Math.min(fp * 0.8, 11), '#e7e5e4');
+    } else if (d.extra === 'flowers') {
+      const base = (u) => (winSide === 'L'
+        ? [x - tw / 2 + (tw / 2) * u, y + th / 2 + (th / 2) * u]
+        : [x + (tw / 2) * u, y + th - (th / 2) * u]);
+      ['#ef4444', '#f9a8d4', '#facc15', '#ef4444', '#c084fc'].forEach((c, i) => {
+        const [fx, fy] = base(0.2 + i * 0.15);
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(fx - 1.2, fy - 2, 2.4, 2);
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(fx, fy - 3, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else if (d.extra === 'terrace') {
+      // Azotea con toldo y plantas
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(cx - tw * 0.16, roofY - 4, tw * 0.1, 3);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(cx + tw * 0.04, roofY - 6, 1.5, 6);
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.02, roofY - 6);
+      ctx.lineTo(cx + tw * 0.14, roofY - 6);
+      ctx.lineTo(cx + tw * 0.06, roofY - 10);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Nivel 2: jardín delantero · Nivel 3: paneles solares en el tejado
+    if (level === 2) {
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(x - tw * 0.3, y + th * 0.9, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (level >= 3) {
+      ctx.fillStyle = '#1e3a8a';
+      ctx.fillRect(cx - tw * 0.2, roofY - ph * 0.7, tw * 0.14, 3);
+      ctx.strokeStyle = '#93c5fd';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(cx - tw * 0.2, roofY - ph * 0.7, tw * 0.14, 3);
+    }
+  }
+
+  /**
+   * Torre de departamentos: ventanas por piso en sus dos caras (franjas, columnas o cuadrícula,
+   * encendidas de noche), puerta y un remate en la azotea (jardín, tanque, helipuerto o antena).
+   */
+  renderTowerDesign(ctx, def, design, level, x, y, topY, tw, th, h) {
+    const d = design || { windows: 'cols', crown: 'garden', glass: '#bae6fd' };
+    const fp = def.floorPx || 12;
+    const floors = def.floors ? def.floors[Math.min(level, def.floors.length) - 1] : Math.round(h / fp);
+    const night = this.currentDayProgress >= 0.78;
+    const color = (f, i, s) => (night && ((f * 7 + i * 13 + s * 5) % 3 !== 0) ? '#fef08a' : d.glass);
+
+    ['L', 'R'].forEach((side, s) => {
+      if (d.windows === 'cols') {
+        const cols = tw >= 96 ? 6 : 4;
+        for (let i = 0; i < cols; i++) {
+          const u0 = 0.08 + i * (0.84 / cols);
+          this.faceQuad(ctx, x, y, tw, th, side, u0, u0 + (0.84 / cols) * 0.5, 5, h - 6, color(i, i, s));
+        }
+      } else {
+        for (let f = 1; f < floors; f++) {
+          const z0 = f * fp + 2;
+          const z1 = z0 + fp * 0.5;
+          if (d.windows === 'bands') {
+            this.faceQuad(ctx, x, y, tw, th, side, 0.06, 0.94, z0, z1, color(f, 0, s));
+          } else {
+            const cols = tw >= 96 ? 5 : 4;
+            for (let i = 0; i < cols; i++) {
+              const u0 = 0.1 + i * (0.8 / cols);
+              this.faceQuad(ctx, x, y, tw, th, side, u0, u0 + (0.8 / cols) * 0.6, z0, z1, color(f, i, s));
+            }
+          }
+        }
+      }
+    });
+    this.faceQuad(ctx, x, y, tw, th, 'R', 0.38, 0.62, 0, fp * 0.8, '#0f172a');
+
+    // Azotea
+    const cx = x;
+    const cy = topY + th / 2;
+    const inset = (k, fill, stroke) => {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - (th / 2) * k);
+      ctx.lineTo(cx + (tw / 2) * k, cy);
+      ctx.lineTo(cx, cy + (th / 2) * k);
+      ctx.lineTo(cx - (tw / 2) * k, cy);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    };
+    const s = tw / 128; // las torres son 4×4 (128 px): dibujos a esa escala
+    if (d.crown === 'garden') {
+      inset(0.6, '#4ade80', '#16a34a');
+      [[-0.18, 0], [0.14, -0.04], [0, 0.1]].forEach(([du, dv], i) => {
+        ctx.beginPath();
+        ctx.arc(cx + du * tw, cy + dv * th - 3, 4 * s + 1, 0, Math.PI * 2);
+        ctx.fillStyle = i % 2 ? '#15803d' : '#22c55e';
+        ctx.fill();
+      });
+    } else if (d.crown === 'tank') {
+      inset(0.7, this.shade(d.walls ? d.walls[0] : '#cbd5e1', 0.9), null);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(cx - 6 * s - 2, cy - 11 * s - 2, 12 * s + 4, 11 * s + 2);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 11 * s - 2, 6 * s + 2, 3 * s + 1, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fill();
+    } else if (d.crown === 'helipad') {
+      inset(0.66, '#475569', '#e2e8f0');
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7 * s + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(cx - 3 * s - 1, cy - 3 * s - 1, 1.6, 6 * s + 2);
+      ctx.fillRect(cx + 2 * s, cy - 3 * s - 1, 1.6, 6 * s + 2);
+      ctx.fillRect(cx - 3 * s - 1, cy - 0.5, 6 * s + 3, 1.4);
+    } else {
+      inset(0.5, this.shade(d.walls ? d.walls[0] : '#cbd5e1', 0.85), null);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - 22 * s - 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy - 22 * s - 6, 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
     }
   }
 
@@ -756,8 +1007,14 @@ export class Renderer {
    * Renderiza una instancia construida de edificio (1x1 o 2x2)
    */
   renderBuildingInstance(ctx, building, gx, gy) {
-    const def = CONFIG.BUILDINGS[building.id];
+    let def = CONFIG.BUILDINGS[building.id];
     if (!def) return;
+
+    // Cada ejemplar con varios diseños (ver DESIGNS en config.js) pinta sus colores propios
+    const design = designOf(def, building.variant !== undefined ? building.variant : variantAt(def, gx, gy));
+    if (design && design.walls) {
+      def = { ...def, colorTop: design.walls[0], colorLeft: design.walls[1], colorRight: design.walls[2], roofColor: design.roof || def.roofColor };
+    }
 
     const bSize = building.size || def.size || 1;
     const tw = CONFIG.CANVAS.TILE_WIDTH * bSize;
@@ -1138,87 +1395,12 @@ export class Renderer {
 
     // DETALLES ESPECÍFICOS SEGÚN ARQUITECTURA Y ROTACIÓN:
 
-    // Casita Mínima (1x1): tejado a cuatro aguas, chimenea, puerta y ventana a escala de la casilla
-    if (def.id === 'residential_tiny') {
-      ctx.beginPath();
-      ctx.moveTo(x, topY - 7);
-      ctx.lineTo(x + tw / 2.2, topY + th / 2);
-      ctx.lineTo(x, topY + th);
-      ctx.lineTo(x - tw / 2.2, topY + th / 2);
-      ctx.closePath();
-      ctx.fillStyle = level === 3 ? '#0284c7' : (level === 2 ? '#fb923c' : def.roofColor);
-      ctx.fill();
-      if (level < 3) {
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(x + 4, topY - 8, 2, 5);
-      } else {
-        ctx.fillStyle = '#1e3a8a'; // panel solar del huerto
-        ctx.fillRect(x - 3, topY - 3, 6, 3);
-      }
-      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#78350f');
-      ctx.fillStyle = this.currentDayProgress >= 0.78 ? '#fef08a' : 'rgba(255, 255, 255, 0.5)';
-      ctx.fillRect(x + (rotation % 2 === 0 ? -9 : 6), y - 8, 3, 3);
-      if (level >= 2) {
-        ctx.fillStyle = '#22c55e';
-        ctx.beginPath();
-        ctx.arc(x - 8, y + 1, 1.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // Casitas y casas (tejado, detalle y ventanas según su diseño) y torres de departamentos
+    if (def.id === 'residential_tiny' || def.id === 'residential_low') {
+      this.renderHouseDesign(ctx, def, design, level, rotation, x, y, topY, tw, th);
     }
-
-    // Casa y Residencia Baja (Evolución de Cabaña Rural a Villa Solar)
-    if (def.id === 'residential_low') {
-      ctx.beginPath();
-      ctx.moveTo(x, topY - 10);
-      ctx.lineTo(x + tw / 2.4, topY + th / 2);
-      ctx.lineTo(x, topY + th);
-      ctx.lineTo(x - tw / 2.4, topY + th / 2);
-      ctx.closePath();
-      ctx.fillStyle = level === 3 ? '#0284c7' : (level === 2 ? '#fb923c' : '#b45309');
-      ctx.fill();
-
-      // Chimenea rústica (Niveles 1 y 2)
-      if (level < 3) {
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(x + (rotation % 2 === 0 ? 6 : -8), topY - 12, 3, 7);
-      } else {
-        // Nivel 3: Micro-panel solar fotovoltaico en el tejado
-        ctx.fillStyle = '#1e3a8a';
-        ctx.fillRect(x - 5, topY - 5, 10, 5);
-        ctx.strokeStyle = '#93c5fd';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - 5, topY - 5, 10, 5);
-      }
-
-      // Detalle de entrada o porche
-      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, level === 1 ? '#78350f' : '#1e293b');
-
-      // Ventana rústica iluminada de noche
-      const isNightLow = this.currentDayProgress >= 0.78;
-      ctx.fillStyle = isNightLow ? '#fef08a' : 'rgba(255, 255, 255, 0.45)';
-      ctx.fillRect(x + (rotation % 2 === 0 ? -10 : 6), y - 10, 4, 4);
-
-      // Nivel 2: Pequeño arbolito / jardín frontal
-      if (level === 2) {
-        ctx.fillStyle = '#22c55e';
-        ctx.beginPath();
-        ctx.arc(x - 12, y + 2, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Torre Departamentos (2x2)
     if (def.id === 'residential_high') {
-      const isNightHigh = this.currentDayProgress >= 0.78;
-      ctx.fillStyle = isNightHigh ? '#fef08a' : 'rgba(255, 255, 255, 0.7)';
-      for (let floor = 14; floor < h - 10; floor += 12) {
-        ctx.fillRect(x - 24, y - floor, 6, 7);
-        ctx.fillRect(x + 18, y - floor, 6, 7);
-      }
-      IsoMath.drawIsoDiamond(ctx, x - 6, topY + 6, tw * 0.35, th * 0.35, '#4ade80');
-      ctx.fillStyle = '#0284c7';
-      ctx.fillRect(x + 6, topY + 4, 10, 6);
-      this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#0f172a');
+      this.renderTowerDesign(ctx, def, design, level, x, y, topY, tw, th, h);
     }
 
     // Vivienda Social Subvencionada (2x2)
@@ -1238,13 +1420,13 @@ export class Renderer {
 
     // Tienda de Barrio
     if (def.id === 'commercial_store') {
-      this.renderOrientedAwning(ctx, x, y, tw, th, rotation, '#f59e0b');
+      this.renderOrientedAwning(ctx, x, y, tw, th, rotation, (design && design.accent) || '#f59e0b');
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#1e293b');
     }
 
     // Bulevar Gastronómico y Cafeterías (1x1)
     if (def.gastronomy) {
-      this.renderOrientedAwning(ctx, x, y, tw, th, rotation, '#db2777');
+      this.renderOrientedAwning(ctx, x, y, tw, th, rotation, (design && design.accent) || '#db2777');
       this.renderOrientedDoor(ctx, x, y, tw, th, rotation, '#831843');
 
       // Terraza exterior con sombrilla y mesas redondas
@@ -1271,15 +1453,15 @@ export class Renderer {
 
     // Mercado Popular
     if (def.id === 'commercial_market') {
-      ctx.fillStyle = '#ef4444';
+      ctx.fillStyle = (design && design.accent) || '#ef4444';
       ctx.fillRect(x - 12, topY + 4, 10, 6);
-      ctx.fillStyle = '#eab308';
+      ctx.fillStyle = (design && design.accent2) || '#eab308';
       ctx.fillRect(x + 2, topY + 4, 10, 6);
     }
 
     // Supermercado (2x2)
     if (def.id === 'commercial_super') {
-      ctx.fillStyle = '#0891b2';
+      ctx.fillStyle = (design && design.accent) || '#0891b2';
       ctx.fillRect(x - 16, topY + 6, 32, 10);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 9px sans-serif';
@@ -1290,7 +1472,7 @@ export class Renderer {
 
     // Torre Oficinas (2x2)
     if (def.id === 'commercial_tower') {
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+      ctx.fillStyle = (design && design.glass) || 'rgba(56, 189, 248, 0.75)';
       for (let fl = 16; fl < h - 12; fl += 14) {
         ctx.fillRect(x - 28, y - fl, 56, 4);
       }

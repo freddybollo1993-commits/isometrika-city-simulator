@@ -4,7 +4,7 @@
  * esquema de 3 niveles con mejoras, río serpenteante y salud estructural.
  */
 
-import { CONFIG, variantAt } from './config.js';
+import { CONFIG, variantAt, setWorldSeed, getWorldSeed } from './config.js';
 import { zoneConstructionDays } from './recreation-zone.js';
 import { IsoMath } from '../engine/iso.js';
 
@@ -29,6 +29,8 @@ export class Grid {
     this.tiles = [];
     this.vehicles = [];
     this.mapLevel = 0; // expansiones compradas (0, 1 o 2)
+    this.worldSeed = 0; // semilla de los diseños de esta ciudad (newWorldSeed al fundarla)
+    setWorldSeed(0);
     this._counts = null; // recuento de edificios por tipo (ver countBuildings)
     this.initTerrain();
     this.refreshLocks();
@@ -656,7 +658,14 @@ export class Grid {
     return this.placeBuilding(gx, gy, 'recreation_zone', 0, { w: zone.w, h: zone.h, zone });
   }
 
-  placeBuilding(gx, gy, buildingId, rotation = 0, dims = null) {
+  /** Cada ciudad nueva reparte sus diseños de edificios de otra manera. */
+  newWorldSeed() {
+    this.worldSeed = Math.floor(Math.random() * 0x7fffffff);
+    setWorldSeed(this.worldSeed);
+    return this.worldSeed;
+  }
+
+  placeBuilding(gx, gy, buildingId, rotation = 0, dims = null, extra = null) {
     const check = this.canBuild(gx, gy, buildingId, null, dims);
     if (!check.allowed) return false;
 
@@ -690,6 +699,7 @@ export class Grid {
       ...(def.variants ? { variant: variantAt(def, gx, gy) } : {}),
       // Zona recreativa: rectángulo w×h y su diseño procedural
       ...(dims ? { w: dims.w, h: dims.h, zone: dims.zone } : {}),
+      ...(extra || {}),
     };
     rootTile.deco = null;
 
@@ -929,6 +939,7 @@ export class Grid {
     return {
       size: this.size,
       mapLevel: this.mapLevel || 0,
+      worldSeed: this.worldSeed || 0,
       tiles: serializedTiles,
     };
   }
@@ -937,6 +948,8 @@ export class Grid {
     if (!data || !data.tiles) return;
     this.initTerrain();
     this.mapLevel = data.mapLevel || 0;
+    this.worldSeed = data.worldSeed || 0;
+    setWorldSeed(this.worldSeed);
     this._counts = null;
     this.refreshLocks();
     data.tiles.forEach((item) => {

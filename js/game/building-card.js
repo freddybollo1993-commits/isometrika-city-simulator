@@ -5,7 +5,7 @@
  * Se actualiza en vivo con cada día de juego.
  */
 
-import { CONFIG, levelDataOf } from './config.js';
+import { CONFIG, levelDataOf, designOf, variantAt } from './config.js';
 import { CONDITION_LABELS } from './maintenance.js';
 
 const CATEGORY_COLOR = {
@@ -89,6 +89,8 @@ export class BuildingCard {
 
     // Etiquetas de estado
     const chips = [`<i>${isPublic ? '🏛️ Estado' : '💼 Empresa'}</i>`];
+    const design = designOf(def, building.variant !== undefined ? building.variant : variantAt(def, gx, gy));
+    if (design && design.name) chips.push(`<i>🎨 ${design.name}</i>`);
     const maint = sim.maintenance;
     const cond = maint.condition(building, def);
     if (building.construction) {

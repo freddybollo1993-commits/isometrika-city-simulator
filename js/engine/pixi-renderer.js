@@ -605,7 +605,7 @@ export class PixiRenderer {
         // Reordena según profundidad para que los de delante tapen a los de atrás
         this.ghostLayer.setChildIndex(s, Math.min(this.ghostLayer.children.length - 1, i + 2));
         const d = CONFIG.BUILDINGS[it.id];
-        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, variant: variantAt(d, it.gx, it.gy) };
+        const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, variant: it.variant !== undefined ? it.variant : variantAt(d, it.gx, it.gy) };
         const { entry } = this._entryFor(mock, d, 0.4, null);
         const iso = IsoMath.gridToIso(it.gx, it.gy);
         s.texture = entry.texture;

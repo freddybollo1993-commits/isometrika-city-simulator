@@ -18,9 +18,12 @@ test('los puestos de comida salen con los 4 diseños y el diseño es estable', (
     seen.add(v);
   }
   assert.deepEqual([...seen].sort(), [0, 1, 2, 3]);
-  // Los edificios sin variantes no guardan el campo
+  // Los edificios sin diseños no guardan el campo; los que los tienen, sí
   assert.ok(grid.placeBuilding(o.gx, o.gy + 3, 'residential_tiny'));
-  assert.equal(grid.getTile(o.gx, o.gy + 3).building.variant, undefined);
+  const v = grid.getTile(o.gx, o.gy + 3).building.variant;
+  assert.ok(v >= 0 && v < CONFIG.BUILDINGS.residential_tiny.variants);
+  const cp = CONFIG.BUILDINGS.service_police;
+  assert.equal(cp.variants, undefined, 'sin diseños, sin campo');
 });
 
 test('la casita mínima ocupa 1 casilla y aloja a 2 vecinos', () => {

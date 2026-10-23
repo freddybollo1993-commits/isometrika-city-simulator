@@ -93,6 +93,7 @@ export class Game {
         this.simulation.recalculateCapacities();
       }
     } else {
+      this.grid.newWorldSeed();
       this.setupInitialTown();
     }
     // Exigencias y cobertura ya visibles antes del primer día
@@ -665,7 +666,7 @@ export class Game {
       const def = CONFIG.BUILDINGS[it.id];
       const afford = this.simulation.canAffordBuilding(def);
       if (!afford.allowed) break;
-      if (!this.grid.placeBuilding(it.gx, it.gy, it.id, this.ghostState.rotation)) continue;
+      if (!this.grid.placeBuilding(it.gx, it.gy, it.id, this.ghostState.rotation, null, it.variant !== undefined ? { variant: it.variant } : null)) continue;
       this.grid.startConstruction(it.gx, it.gy, this.simTime());
       this.simulation.spendForBuilding(def, afford.cost);
       spent += afford.cost;
@@ -880,6 +881,7 @@ export class Game {
     this.storage.economy = this.simulation.economy;
 
     this.simulation.setStartingDifficulty(difficulty);
+    this.grid.newWorldSeed();
     this.setupInitialTown();
     this.simulation.demands.update(this.simulation.day);
     this.camera.centerOnGrid();

@@ -1151,8 +1151,139 @@ for (const id of Object.keys(CONFIG.MIN_PUBLIC_SPACING)) {
 export function variantAt(def, gx, gy) {
   const n = def && def.variants;
   if (!n) return 0;
-  // Mezcla de bits: sin ella, los vecinos de una misma fila repetirían el ciclo 0, 1, 2, 3
-  let h = Math.imul(gx + 1, 374761393) + Math.imul(gy + 1, 668265263);
+  // Mezcla de bits: sin ella, los vecinos de una misma fila repetirían el ciclo 0, 1, 2, 3.
+  // La semilla de la partida hace que cada ciudad reparta sus diseños de forma distinta.
+  let h = Math.imul(gx + 1, 374761393) + Math.imul(gy + 1, 668265263) + Math.imul(WORLD_SEED | 0, 2246822519);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) % n;
+}
+
+// Semilla de la partida: cada ciudad nueva reparte sus diseños de otra forma (se guarda con la ciudad)
+let WORLD_SEED = 0;
+export function setWorldSeed(seed) {
+  WORLD_SEED = seed >>> 0;
+}
+export function getWorldSeed() {
+  return WORLD_SEED;
+}
+
+/**
+ * Diseños de un edificio para repartir en una obra en masa: recorre todos los diseños en un orden
+ * barajado y sin repetir hasta agotarlos, y el siguiente ciclo no empieza por el último usado.
+ * Así cuatro casas seguidas salen con cuatro diseños distintos (si el edificio tiene al menos 4).
+ */
+export function designSequence(def, count, salt = 0) {
+  const n = def && def.variants;
+  if (!n) return new Array(count).fill(0);
+  let s = (Math.imul(salt + 1, 2654435761) ^ Math.imul(WORLD_SEED | 0, 1597334677)) >>> 0;
+  const rnd = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [];
+  let last = -1;
+  while (out.length < count) {
+    const order = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    if (n > 1 && order[0] === last) order.push(order.shift());
+    for (const v of order) {
+      if (out.length < count) out.push(v);
+    }
+    last = out[out.length - 1];
+  }
+  return out;
+}
+
+// =============================================================================
+// DISEÑOS: cada edificio con varios diseños los reparte entre sus ejemplares
+//   walls  = colores de la cara superior, izquierda y derecha
+//   roof   = color del tejado · shape = hip | steep | gable | flat · extra = detalle (chimenea, porche…)
+//   windows / crown / glass = ventanas y remate de las torres · accent = toldo, rótulo…
+// =============================================================================
+
+export const DESIGNS = {
+  residential_tiny: [
+    { name: 'Cabaña', walls: ['#fef3c7', '#fcd34d', '#f59e0b'], roof: '#ef4444', shape: 'hip', extra: 'chimney' },
+    { name: 'Casita de madera', walls: ['#e7c9a0', '#c79a66', '#a87b4d'], roof: '#7c2d12', shape: 'gable', extra: 'porch' },
+    { name: 'Casita azul', walls: ['#dbeafe', '#93c5fd', '#60a5fa'], roof: '#1e3a8a', shape: 'gable', extra: 'flowers' },
+    { name: 'Casita moderna', walls: ['#f1f5f9', '#cbd5e1', '#94a3b8'], roof: '#475569', shape: 'flat', extra: 'terrace' },
+    { name: 'Casita rosa', walls: ['#fce7f3', '#f9a8d4', '#ec4899'], roof: '#9d174d', shape: 'steep', extra: 'chimney' },
+    { name: 'Casita verde', walls: ['#dcfce7', '#86efac', '#4ade80'], roof: '#166534', shape: 'gable', extra: 'flowers' },
+  ],
+  residential_low: [
+    { name: 'Casa de campo', walls: ['#fde047', '#facc15', '#eab308'], roof: '#b45309', shape: 'hip', extra: 'chimney' },
+    { name: 'Casa de ladrillo', walls: ['#fca5a5', '#e0745a', '#c2543d'], roof: '#44403c', shape: 'gable', extra: 'chimney' },
+    { name: 'Casa blanca', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], roof: '#c2410c', shape: 'hip', extra: 'flowers' },
+    { name: 'Casa moderna', walls: ['#e2e8f0', '#94a3b8', '#64748b'], roof: '#1e293b', shape: 'flat', extra: 'terrace' },
+    { name: 'Casa de piedra', walls: ['#d6d3d1', '#a8a29e', '#78716c'], roof: '#7f1d1d', shape: 'steep', extra: 'porch' },
+    { name: 'Casa turquesa', walls: ['#ccfbf1', '#5eead4', '#2dd4bf'], roof: '#0f766e', shape: 'gable', extra: 'porch' },
+  ],
+  residential_high: [
+    { name: 'Torre de hormigón', walls: ['#cbd5e1', '#94a3b8', '#64748b'], windows: 'cols', crown: 'garden', glass: '#bae6fd' },
+    { name: 'Torre de ladrillo', walls: ['#fdba74', '#c2410c', '#9a3412'], windows: 'grid', crown: 'tank', glass: '#fde68a' },
+    { name: 'Torre de cristal', walls: ['#bae6fd', '#38bdf8', '#0284c7'], windows: 'bands', crown: 'helipad', glass: '#e0f2fe' },
+    { name: 'Torre de arena', walls: ['#fde68a', '#d9a441', '#b4802d'], windows: 'grid', crown: 'antenna', glass: '#fef3c7' },
+  ],
+  residential_social: [
+    { name: 'Bloque terracota', walls: ['#fed7aa', '#fb923c', '#ea580c'], roof: '#9a3412' },
+    { name: 'Bloque gris', walls: ['#e2e8f0', '#94a3b8', '#64748b'], roof: '#334155' },
+    { name: 'Bloque verde', walls: ['#bbf7d0', '#4ade80', '#16a34a'], roof: '#14532d' },
+  ],
+  commercial_stall: [
+    { name: 'Taquería' }, { name: 'Puesto de fideos' }, { name: 'Parrilla' }, { name: 'Frutas y jugos' },
+  ],
+  commercial_store: [
+    { name: 'Tienda azul', accent: '#f59e0b' },
+    { name: 'Tienda amarilla', walls: ['#fde68a', '#fbbf24', '#d97706'], accent: '#dc2626' },
+    { name: 'Tienda rosa', walls: ['#fbcfe8', '#f472b6', '#db2777'], accent: '#16a34a' },
+    { name: 'Tienda verde', walls: ['#d9f99d', '#a3e635', '#65a30d'], accent: '#2563eb' },
+  ],
+  commercial_gastronomy: [
+    { name: 'Cafetería rosa', accent: '#db2777' },
+    { name: 'Restaurante rojo', walls: ['#fecaca', '#f87171', '#dc2626'], accent: '#7f1d1d' },
+    { name: 'Bistró verde', walls: ['#bbf7d0', '#4ade80', '#16a34a'], accent: '#14532d' },
+    { name: 'Terraza azul', walls: ['#bfdbfe', '#60a5fa', '#2563eb'], accent: '#1e3a8a' },
+  ],
+  commercial_market: [
+    { name: 'Mercado rojo y amarillo', accent: '#ef4444', accent2: '#eab308' },
+    { name: 'Mercado verde y naranja', accent: '#22c55e', accent2: '#f97316' },
+    { name: 'Mercado azul y lima', accent: '#3b82f6', accent2: '#a3e635' },
+  ],
+  commercial_super: [
+    { name: 'Supermercado turquesa', accent: '#0891b2' },
+    { name: 'Supermercado rojo', walls: ['#fee2e2', '#fca5a5', '#ef4444'], accent: '#b91c1c' },
+    { name: 'Supermercado verde', walls: ['#dcfce7', '#86efac', '#22c55e'], accent: '#15803d' },
+  ],
+  commercial_tower: [
+    { name: 'Oficinas azules', glass: 'rgba(56, 189, 248, 0.75)' },
+    { name: 'Oficinas grafito', walls: ['#cbd5e1', '#64748b', '#334155'], glass: 'rgba(125, 211, 252, 0.7)' },
+    { name: 'Oficinas verdes', walls: ['#d1fae5', '#6ee7b7', '#10b981'], glass: 'rgba(167, 243, 208, 0.75)' },
+  ],
+  industrial_mass: [
+    { name: 'Fábrica ocre' },
+    { name: 'Fábrica gris', walls: ['#e5e7eb', '#9ca3af', '#6b7280'] },
+    { name: 'Fábrica roja', walls: ['#fecaca', '#dc2626', '#991b1b'] },
+  ],
+  industrial_tech: [
+    { name: 'Laboratorio blanco' },
+    { name: 'Laboratorio azul', walls: ['#dbeafe', '#60a5fa', '#2563eb'] },
+    { name: 'Laboratorio violeta', walls: ['#ede9fe', '#a78bfa', '#7c3aed'] },
+  ],
+};
+
+/** Diseño de un ejemplar (o null si el edificio no tiene varios). */
+export function designOf(def, variant = 0) {
+  const list = def && DESIGNS[def.id];
+  if (!list) return null;
+  return list[((variant % list.length) + list.length) % list.length];
+}
+
+for (const [id, list] of Object.entries(DESIGNS)) {
+  if (CONFIG.BUILDINGS[id]) CONFIG.BUILDINGS[id].variants = list.length;
 }
