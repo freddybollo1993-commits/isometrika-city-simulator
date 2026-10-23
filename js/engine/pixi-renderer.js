@@ -11,7 +11,7 @@
  * juego no note el cambio. Si el navegador no tiene WebGL, main.js usa el Renderer Canvas 2D.
  */
 
-import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pixi.min.mjs';
+import { Application, Container, Sprite, Texture, Graphics, Batcher } from '../vendor/pixi.min.mjs';
 import { CONFIG, variantAt } from '../game/config.js';
 import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
 import { Preferences } from '../game/preferences.js';
@@ -22,6 +22,12 @@ import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusi
 
 const BAKE_SCALE = 1.5; // Resolución de las imágenes horneadas (nitidez al hacer zoom)
 const TERRAIN_SCALE = 1.5;
+// Modo seguro de GPU en móviles: en algunas GPU Adreno el sombreador de lotes con 16 texturas y las
+// subidas de texturas muy grandes provocan reinicios de la GPU («GL_GUILTY_CONTEXT_RESET»)
+const MOBILE = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const SAFE_GPU = MOBILE && Preferences.get('gpuSafe') !== false;
+const SAFE_MAX_TEXTURES = 4; // texturas por lote (sombreador más simple)
+const SAFE_TERRAIN_PX = 2048; // ancho máximo de la textura del terreno
 const SYNC_EVERY = 4; // Fotogramas entre sincronizaciones con la cuadrícula (~15 por segundo)
 const ANIM_FRAMES = 12; // Fotogramas pregenerados para edificios animados
 const ANIM_STEP = 0.35; // Avance del reloj de animación entre fotogramas pregenerados
@@ -75,6 +81,7 @@ export class PixiRenderer {
   }
 
   async init(width, height, resolution) {
+    if (SAFE_GPU) Batcher.defaultOptions.maxTextures = SAFE_MAX_TEXTURES;
     this.app = new Application();
     await this.app.init({
       canvas: this.canvas,
@@ -158,6 +165,7 @@ export class PixiRenderer {
       `terreno ${this.terrainLayer ? this.terrainLayer.children.length : 0} · objetos ${this.objects.size}`,
       `caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB)`,
       `detalle S${this.detailS} (tope ${this.detailMax})`,
+      `modo seguro ${SAFE_GPU ? `sí (lotes de ${SAFE_MAX_TEXTURES} texturas, terreno ≤ ${SAFE_TERRAIN_PX} px)` : 'no'}`,
       `trabajadores ${this.workers ? this.workers.length : 0} · pendientes ${this.pending.size}`,
     ].join(' · ');
   }
@@ -221,7 +229,7 @@ export class PixiRenderer {
     this.painter.grassPalette = this.grassPalette;
     this.painter.animationTick = 0;
     // Muchos móviles no admiten texturas de más de 4096 px: se baja la resolución si hace falta
-    const scale = Math.min(TERRAIN_SCALE, 4000 / W);
+    const scale = Math.min(TERRAIN_SCALE, (SAFE_GPU ? SAFE_TERRAIN_PX : 4000) / W);
     const texture = this._canvasTexture(W, H, scale, (ctx) => {
       ctx.translate(originX, 1);
       for (let gy = 0; gy < size; gy++) {
