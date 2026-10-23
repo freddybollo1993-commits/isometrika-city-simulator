@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { renderPolice } from '../js/engine/pixel/police-art.js';
 import { renderFire } from '../js/engine/pixel/fire-art.js';
 import { renderHospital } from '../js/engine/pixel/hospital-art.js';
+import { renderSchool } from '../js/engine/pixel/school-art.js';
+import { renderUniversity } from '../js/engine/pixel/university-art.js';
 import { seasonLook } from '../js/game/calendar.js';
 import { pixelJob, PIXEL_ART_IDS } from '../js/engine/pixel/pixel-buildings.js';
 import { CONFIG, DESIGNS } from '../js/game/config.js';
@@ -13,6 +15,8 @@ const FAMILIES = [
   ['service_police', 'police', renderPolice],
   ['service_fire', 'fire', renderFire],
   ['service_hospital', 'hospital', renderHospital],
+  ['service_school', 'school', renderSchool],
+  ['service_university', 'university', renderUniversity],
 ];
 const same = (a, b) => Buffer.compare(Buffer.from(a.data), Buffer.from(b.data)) === 0;
 

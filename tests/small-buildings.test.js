@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCity, emptyArea } from './helpers/headless-city.js';
 import { planArea } from '../js/game/area-planner.js';
-import { CONFIG, variantAt } from '../js/game/config.js';
+import { CONFIG, DESIGNS, variantAt } from '../js/game/config.js';
 
 test('los puestos de comida salen con los 4 diseños y el diseño es estable', () => {
   const { grid, sim } = createCity();
@@ -22,7 +22,7 @@ test('los puestos de comida salen con los 4 diseños y el diseño es estable', (
   assert.ok(grid.placeBuilding(o.gx, o.gy + 3, 'residential_tiny'));
   const v = grid.getTile(o.gx, o.gy + 3).building.variant;
   assert.ok(v >= 0 && v < CONFIG.BUILDINGS.residential_tiny.variants);
-  const cp = CONFIG.BUILDINGS.service_school;
+  const cp = Object.values(CONFIG.BUILDINGS).find((b) => b.id !== 'road' && !DESIGNS[b.id]);
   assert.equal(cp.variants, undefined, 'sin diseños, sin campo');
 });
 

@@ -1283,6 +1283,16 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  service_school: [
+    { name: 'Escuela amarilla', walls: ['#f5ecd7', '#e9a83a', '#c98a24'] },
+    { name: 'Escuela de ladrillo', walls: ['#c47a64', '#a3533f', '#7c3d2c'] },
+    { name: 'Centro técnico', walls: ['#e5e7eb', '#c7ccd3', '#2563eb'] },
+  ],
+  service_university: [
+    { name: 'Clásica con cúpula', walls: ['#e7e0d0', '#a35a43', '#7c3d2c'] },
+    { name: 'Campus de ladrillo', walls: ['#c47a64', '#a35a43', '#7c3d2c'] },
+    { name: 'Moderna con cubiertas verdes', walls: ['#dbeafe', '#a35a43', '#4f9a45'] },
+  ],
   service_police: [
     { name: 'Comisaría moderna', walls: ['#f8fafc', '#e2e8f0', '#2563eb'] },
     { name: 'Comisaría clásica', walls: ['#d6cfc4', '#b8ab95', '#8f8371'] },

@@ -152,6 +152,12 @@ export function createCivicKit(kit, o, c) {
         return hex('#4b5563');
       }
     }
+    if (B.green) {
+      // cubierta ajardinada con matas
+      const n = hash01(x >> 1, y >> 1, seed + 83);
+      const g = kit.lawnShade(u, v, z, x, y);
+      return n < 0.12 ? shade(g, 0.78) : n > 0.93 ? shade(g, 1.12) : g;
+    }
     if (B.solar) {
       const [s0, s1, s2, s3] = B.solar;
       if (f > s0 && f < s1 && l > s2 && l < s3) {
@@ -323,6 +329,152 @@ export function createCivicKit(kit, o, c) {
     body.set(x, y + 1, on ? hex('#ef4444') : hex('#22c55e'));
   };
 
+  // ---------------------------------------------------------------------------
+  // Arquitectura monumental y vida de campus
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Pórtico de columnas con escalinata, entablamento y frontón triangular delante de la fachada
+   * (cara f = F1, entre l0 y l1). Con `clock`, un reloj en el tímpano.
+   */
+  const portico = (F1, l0, l1, depth, colH, stone, n = 4, clock = false) => prop(F1 + depth / 2, (l0 + l1) / 2, () => {
+    const Ff = F1 + depth;
+    for (let k = 0; k < 3; k++) box(F1, Ff + 0.14 - k * 0.05, l0 - 0.06, l1 + 0.06, k * 0.5, (k + 1) * 0.5, stone, { top: roofTop(stone) });
+    const zb = 1.5;
+    for (let i = 0; i < n; i++) {
+      const l = l0 + 0.07 + ((l1 - l0 - 0.14) * i) / (n - 1);
+      box(Ff - 0.09, Ff - 0.02, l - 0.035, l + 0.035, zb, zb + colH, stone, { left: () => stone.light, right: () => stone.mid, top: () => stone.light });
+    }
+    const zt = zb + colH;
+    box(F1, Ff, l0 - 0.05, l1 + 0.05, zt, zt + 1.3, stone, { top: roofTop(stone) });
+    const lc = (l0 + l1) / 2;
+    const ze = zt + 1.3;
+    const zp = ze + Math.max(3, (l1 - l0) * 5);
+    const slope = (k) => (u, v, z, x, y) => (snowAt(x, y, 1.1, 7) ? SNOW.light : (lOf(u, v) * 16) % 2 < 0.6 ? stone.dark : stone[k]);
+    body.surface([sv(Ff, l0 - 0.05, ze), sv(Ff, lc, zp), sv(F1, lc, zp), sv(F1, l0 - 0.05, ze)], slope('mid'));
+    body.surface([sv(Ff, lc, zp), sv(Ff, l1 + 0.05, ze), sv(F1, l1 + 0.05, ze), sv(F1, lc, zp)], slope('dark'));
+    body.surface([sv(Ff, l0 - 0.05, ze), sv(Ff, l1 + 0.05, ze), sv(Ff, lc, zp)], (u, v, z) => {
+      const l = lOf(u, v);
+      const dk = darkFace('front');
+      if (z < ze + 0.5) return dk ? stone.mid : stone.light;
+      if (clock) {
+        const dx = (l - lc) * 16;
+        const dz = (z - (ze + (zp - ze) * 0.4)) * 1.15;
+        const r = Math.hypot(dx, dz);
+        if (r < 1.6) return (Math.abs(dx) < 0.25 && dz > 0 && dz < 1.2) || (Math.abs(dz) < 0.25 && dx > 0 && dx < 0.9) ? hex('#1f2937') : on ? hex('#fef3c7') : WHITE.light;
+        if (r < 2) return hex('#57534e');
+      }
+      return dk ? shade(stone.light, 0.85) : shade(stone.light, 0.95);
+    });
+  });
+  /** Cúpula sobre tambor con ventanas y linterna; R es la mitad del ancho en píxeles. */
+  const dome = (f, l, z, R, rp, drumRp, drumH = 4) => {
+    const [cx, cy] = at(f, l, z);
+    for (let px = Math.floor((cx - R) * S); px <= Math.ceil((cx + R) * S); px++) {
+      const t = ((px + 0.5) / S - cx) / R;
+      if (Math.abs(t) > 1) continue;
+      const k = Math.sqrt(1 - t * t);
+      const e = (R / 2) * k;
+      const tone = t < -0.35 ? 'light' : t < 0.3 ? 'mid' : 'dark';
+      const top = cy - drumH - e - R * 0.85 * k;
+      for (let py = Math.floor(top * S); py <= Math.ceil((cy + e) * S); py++) {
+        const y = (py + 0.5) / S;
+        if (y < top) continue;
+        let col;
+        if (y > cy - drumH + e) {
+          col = drumRp[tone];
+          if (Math.floor(((px / S) - cx + 40) / 2.5) % 2 === 0 && y < cy + e - 1 && y > cy - drumH + e + 1) col = on ? hex('#fde68a') : hex('#64748b');
+        } else {
+          col = rp[tone];
+          if (Math.floor(t * 6 + 6) % 2 === 0) col = shade(col, 0.94); // nervios
+          if (snowAt(px, py, 1.1, 7)) col = SNOW.light;
+        }
+        body.setPhys(px, py, col);
+      }
+    }
+    const lantY = Math.round(cy - drumH - R / 2 - R * 0.85) + 1; // en lo alto de la cúpula
+    body.rect(cx - 1, lantY - 3, 3, 3, drumRp.light);
+    body.rect(cx, lantY - 5, 1, 2, STEEL.light);
+  };
+  /** Personas paseando (solo de día y si el edificio funciona). */
+  const people = (f0, f1, l0, l1, n, salt = 0) => {
+    if (night || !lit) return;
+    for (let i = 0; i < n; i++) {
+      const f = f0 + hash01(i, 1, seed + 95 + salt) * (f1 - f0);
+      const l = l0 + hash01(i, 2, seed + 95 + salt) * (l1 - l0);
+      const shirt = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#f8fafc'][Math.floor(hash01(i, 3, seed + 96 + salt) * 6)];
+      prop(f, l, () => {
+        const [x, y] = at(f, l);
+        body.set(x, y - 4, look.snow > 0.3 ? hex('#ef4444') : hex('#e9b48c'));
+        body.rect(x, y - 3, 1, 2, hex(shirt));
+        body.set(x, y - 1, hex('#334155'));
+      });
+    }
+  };
+  const schoolBus = (f, l, alongL) => vehicle(f, l, alongL, ({ bx, along, faces }) => {
+    const y = ramp('#facc15');
+    const side = (dk) => (u, v, z) => {
+      const a = along(u, v);
+      if (z < 2.1 && (Math.abs(a - 0.28) < 0.06 || Math.abs(a + 0.3) < 0.06)) return TIRE.mid;
+      if (z > 2.4 && z < 2.8) return hex('#1f2937');
+      if (z > 3.6 && z < 5.1 && ((a + 1) * 16) % 2.4 > 0.5) return vglass[dk ? 1 : 0];
+      return dk ? y.dark : y.mid;
+    };
+    bx(-0.42, 0.4, -0.13, 0.13, 0.8, 6, y, faces((dk) => (u, v, z) => (z > 3.6 && z < 5.3 ? vglass[dk ? 1 : 0] : z > 1.4 && z < 2 ? (on ? hex('#fef08a') : WHITE.light) : dk ? y.dark : y.mid), side, roofTop(y)));
+    bx(0.4, 0.5, -0.12, 0.12, 0.8, 3.4, y, faces((dk) => () => (dk ? y.dark : y.mid), side, roofTop(y)));
+  });
+  /** Pista deportiva pintada en el suelo: baloncesto (terracota) o fútbol (césped). */
+  const court = (f0, f1, l0, l1, type = 'basket') => {
+    kit.fl(f0, f1, l0, l1, (u, v, z, x, y) => {
+      if (snowAt(x, y, 0.9)) return SNOW.light;
+      const f = fOf(u, v);
+      const l = lOf(u, v);
+      const lw = 0.022;
+      const inset = Math.min(f - f0, f1 - f, l - l0, l1 - l);
+      const cf = (f0 + f1) / 2;
+      const cl = (l0 + l1) / 2;
+      const long = (l1 - l0) > (f1 - f0);
+      const line = Math.abs(inset - 0.06) < lw || (inset > 0.06 && Math.abs((long ? l : f) - (long ? cl : cf)) < lw)
+        || Math.abs(Math.hypot(f - cf, l - cl) - Math.min(f1 - f0, l1 - l0) * 0.18) < lw;
+      if (line && inset > 0.04) return WHITE.light;
+      if (type === 'soccer') {
+        const g = kit.lawnShade(u, v, z, x, y);
+        return ((long ? l : f) * 3) % 1 < 0.5 ? shade(g, 0.92) : g;
+      }
+      return hash01(x, y, seed + 84) < 0.06 ? hex('#a65f42') : hex('#b06a4a');
+    });
+  };
+  const hoop = (f, l) => prop(f, l, () => {
+    const [x, y] = at(f, l);
+    body.rect(x, y - 9, 1, 9, STEEL.mid);
+    body.rect(x - 1, y - 12, 4, 3, WHITE.light);
+    body.set(x + 1, y - 9, hex('#ef4444'));
+  });
+  const goal = (f, l) => prop(f, l, () => {
+    const [x0, y0] = at(f, l - 0.15);
+    const [x1, y1] = at(f, l + 0.15);
+    body.line(x0, y0 - 4, x1, y1 - 4, WHITE.light);
+    body.rect(x0, y0 - 4, 1, 4, WHITE.light);
+    body.rect(x1, y1 - 4, 1, 4, WHITE.light);
+  });
+  /** Fuente: pilón de piedra en el suelo y surtidor en el volumen. */
+  const fountain = (f, l, r = 0.3) => {
+    kit.fl(f - r, f + r, l - r, l + r, (u, v, z, x, y) => {
+      const d = Math.hypot(fOf(u, v) - f, lOf(u, v) - l) / r;
+      if (d > 1) return null;
+      if (d > 0.78) return snowAt(x, y, 0.8) ? SNOW.light : hex('#d6d3d1');
+      if (look.snow > 0.55) return hex('#dbeafe');
+      return hash01(x >> 1, y, seed + 50) < 0.08 ? hex('#bfdbfe') : hex('#60a5fa');
+    });
+    prop(f, l, () => {
+      const [x, y] = at(f, l);
+      body.rect(x - 1, y - 3, 3, 3, ramp('#d6d3d1').mid);
+      if (!lit || look.snow > 0.5) return;
+      body.rect(x, y - 8, 1, 5, hex('#bfdbfe'));
+      for (let i = -3; i <= 3; i++) body.set(x + i, y - 8 + Math.round(Math.abs(i) * 1.2), hex('#dbeafe'));
+    });
+  };
+
   /** Cierra el dibujo: gris si no da servicio, contorno y composición final. */
   const finish = (W, H, ox, oy, emitters, wallH) => {
     if (o.suspended) {
@@ -343,5 +495,6 @@ export function createCivicKit(kit, o, c) {
     night, lit, on, hd, fOf, lOf, darkFace, glassAt, roofTop, glowAt,
     facade, roof, block, gdoor, garage, hvac, radioMast, flagpole, hydrant, charger, parking,
     vehicle, patrol, ambulance, fireEngine, helicopter, drone, finish,
+    portico, dome, people, schoolBus, court, hoop, goal, fountain,
   };
 }
