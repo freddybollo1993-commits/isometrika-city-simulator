@@ -18,6 +18,7 @@ import { renderHouse } from './pixel/house-art.js';
 import { renderShop } from './pixel/shop-art.js';
 import { hash01 } from './pixel/pixel-canvas.js';
 import { Preferences } from '../game/preferences.js';
+import { recordError } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
@@ -93,6 +94,19 @@ export class PixiRenderer {
     });
 
     this._initWorkers();
+    // Si el móvil pierde el contexto WebGL el lienzo queda vacío: se anota y, si no vuelve, se pasa al motor de respaldo
+    this.contextLostAt = 0;
+    this.contextLostCount = 0;
+    const cv = this.app.canvas || this.canvas;
+    cv.addEventListener('webglcontextlost', () => {
+      this.contextLostAt = performance.now();
+      this.contextLostCount++;
+      recordError('WebGL: contexto perdido');
+    });
+    cv.addEventListener('webglcontextrestored', () => {
+      this.contextLostAt = 0;
+      recordError('WebGL: contexto recuperado');
+    });
     this.world = new Container();
     this.terrainLayer = new Container();
     this.waterLayer = new Container();
@@ -113,6 +127,39 @@ export class PixiRenderer {
 
     this._bakeSharedTextures();
     this.ready = true;
+  }
+
+  /** Estado del motor para la pantalla de diagnóstico de Ajustes. */
+  diagnostics(camera) {
+    const r = this.app && this.app.renderer;
+    const gl = r && r.gl;
+    const c = this.app && this.app.canvas;
+    let gpu = '?';
+    let maxTex = '?';
+    let version = '?';
+    let lost = '?';
+    try {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      version = gl.getParameter(gl.VERSION);
+      lost = gl.isContextLost() ? 'sí' : 'no';
+    } catch (e) {
+      // sin contexto WebGL accesible
+    }
+    return [
+      `GPU: ${gpu}`,
+      `${version}`,
+      `textura máx. ${maxTex}`,
+      `contexto perdido: ${lost} (${this.contextLostCount || 0} veces)`,
+      c ? `lienzo ${c.clientWidth}×${c.clientHeight} css · ${c.width}×${c.height} px · resolución ${r.resolution}` : 'sin lienzo',
+      `fotogramas ${this.frame}`,
+      `cámara ${Math.round(camera.x)},${Math.round(camera.y)} ×${camera.zoom}`,
+      `terreno ${this.terrainLayer ? this.terrainLayer.children.length : 0} · objetos ${this.objects.size}`,
+      `caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB)`,
+      `detalle S${this.detailS} (tope ${this.detailMax})`,
+      `trabajadores ${this.workers ? this.workers.length : 0} · pendientes ${this.pending.size}`,
+    ].join(' · ');
   }
 
   resize(width, height, resolution) {
@@ -927,6 +974,10 @@ export class PixiRenderer {
 
   render(grid, camera, hoverTile, ghostState, disasters, dayProgress = 0) {
     if (!this.ready) return;
+    if (this.contextLostAt && performance.now() - this.contextLostAt > 3000) {
+      // El contexto no se recuperó: el bucle principal lo anota y cambia al motor de respaldo
+      throw new Error('WebGL: el contexto se perdió y no se recuperó');
+    }
     this.frame++;
     this.animationTick += 0.05;
     this.bakedThisFrame = 0;
@@ -946,7 +997,10 @@ export class PixiRenderer {
       this.terrainKey = key;
     }
     if (gridChanged) {
-      for (const obj of this.objects.values()) obj.sprite.destroy();
+      for (const obj of this.objects.values()) {
+        obj.sprite.destroy();
+        if (obj.lot) obj.lot.destroy();
+      }
       this.objects.clear();
       this.lastGrid = grid;
     }

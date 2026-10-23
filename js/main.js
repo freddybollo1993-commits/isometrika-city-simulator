@@ -7,6 +7,7 @@
 
 import { CONFIG } from './game/config.js';
 import { Preferences } from './game/preferences.js';
+import { recordError } from './game/diagnostics.js';
 import { Camera } from './engine/camera.js';
 import { Renderer } from './engine/renderer.js';
 import { IsoMath } from './engine/iso.js';
@@ -26,16 +27,6 @@ import { setupInitialTown } from './game/initial-town.js';
 const MAX_RENDER_DPR = 1.5;
 const DPR_BY_DETAIL = { 1: 1.5, 2: 2, 4: 3 }; // con más detalle gráfico se dibuja a más resolución real (píxel de arte nítido)
 
-/** Guarda los últimos errores en la sesión para que Ajustes los muestre (diagnóstico desde el móvil). */
-function recordError(text) {
-  try {
-    const list = JSON.parse(sessionStorage.getItem('isometrica_errors') || '[]');
-    list.push(String(text).slice(0, 240));
-    sessionStorage.setItem('isometrica_errors', JSON.stringify(list.slice(-5)));
-  } catch (e) {
-    // sin almacenamiento de sesión
-  }
-}
 window.addEventListener('error', (e) => recordError(`${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
 window.addEventListener('unhandledrejection', (e) => recordError(`promesa: ${(e.reason && (e.reason.message || e.reason)) || e.reason}`));
 // Pulsación larga sobre el fantasma para pasar a construcción por área
@@ -947,6 +938,7 @@ export class Game {
           dayProgress
         );
         this._renderFails = 0;
+        this._lastRenderAt = performance.now();
       } catch (err) {
         // Un fallo de dibujo no debe parar el juego (antes dejaba el mapa en blanco para siempre)
         recordError(`dibujo: ${err && (err.stack || err.message) || err}`);

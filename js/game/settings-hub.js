@@ -9,6 +9,7 @@ import { renderHouse } from '../engine/pixel/house-art.js';
 import { renderShop } from '../engine/pixel/shop-art.js';
 import { CONFIG, designOf } from './config.js';
 import { APP_BUILD } from '../version.js';
+import { recentErrors } from './diagnostics.js';
 
 const DETAIL_NAMES = { 1: 'Estándar', 2: 'Alto', 4: 'Ultra' };
 const DETAIL_DEFAULT = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -149,12 +150,14 @@ export class SettingsHub {
     const engineName = this.game.renderer ? this.game.renderer.constructor.name : '';
     const gpu = engineName !== 'Renderer'; // Renderer = Canvas 2D de respaldo
     const engineLabel = engineName === 'PixiRenderer' ? 'GPU (PixiJS)' : engineName === 'Renderer' ? 'compatible (Canvas, dibujo antiguo)' : 'GPU (iniciando…)';
-    let recentErrors = '';
-    try {
-      const list = JSON.parse(sessionStorage.getItem('isometrica_errors') || '[]');
-      if (list.length) recentErrors = `<p class="st-note">Errores recientes: ${list.map((t) => t.replace(/</g, '&lt;')).join(' | ')}</p>`;
-    } catch (e) {
-      // sin almacenamiento de sesión
+    const errs = recentErrors();
+    const errorNote = errs.length ? `<p class="st-note">Errores recientes: ${errs.map((t) => t.replace(/</g, '&lt;')).join(' | ')}</p>` : '';
+    let diagNote = '';
+    if (this.showDiag) {
+      const r = this.game.renderer;
+      const since = this.game._lastRenderAt ? `último dibujo hace ${((performance.now() - this.game._lastRenderAt) / 1000).toFixed(1)} s` : 'aún no ha dibujado';
+      const info = r && r.diagnostics ? r.diagnostics(this.game.camera) : `motor ${engineName || 'ninguno'}`;
+      diagNote = `<p class="st-note">🩺 ${info.replace(/</g, '&lt;')} · ${since} · pantalla ${window.innerWidth}×${window.innerHeight} · DPR ${window.devicePixelRatio}</p>`;
     }
 
     this.root.innerHTML = `
@@ -177,7 +180,10 @@ export class SettingsHub {
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
           <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${engineLabel} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
           ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
-          ${recentErrors}
+          ${errorNote}
+          <button class="st-btn" data-action="diag">🩺 ${this.showDiag ? 'Ocultar diagnóstico' : 'Diagnóstico del motor'}</button>
+          ${diagNote}
+          ${engineName === 'PixiRenderer' ? '<button class="st-btn" data-action="canvas">🐢 Usar motor compatible (si el mapa sale en blanco)</button>' : ''}
           ${gpu ? '' : `<p class="st-note">⚠️ Estás en el motor de respaldo, que no usa el pixel art nuevo. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
         </div>
         <div class="st-col st-actions">
@@ -209,6 +215,14 @@ export class SettingsHub {
       ui.updateSmartDock();
     } else if (action === 'xray') {
       Preferences.set('xray', yes);
+    } else if (action === 'diag') {
+      this.showDiag = !this.showDiag;
+    } else if (action === 'canvas') {
+      game.storage.save();
+      const url = new URL(window.location.href);
+      url.searchParams.set('canvas2d', '1');
+      window.location.replace(url.toString());
+      return;
     } else if (action === 'gpu') {
       try { sessionStorage.removeItem('isometrica_gpu_error'); } catch (e) { /* nada */ }
       game.storage.save();
