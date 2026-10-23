@@ -1220,12 +1220,12 @@ export const DESIGNS = {
     { name: 'Casita verde', walls: ['#dcfce7', '#86efac', '#4ade80'], roof: '#166534', shape: 'gable', extra: 'flowers' },
   ],
   residential_low: [
-    { name: 'Casa de campo', walls: ['#fde047', '#facc15', '#eab308'], roof: '#b45309', shape: 'hip', extra: 'chimney' },
-    { name: 'Casa de ladrillo', walls: ['#fca5a5', '#e0745a', '#c2543d'], roof: '#44403c', shape: 'gable', extra: 'chimney' },
-    { name: 'Casa blanca', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], roof: '#c2410c', shape: 'hip', extra: 'flowers' },
+    { name: 'Casa de campo', walls: ['#fde047', '#facc15', '#eab308'], roof: '#b45309', shape: 'hip', extra: 'chimney', bay: true },
+    { name: 'Casa de ladrillo', walls: ['#fca5a5', '#e0745a', '#c2543d'], roof: '#44403c', shape: 'gable', extra: 'chimney', bay: true, dormer: true },
+    { name: 'Casa blanca', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], roof: '#c2410c', shape: 'hip', extra: 'flowers', dormer: true },
     { name: 'Casa moderna', walls: ['#e2e8f0', '#94a3b8', '#64748b'], roof: '#1e293b', shape: 'flat', extra: 'terrace' },
-    { name: 'Casa de piedra', walls: ['#d6d3d1', '#a8a29e', '#78716c'], roof: '#7f1d1d', shape: 'steep', extra: 'porch' },
-    { name: 'Casa turquesa', walls: ['#ccfbf1', '#5eead4', '#2dd4bf'], roof: '#0f766e', shape: 'gable', extra: 'porch' },
+    { name: 'Casa de piedra', walls: ['#d6d3d1', '#a8a29e', '#78716c'], roof: '#7f1d1d', shape: 'steep', extra: 'porch', annex: 'garage' },
+    { name: 'Casa turquesa', walls: ['#ccfbf1', '#5eead4', '#2dd4bf'], roof: '#0f766e', shape: 'gable', extra: 'porch', dormer: true },
   ],
   residential_high: [
     { name: 'Torre de hormigón', walls: ['#cbd5e1', '#94a3b8', '#64748b'], windows: 'cols', crown: 'garden', glass: '#bae6fd' },

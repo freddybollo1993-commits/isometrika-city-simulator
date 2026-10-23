@@ -99,6 +99,13 @@ export function renderHouse(o) {
   const roofRamp = ramp(design.roof);
   const texture = textureOf(design);
   const widthPx = (A1 - A0) * 16;
+  const lat = (a) => (front === 'u' ? A1 - a / 16 : A0 + a / 16); // coordenada lateral a `a` px del borde de la fachada
+  const hasGarage = big && design.annex === 'garage';
+  const flat = shape === 'flat';
+  const shutterCol = roofRamp.mid;
+  const shutters = !flat && texture !== 'siding';
+  const lintels = texture === 'brick' || texture === 'stone';
+  const frameCol = flat ? hex('#3b4a5e') : WHITE.light;
 
   // -------------------------------------------------------------------------
   // SUELO
@@ -258,6 +265,20 @@ export function renderHouse(o) {
     });
   };
 
+  // Parterres de flores a ambos lados de la puerta (diseños con flores o lote con jardín)
+  if (design.extra === 'flowers' || o.lot % 4 === 0) {
+    const gap = big ? 0.17 : 0.12;
+    const d = big ? 0.12 : 0.1;
+    flowerBed(A1, A1 + d, A0 + 0.06, c - gap);
+    flowerBed(A1, A1 + d, c + gap, A1 - 0.06);
+  }
+  // Entrada del garaje (cruza la acera)
+  if (hasGarage) {
+    const [gu0, gv0] = uv(A1, A1 + 0.03);
+    const [gu1, gv1] = uv(w, A1 + 0.47);
+    ground.floor(Math.min(gu0, gu1), Math.max(gu0, gu1), Math.min(gv0, gv1), Math.max(gv0, gv1), 0, paved(ASPHALT, () => false));
+  }
+
   // Diseños de lote
   const lotDesign = o.lot % 4;
   if (big) {
@@ -269,17 +290,22 @@ export function renderHouse(o) {
       tree(w - 0.78, 0.38, 5);
       bush(w - 0.6, w - 0.38, 2);
       mailbox(w - 0.42, c - 0.3);
-      flowerBed(A1, A1 + 0.12, A0 + 0.1, A1 - 0.1);
     } else if (lotDesign === 1) {
       // Entrada de coches con coche aparcado
-      const [u0, v0] = uv(A0 + 0.2, 1.5);
-      const [u1, v1] = uv(w, 1.92);
-      ground.floor(Math.min(u0, u1), Math.max(u0, u1), Math.min(v0, v1), Math.max(v0, v1), 0,
-        paved(ASPHALT, (u, v) => false));
-      car(1.05, 1.71, CAR_COLORS[Math.floor(hash01(seed, 7, 3) * CAR_COLORS.length)]);
+      const carCol = CAR_COLORS[Math.floor(hash01(seed, 7, 3) * CAR_COLORS.length)];
+      if (hasGarage) {
+        car(A1 + 0.3, A1 + 0.25, carCol);
+        mailbox(w - 0.4, c - 0.3);
+      } else {
+        const [u0, v0] = uv(A0 + 0.2, 1.5);
+        const [u1, v1] = uv(w, 1.92);
+        ground.floor(Math.min(u0, u1), Math.max(u0, u1), Math.min(v0, v1), Math.max(v0, v1), 0,
+          paved(ASPHALT, (u, v) => false));
+        car(1.05, 1.71, carCol);
+        mailbox(w - 0.4, 1.5);
+      }
       tree(w - 0.8, 0.42, 5);
       for (let l = 0.3; l < 1.3; l += 0.3) bush(A1 + 0.1, l, 2);
-      mailbox(w - 0.4, 1.5);
     } else if (lotDesign === 2) {
       // Patio con mesa y sombrilla
       const [u0, v0] = uv(A1, A0 - 0.05);
@@ -314,7 +340,6 @@ export function renderHouse(o) {
     // Casita (1×1): lotes mínimos
     if (lotDesign === 0) {
       bush(w - 0.5, 0.2, 2);
-      flowerBed(A1, A1 + 0.1, A0 + 0.05, A1 - 0.05);
       mailbox(w - 0.36, 0.14);
     } else if (lotDesign === 1) {
       const [u0, v0] = uv(A0 + 0.1, 0.62);
@@ -338,19 +363,20 @@ export function renderHouse(o) {
   // -------------------------------------------------------------------------
 
   // Ventanas y puerta como rectángulos (a: píxeles a lo largo de la cara, z: altura)
-  const winH = Math.max(5, Math.round(fp * 0.5));
-  const winW = big ? 5 : 4;
+  const winH = flat ? Math.max(6, Math.round(fp * 0.72)) : Math.max(5, Math.round(fp * 0.5));
+  const winW = flat ? (big ? 6 : 5) : big ? 5 : 4;
   const doorH = Math.min(wallH, big ? 9 : 8);
   const wins = { L: [], R: [] };
   const door = { a0: widthPx / 2 - 2.5, a1: widthPx / 2 + 2.5, z1: doorH };
   for (const side of ['L', 'R']) {
     const isFront = side === frontSide;
     for (let f = 0; f < floors; f++) {
-      const z0 = f * fp + Math.round(fp * 0.32);
+      const z0 = f * fp + (flat ? 3 : Math.round(fp * 0.32));
       let centers;
       if (isFront) centers = f === 0 ? (big ? [widthPx * 0.2, widthPx * 0.8] : []) : (big ? [widthPx * 0.28, widthPx * 0.72] : [widthPx * 0.5]);
       else centers = big ? [widthPx * 0.3, widthPx * 0.7] : [widthPx * 0.5];
       if (isFront && f === 0 && !big && floors === 1) centers = [];
+      if (isFront && f === 0 && design.bay && big) centers = [widthPx * 0.8]; // el saliente ocupa la otra ventana
       for (const cx of centers) wins[side].push({ a0: cx - winW / 2, a1: cx + winW / 2, z0, z1: z0 + winH });
     }
   }
@@ -400,8 +426,8 @@ export function renderHouse(o) {
       if (a >= wn.a0 && a < wn.a1 && z >= wn.z0 && z < wn.z1) {
         if (o.closed) return Math.floor(a + z) % 4 < 2 ? WOOD.mid : WOOD.dark; // cegada con tablas
         const edge = a < wn.a0 + 1 || a >= wn.a1 - 1 || z < wn.z0 + 1 || z >= wn.z1 - 1;
-        if (edge) return WHITE.light;
-        if (Math.abs(a - (wn.a0 + wn.a1) / 2) < 0.5 && winW >= 5) return WHITE.mid; // travesaño
+        if (edge) return frameCol;
+        if (flat ? Math.floor(a - wn.a0) % 3 === 0 : Math.abs(a - (wn.a0 + wn.a1) / 2) < 0.5 && winW >= 5) return flat ? frameCol : WHITE.mid; // travesaño
         const lit = !o.suspended && hash01(Math.floor(wn.a0), Math.floor(wn.z0), seed + 71) < 0.7;
         const g = night ? glassNight(lit) : glassDay;
         if (!night && a < wn.a0 + 2 && z >= wn.z1 - 2) return hex('#ffffff'); // reflejo
@@ -410,6 +436,11 @@ export function renderHouse(o) {
       // alféizar y jardinera con flores
       if (design.extra === 'flowers' && a >= wn.a0 - 0.5 && a < wn.a1 + 0.5 && z >= wn.z0 - 2 && z < wn.z0) {
         return z < wn.z0 - 1 ? ramp('#4ba35d').dark : ['#ef4444', '#f9a8d4', '#facc15'][Math.floor(a) % 3];
+      }
+      if (!o.closed && !flat) {
+        if (a >= wn.a0 - 1 && a < wn.a1 + 1 && z >= wn.z0 - 1 && z < wn.z0) return WHITE.mid; // alféizar
+        if (lintels && a >= wn.a0 - 1 && a < wn.a1 + 1 && z >= wn.z1 && z < wn.z1 + 1) return rp.light; // dintel
+        if (shutters && z >= wn.z0 && z < wn.z1 && ((a >= wn.a0 - 1.3 && a < wn.a0) || (a >= wn.a1 && a < wn.a1 + 1.3))) return shutterCol; // postigos
       }
     }
     // Cinta de clausura
@@ -425,6 +456,34 @@ export function renderHouse(o) {
   // Paredes: cara izquierda (v = A1) y derecha (u = A1)
   body.surface([[A0, A1, 0], [A1, A1, 0], [A1, A1, wallH], [A0, A1, wallH]], wallShader('L'));
   body.surface([[A1, A1, 0], [A1, A0, 0], [A1, A0, wallH], [A1, A1, wallH]], wallShader('R'));
+
+  // Prisma pegado a la fachada: la cara que mira a la calle y la lateral reciben su propio sombreado
+  const frontBox = (f0, f1, l0, l1, z0, z1, rp, fns) => {
+    box(f0, f1, l0, l1, z0, z1, rp, front === 'u'
+      ? { right: fns.front, left: fns.side, top: fns.top }
+      : { left: fns.front, right: fns.side, top: fns.top });
+  };
+  const sideRamp = front === 'u' ? rampL : rampR;
+
+  if (design.bay && big) {
+    const lc = lat(3.7);
+    const hw = 0.15;
+    const bz0 = 3;
+    const bz1 = bz0 + winH + 1;
+    const glassBay = (u, v, z, x, y) => {
+      if (o.closed) return Math.floor(Math.abs((front === 'u' ? v : u) * 16) + z) % 4 < 2 ? WOOD.mid : WOOD.dark;
+      const a = Math.abs((front === 'u' ? v : u) - lc) * 16;
+      if (a > hw * 16 - 0.9 || z < bz0 + 1 || z >= bz1 - 1) return WHITE.light;
+      if (a < 0.5) return WHITE.mid;
+      const lit = !o.suspended && hash01(Math.round(lc * 50), 3, seed + 72) < 0.75;
+      const g = night ? glassNight(lit) : glassDay;
+      return z < (bz0 + bz1) / 2 ? g[1] : g[0];
+    };
+    const baySide = (u, v, z, x, y) => wallTexture(sideRamp, (front === 'u' ? u : v) * 16, z, x, y);
+    frontBox(A1, A1 + 0.17, lc - hw - 0.02, lc + hw + 0.02, 1.5, bz0, WHITE, {});
+    frontBox(A1, A1 + 0.14, lc - hw, lc + hw, bz0, bz1, rampL, { front: glassBay, side: baySide, top: () => roofRamp.mid });
+    frontBox(A1, A1 + 0.17, lc - hw - 0.03, lc + hw + 0.03, bz1, bz1 + 1.5, roofRamp, {});
+  }
 
   // -------------------------------------------------------------------------
   // VOLUMEN: tejado
@@ -457,12 +516,52 @@ export function renderHouse(o) {
       if (snowAt(x, y, 1.15, 7)) col = SNOW.light;
       return col;
     });
-    // parapeto
-    const rim = ramp(design.walls[0]);
-    body.box(E0, E1, E0, E0 + 0.06, zw, zw + 3, rim);
-    body.box(E0, E0 + 0.06, E0, E1, zw, zw + 3, rim);
-    body.box(E0, E1, E1 - 0.06, E1, zw, zw + 3, rim);
-    body.box(E1 - 0.06, E1, E0, E1, zw, zw + 3, rim);
+    const railing = (u0, v0, u1, v1) => {
+      const n = Math.max(2, Math.round(Math.hypot(u1 - u0, v1 - v0) / 0.12));
+      let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const [x, y] = body.project(u0 + ((u1 - u0) * i) / n, v0 + ((v1 - v0) * i) / n, zw);
+        body.rect(x, y - 4, 1, 4, WHITE.mid);
+        body.set(x, y - 5, WHITE.light);
+        if (prev) body.line(prev[0], prev[1] - 4, x, y - 4, WHITE.light);
+        prev = [x, y];
+      }
+    };
+    if (design.extra === 'terrace') {
+      const deckRp = ramp('#d6b98c');
+      body.floor(E0 + 0.08, E1 - 0.08, E0 + 0.08, E1 - 0.08, zw, (u, v, z, x, y) => (snowAt(x, y, 1.1, 7) ? SNOW.light : y % 3 === 0 ? deckRp.dark : deckRp.mid));
+      railing(E0, E0, E0, E1);
+      railing(E0, E0, E1, E0);
+      if (big) {
+        // pabellón de acceso a la azotea en el rincón de atrás
+        const p0 = E0 + 0.14;
+        const p1 = E0 + 0.5;
+        const ph = 9;
+        body.box(p0, p1, p0, p1, zw, zw + ph, rampL, {
+          left: (u, v, z, x, y) => {
+            const a = (u - p0) * 16;
+            if (a >= 1.8 && a < 4.2 && z - zw < 6.5) return woodDoor.mid;
+            return wallTexture(rampL, a, z - zw + 4, x, y);
+          },
+          right: (u, v, z, x, y) => {
+            const a = (p1 - v) * 16;
+            if (a >= 1.5 && a < 4.3 && z - zw >= 3 && z - zw < 6.5) return night ? glassNight(true)[0] : glassDay[0];
+            return wallTexture(rampR, a, z - zw + 4, x, y);
+          },
+          top: roofColor('light'),
+        });
+        body.box(p0 - 0.03, p1 + 0.03, p0 - 0.03, p1 + 0.03, zw + ph, zw + ph + 1.5, roofRamp);
+      }
+      railing(E1, E0, E1, E1);
+      railing(E0, E1, E1, E1);
+    } else {
+      // parapeto
+      const rim = ramp(design.walls[0]);
+      body.box(E0, E1, E0, E0 + 0.06, zw, zw + 3, rim);
+      body.box(E0, E0 + 0.06, E0, E1, zw, zw + 3, rim);
+      body.box(E0, E1, E1 - 0.06, E1, zw, zw + 3, rim);
+      body.box(E1 - 0.06, E1, E0, E1, zw, zw + 3, rim);
+    }
   } else if (shape === 'gable') {
     const gableTri = (verts, side) => body.surface(verts, (u, v, z, x, y) => {
       const a = side === 'L' ? (u - A0) * 16 : (A1 - v) * 16;
@@ -495,6 +594,7 @@ export function renderHouse(o) {
     const s = big ? 0.07 : 0.05;
     const base = roofZ(cu, cv) - 1;
     body.box(cu - s, cu + s, cv - s, cv + s, base, base + (big ? 9 : 6), BRICK, { top: () => BRICK.dark });
+    body.box(cu - s - 0.02, cu + s + 0.02, cv - s - 0.02, cv + s + 0.02, base + (big ? 9 : 6), base + (big ? 10.5 : 7.5), STONE);
     const [sx, sy] = body.project(cu, cv, base + (big ? 9 : 6));
     emitters.push({ x: sx - ox, y: sy - oy });
   }
@@ -506,17 +606,35 @@ export function renderHouse(o) {
     body.disk(qx, qy - 2, 2, ramp('#4ba35d'));
   }
   if (design.extra === 'porch' && big) {
-    // alero y postes sobre la puerta
-    const depth = 0.26;
-    const [fa, fb] = [A1, A1 + depth];
-    const [ua, va] = uv(fa, c - 0.19);
-    const [ub, vb] = uv(fb, c + 0.19);
-    const zRoof = doorH + 1;
-    body.box(Math.min(ua, ub), Math.max(ua, ub), Math.min(va, vb), Math.max(va, vb), zRoof, zRoof + 1, roofRamp);
-    for (const l of [c - 0.17, c + 0.17]) {
-      const [pu, pv] = uv(fb - 0.02, l);
-      const [x, y] = body.project(pu, pv, 0);
+    // porche con tarima, escalones, barandilla, alero y postes
+    const depth = 0.3;
+    const half = 0.3;
+    const zRoof = 12;
+    const fb = A1 + depth;
+    box(A1, fb, c - half, c + half, 0, 1.5, WOOD, { top: (u, v, z, x, y) => (x % 3 === 0 ? WOOD.mid : WOOD.light) });
+    box(fb, fb + 0.1, c - 0.1, c + 0.1, 0, 0.8, STONE);
+    box(A1, fb, c - half, c + half, zRoof, zRoof + 1, roofRamp);
+    const rail = (l0, l1) => {
+      const n = Math.max(2, Math.round(Math.abs(l1 - l0) / 0.09));
+      let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const [x, y] = at(fb - 0.03, l0 + ((l1 - l0) * i) / n, 1.5);
+        body.rect(x, y - 3, 1, 3, WHITE.mid);
+        if (prev) body.line(prev[0], prev[1] - 3, x, y - 3, WHITE.light);
+        prev = [x, y];
+      }
+    };
+    rail(c - half + 0.03, c - 0.1);
+    rail(c + 0.1, c + half - 0.03);
+    for (const l of [c - half + 0.03, c + half - 0.03]) {
+      const [x, y] = at(fb - 0.03, l, 0);
       body.rect(x, y - zRoof, 1, zRoof, WHITE.mid);
+      body.set(x, y - zRoof, WHITE.light);
+    }
+    for (const l of [c - 0.2, c + 0.2]) {
+      const [x, y] = at(A1 + 0.12, l, 1.5);
+      body.rect(x - 1, y - 2, 3, 2, ramp('#c2410c').mid);
+      body.disk(x, y - 3, 2, ramp('#4ba35d'));
     }
   }
   // Nivel 3: paneles solares en el faldón que mira a la calle (o en la azotea)
@@ -542,6 +660,50 @@ export function renderHouse(o) {
       }
       body.surface(pv.map(([u, v]) => [u, v, roofZ(u, v) + 0.6]), (u, v, z, x, y) => (((x + y) % 4 === 0) || (y % 3 === 0) ? sol.light : sol.mid));
     }
+  }
+
+  // Garaje adosado a un lado, a menor altura, con puerta seccional
+  if (hasGarage) {
+    const gz = Math.min(wallH, 9);
+    const doorRp = ramp('#d8dee8');
+    const garageFront = (u, v, z, x, y) => {
+      const a = ((front === 'u' ? v : u) - A1) * 16;
+      if (a >= 1 && a < 7 && z < 7) {
+        if (o.closed) return Math.floor(a + z) % 3 === 0 ? woodDoor.shadow : WOOD.mid;
+        if (z >= 6 || a < 1.8 || a >= 6.2) return WHITE.dark;
+        return Math.floor(z) % 2 === 0 ? doorRp.mid : doorRp.light;
+      }
+      return wallTexture(front === 'u' ? rampR : rampL, a, z, x, y);
+    };
+    const garageSide = (u, v, z, x, y) => {
+      const a = ((front === 'u' ? u : v) - (A0 + 0.25)) * 16;
+      if (a >= 5 && a < 9 && z >= 3 && z < 7) {
+        const g = night ? glassNight(!o.suspended) : glassDay;
+        return a < 5.9 || z < 3.9 || z >= 6.1 ? WHITE.light : (z < 5 ? g[1] : g[0]);
+      }
+      return wallTexture(sideRamp, a, z, x, y);
+    };
+    frontBox(A0 + 0.25, A1, A1, A1 + 0.5, 0, gz, rampL, { front: garageFront, side: garageSide, top: roofColor('light') });
+  }
+
+  // Buhardilla en el faldón que mira a la calle
+  if (design.dormer && big && !flat) {
+    const sl = shape === 'gable' && front === 'v';
+    const du = sl ? c + 0.5 * (E1 - c) : c;
+    const dv = sl ? c : c + 0.5 * (E1 - c);
+    const hs = 0.11;
+    const dh = 6;
+    const base = Math.min(roofZ(du - hs, dv - hs), roofZ(du + hs, dv - hs), roofZ(du - hs, dv + hs), roofZ(du + hs, dv + hs)) - 0.5;
+    const dormerGlass = (dark) => (u, v, z, x, y) => {
+      const a = ((sl ? v : u) - ((sl ? dv : du) - hs)) * 16;
+      if (a < 0.8 || a >= 2.9 || z < base + 1.3 || z >= base + dh - 0.8) return WHITE.light;
+      const lit = !o.suspended && hash01(Math.round(du * 50), 5, seed + 73) < 0.75;
+      const g = night ? glassNight(lit) : glassDay;
+      const col = z < base + dh / 2 ? g[1] : g[0];
+      return dark ? shade(col, 0.85) : col;
+    };
+    body.box(du - hs, du + hs, dv - hs, dv + hs, base, base + dh, rampL, { left: dormerGlass(false), right: dormerGlass(true), top: roofColor('light') });
+    body.box(du - hs - 0.03, du + hs + 0.03, dv - hs - 0.03, dv + hs + 0.03, base + dh, base + dh + 1.5, roofRamp);
   }
 
   props.filter((p) => p.k >= centerKey).forEach((p) => p.draw());
