@@ -130,6 +130,15 @@ export class SettingsHub {
     const stored = Preferences.get('detail');
     const detail = [1, 2, 4].includes(stored) ? stored : DETAIL_DEFAULT();
     const bench = this.benchResult;
+    let canvasWhy = 'Motivo desconocido.';
+    try {
+      const err = sessionStorage.getItem('isometrica_gpu_error');
+      if (err) canvasWhy = `Error de la GPU: ${err}`;
+      else if (new URLSearchParams(window.location.search).has('canvas2d')) canvasWhy = 'La dirección contiene ?canvas2d, que fuerza este modo.';
+      else canvasWhy = 'Este navegador no ofrece WebGL.';
+    } catch (e) {
+      // sin almacenamiento de sesión
+    }
     const benchNote = bench
       ? ` Prueba: Estándar ${bench[1].toFixed(0)} ms · Alto ${bench[2].toFixed(0)} ms · Ultra ${bench[4].toFixed(0)} ms por edificio → recomendado: ${DETAIL_NAMES[bench.best]}.`
       : '';
@@ -137,7 +146,7 @@ export class SettingsHub {
       .map((v) => `<button data-action="detail" data-v="${v}" class="${detail === v ? 'on' : ''}">${DETAIL_NAMES[v]}</button>`)
       .join('');
     const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const gpu = this.game.renderer && this.game.renderer.constructor.name === 'PixiRenderer';
+    const gpu = !(this.game.renderer && this.game.renderer.constructor.name === 'Renderer'); // Renderer = Canvas 2D de respaldo
 
     this.root.innerHTML = `
       <div class="st-top">
@@ -157,8 +166,9 @@ export class SettingsHub {
           </div>
           <p class="st-note">${detail === 4 ? 'Ultra usa mucha memoria y puede dar tirones en móviles modestos. ' : ''}El detalle real sube al acercar el zoom.${benchNote}</p>
           <button class="st-btn" data-action="detail-test">${this.benchRunning ? '⏱ Midiendo…' : '⏱ Probar rendimiento'}</button>
-          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas)'} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
+          <p class="st-note">Dificultad: ${this.game.simulation.difficulty.icon} ${this.game.simulation.difficulty.name} · Motor: ${gpu ? 'GPU (PixiJS)' : 'compatible (Canvas, dibujo antiguo)'} · Autoguardado cada 30 s · Versión ${APP_BUILD}${this.latestBuild && this.latestBuild !== APP_BUILD ? ` · ⚠️ hay una más nueva (${this.latestBuild})` : this.latestBuild ? ' · al día ✅' : ''}</p>
           ${this.latestBuild && this.latestBuild !== APP_BUILD ? '<button class="st-btn" data-action="reload">🔄 Actualizar el juego</button>' : ''}
+          ${gpu ? '' : `<p class="st-note">⚠️ Estás en el motor de respaldo, que no usa el pixel art nuevo. ${canvasWhy}</p><button class="st-btn" data-action="gpu">⚡ Reintentar con GPU</button>`}
         </div>
         <div class="st-col st-actions">
           <button class="st-btn" data-action="center">🎯 Centrar vista</button>
@@ -189,6 +199,13 @@ export class SettingsHub {
       ui.updateSmartDock();
     } else if (action === 'xray') {
       Preferences.set('xray', yes);
+    } else if (action === 'gpu') {
+      try { sessionStorage.removeItem('isometrica_gpu_error'); } catch (e) { /* nada */ }
+      game.storage.save();
+      const url = new URL(window.location.href);
+      url.searchParams.delete('canvas2d');
+      window.location.replace(url.toString());
+      return;
     } else if (action === 'reload') {
       game.storage.save();
       window.location.reload();

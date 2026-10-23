@@ -208,6 +208,12 @@ export class Game {
         })
         .catch((err) => {
           console.warn('PixiJS no disponible, se usa Canvas 2D:', err);
+          try {
+            // Ajustes muestra el motivo para poder diagnosticarlo desde el móvil
+            sessionStorage.setItem('isometrica_gpu_error', String((err && (err.stack || err.message)) || err).slice(0, 300));
+          } catch (e) {
+            // sin almacenamiento de sesión: solo queda el aviso de la consola
+          }
           const url = new URL(window.location.href);
           url.searchParams.set('canvas2d', '1');
           window.location.replace(url.toString());
