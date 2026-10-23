@@ -7,7 +7,7 @@
 
 import { CONFIG } from './game/config.js';
 import { Preferences } from './game/preferences.js';
-import { recordError } from './game/diagnostics.js';
+import { recordError, markGpuFailed, gpuFailure } from './game/diagnostics.js';
 import { Camera } from './engine/camera.js';
 import { Renderer } from './engine/renderer.js';
 import { IsoMath } from './engine/iso.js';
@@ -36,7 +36,11 @@ const AREA_PRESS_SLOP_PX = 10;
 function webglSupported() {
   try {
     const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    // Se libera enseguida: en móviles el número de contextos WebGL vivos es limitado
+    const lose = gl && gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    return !!gl;
   } catch (e) {
     return false;
   }
@@ -203,7 +207,7 @@ export class Game {
    */
   createRenderer() {
     const forceCanvas = new URLSearchParams(window.location.search).has('canvas2d');
-    if (!forceCanvas && webglSupported()) {
+    if (!forceCanvas && !gpuFailure() && webglSupported()) {
       const pending = { grassPalette: null, render() {}, resize() {} };
       import('./engine/pixi-renderer.js')
         .then(async ({ PixiRenderer }) => {
@@ -217,6 +221,7 @@ export class Game {
           try {
             // Ajustes muestra el motivo para poder diagnosticarlo desde el móvil
             sessionStorage.setItem('isometrica_gpu_error', String((err && (err.stack || err.message)) || err).slice(0, 300));
+            markGpuFailed(`al iniciar: ${(err && err.message) || err}`);
           } catch (e) {
             // sin almacenamiento de sesión: solo queda el aviso de la consola
           }
@@ -941,12 +946,15 @@ export class Game {
         this._lastRenderAt = performance.now();
       } catch (err) {
         // Un fallo de dibujo no debe parar el juego (antes dejaba el mapa en blanco para siempre)
-        recordError(`dibujo: ${err && (err.stack || err.message) || err}`);
-        console.error('Error al dibujar:', err);
         this._renderFails = (this._renderFails || 0) + 1;
+        if (this._renderFails === 1) {
+          recordError(`dibujo: ${(err && err.message) || err}`);
+          console.error('Error al dibujar:', err);
+        }
         if (this._renderFails >= 30 && this.renderer.constructor.name === 'PixiRenderer') {
           // El motor GPU falla de forma sostenida: se pasa al motor de respaldo con el aviso del motivo
           try { sessionStorage.setItem('isometrica_gpu_error', `dibujo: ${String(err && (err.message || err)).slice(0, 200)}`); } catch (e) { /* nada */ }
+          if (!gpuFailure()) markGpuFailed(`dibujo: ${(err && err.message) || err}`);
           const url = new URL(window.location.href);
           url.searchParams.set('canvas2d', '1');
           window.location.replace(url.toString());

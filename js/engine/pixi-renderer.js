@@ -15,7 +15,7 @@ import { Application, Container, Sprite, Texture, Graphics } from '../vendor/pix
 import { CONFIG, variantAt } from '../game/config.js';
 import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
 import { Preferences } from '../game/preferences.js';
-import { recordError } from '../game/diagnostics.js';
+import { recordError, markGpuFailed } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
 import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
@@ -99,6 +99,8 @@ export class PixiRenderer {
       this.contextLostCount++;
       // Foto del estado en ese momento, para saber qué lo provocó
       const r = this.app.renderer;
+      const snap = `a los ${((this.contextLostAt - startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`;
+      markGpuFailed(`contexto WebGL perdido ${snap}`);
       recordError(`WebGL: contexto perdido a los ${((this.contextLostAt - startedAt) / 1000).toFixed(1)} s · fotograma ${this.frame} · caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB) · objetos ${this.objects.size} · S${this.detailS} · resolución ${r.resolution} · lienzo ${cv.width}×${cv.height}`);
     });
     cv.addEventListener('webglcontextrestored', () => {

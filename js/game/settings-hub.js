@@ -9,7 +9,7 @@ import { renderHouse } from '../engine/pixel/house-art.js';
 import { renderShop } from '../engine/pixel/shop-art.js';
 import { CONFIG, designOf } from './config.js';
 import { APP_BUILD } from '../version.js';
-import { recentErrors } from './diagnostics.js';
+import { recentErrors, gpuFailure, clearGpuFailure } from './diagnostics.js';
 
 const DETAIL_NAMES = { 1: 'Estándar', 2: 'Alto', 4: 'Ultra' };
 const DETAIL_DEFAULT = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -134,7 +134,9 @@ export class SettingsHub {
     let canvasWhy = 'Motivo desconocido.';
     try {
       const err = sessionStorage.getItem('isometrica_gpu_error');
-      if (err) canvasWhy = `Error de la GPU: ${err}`;
+      const failed = gpuFailure();
+      if (failed) canvasWhy = `La GPU de este móvil falló (${failed.info}), así que el juego arranca con este motor. Puedes reintentar cuando quieras.`;
+      else if (err) canvasWhy = `Error de la GPU: ${err}`;
       else if (new URLSearchParams(window.location.search).has('canvas2d')) canvasWhy = 'La dirección contiene ?canvas2d, que fuerza este modo.';
       else canvasWhy = 'El navegador no ofrece WebGL ahora mismo. Tras un fallo de la GPU, Chrome lo bloquea para la página hasta que se cierra del todo (Ajustes del móvil → Aplicaciones → Chrome → Forzar detención).';
     } catch (e) {
@@ -225,6 +227,7 @@ export class SettingsHub {
       return;
     } else if (action === 'gpu') {
       try { sessionStorage.removeItem('isometrica_gpu_error'); } catch (e) { /* nada */ }
+      clearGpuFailure();
       game.storage.save();
       const url = new URL(window.location.href);
       url.searchParams.delete('canvas2d');
