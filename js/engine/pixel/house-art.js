@@ -100,11 +100,14 @@ export function renderHouse(o) {
   const texture = textureOf(design);
   const widthPx = (A1 - A0) * 16;
   const lat = (a) => (front === 'u' ? A1 - a / 16 : A0 + a / 16); // coordenada lateral a `a` px del borde de la fachada
-  const hasGarage = big && design.annex === 'garage';
+  // Escala de niveles: 1 sencilla · 2 cuidada (detalles de fachada y del diseño) · 3 de lujo
+  const tier2 = level >= 2;
+  const tier3 = level >= 3;
+  const hasGarage = big && design.annex === 'garage' && tier2;
   const flat = shape === 'flat';
   const shutterCol = roofRamp.mid;
-  const shutters = !flat && texture !== 'siding';
-  const lintels = texture === 'brick' || texture === 'stone';
+  const shutters = !flat && texture !== 'siding' && tier2;
+  const lintels = (texture === 'brick' || texture === 'stone') && tier2;
   const frameCol = flat ? hex('#3b4a5e') : WHITE.light;
 
   // -------------------------------------------------------------------------
@@ -266,7 +269,7 @@ export function renderHouse(o) {
   };
 
   // Parterres de flores a ambos lados de la puerta (diseños con flores o lote con jardín)
-  if (design.extra === 'flowers' || o.lot % 4 === 0) {
+  if (tier2 && (design.extra === 'flowers' || o.lot % 4 === 0)) {
     const gap = big ? 0.17 : 0.12;
     const d = big ? 0.12 : 0.1;
     flowerBed(A1, A1 + d, A0 + 0.06, c - gap);
@@ -362,6 +365,35 @@ export function renderHouse(o) {
   // VOLUMEN: paredes
   // -------------------------------------------------------------------------
 
+  // Nivel 3: setos recortados a ambos lados del camino y farola en la entrada
+  if (tier3) {
+    const hd = big ? 0.12 : 0.09;
+    const hf0 = A1 + (big ? 0.15 : 0.12);
+    const hg = big ? 0.2 : 0.15;
+    const hedge = (l0, l1) => prop(hf0 + hd / 2, (l0 + l1) / 2, () => {
+      const tt = Math.max(0, Math.min(1, look.tint * 1.2));
+      const rp = ramp(lerpStops([hex('#3f8f4f'), LEAF_STOPS[1], LEAF_STOPS[2], LEAF_STOPS[3]], tt));
+      box(hf0, hf0 + hd, l0, l1, 0, 3, rp, {
+        top: (u, v, z, x, y) => (snowAt(x, y, 1.1) ? SNOW.light : hash01(x, y, seed + 34) < 0.2 ? rp.light : rp.mid),
+      });
+    });
+    hedge(A0 + 0.04, c - hg);
+    hedge(c + hg, A1 - 0.04);
+    const lf = w - 0.3;
+    const ll = c + (big ? 0.3 : 0.2);
+    prop(lf, ll, () => {
+      const [x, y] = at(lf, ll);
+      const on = night && !o.suspended;
+      body.rect(x, y - 8, 1, 8, ramp('#334155').mid);
+      body.rect(x - 1, y - 10, 3, 2, on ? hex('#fde68a') : hex('#e2e8f0'));
+      if (on) {
+        body.set(x - 2, y - 9, hex('#fcd34d'));
+        body.set(x + 2, y - 9, hex('#fcd34d'));
+        body.set(x, y - 11, hex('#fcd34d'));
+      }
+    });
+  }
+
   // Ventanas y puerta como rectángulos (a: píxeles a lo largo de la cara, z: altura)
   const winH = flat ? Math.max(6, Math.round(fp * 0.72)) : Math.max(5, Math.round(fp * 0.5));
   const winW = flat ? (big ? 6 : 5) : big ? 5 : 4;
@@ -376,7 +408,7 @@ export function renderHouse(o) {
       if (isFront) centers = f === 0 ? (big ? [widthPx * 0.2, widthPx * 0.8] : []) : (big ? [widthPx * 0.28, widthPx * 0.72] : [widthPx * 0.5]);
       else centers = big ? [widthPx * 0.3, widthPx * 0.7] : [widthPx * 0.5];
       if (isFront && f === 0 && !big && floors === 1) centers = [];
-      if (isFront && f === 0 && design.bay && big) centers = [widthPx * 0.8]; // el saliente ocupa la otra ventana
+      if (isFront && f === 0 && design.bay && big && tier2) centers = [widthPx * 0.8]; // el saliente ocupa la otra ventana
       for (const cx of centers) wins[side].push({ a0: cx - winW / 2, a1: cx + winW / 2, z0, z1: z0 + winH });
     }
   }
@@ -428,16 +460,16 @@ export function renderHouse(o) {
         const edge = a < wn.a0 + 1 || a >= wn.a1 - 1 || z < wn.z0 + 1 || z >= wn.z1 - 1;
         if (edge) return frameCol;
         if (flat ? Math.floor(a - wn.a0) % 3 === 0 : Math.abs(a - (wn.a0 + wn.a1) / 2) < 0.5 && winW >= 5) return flat ? frameCol : WHITE.mid; // travesaño
-        const lit = !o.suspended && hash01(Math.floor(wn.a0), Math.floor(wn.z0), seed + 71) < 0.7;
+        const lit = !o.suspended && hash01(Math.floor(wn.a0), Math.floor(wn.z0), seed + 71) < (tier3 ? 0.95 : tier2 ? 0.75 : 0.5);
         const g = night ? glassNight(lit) : glassDay;
         if (!night && a < wn.a0 + 2 && z >= wn.z1 - 2) return hex('#ffffff'); // reflejo
         return z < (wn.z0 + wn.z1) / 2 ? g[1] : g[0];
       }
       // alféizar y jardinera con flores
-      if (design.extra === 'flowers' && a >= wn.a0 - 0.5 && a < wn.a1 + 0.5 && z >= wn.z0 - 2 && z < wn.z0) {
+      if (tier2 && design.extra === 'flowers' && a >= wn.a0 - 0.5 && a < wn.a1 + 0.5 && z >= wn.z0 - 2 && z < wn.z0) {
         return z < wn.z0 - 1 ? ramp('#4ba35d').dark : ['#ef4444', '#f9a8d4', '#facc15'][Math.floor(a) % 3];
       }
-      if (!o.closed && !flat) {
+      if (!o.closed && !flat && tier2) {
         if (a >= wn.a0 - 1 && a < wn.a1 + 1 && z >= wn.z0 - 1 && z < wn.z0) return WHITE.mid; // alféizar
         if (lintels && a >= wn.a0 - 1 && a < wn.a1 + 1 && z >= wn.z1 && z < wn.z1 + 1) return rp.light; // dintel
         if (shutters && z >= wn.z0 && z < wn.z1 && ((a >= wn.a0 - 1.3 && a < wn.a0) || (a >= wn.a1 && a < wn.a1 + 1.3))) return shutterCol; // postigos
@@ -465,7 +497,7 @@ export function renderHouse(o) {
   };
   const sideRamp = front === 'u' ? rampL : rampR;
 
-  if (design.bay && big) {
+  if (design.bay && big && tier2) {
     const lc = lat(3.7);
     const hw = 0.15;
     const bz0 = 3;
@@ -527,12 +559,12 @@ export function renderHouse(o) {
         prev = [x, y];
       }
     };
-    if (design.extra === 'terrace') {
+    if (design.extra === 'terrace' && tier2) {
       const deckRp = ramp('#d6b98c');
       body.floor(E0 + 0.08, E1 - 0.08, E0 + 0.08, E1 - 0.08, zw, (u, v, z, x, y) => (snowAt(x, y, 1.1, 7) ? SNOW.light : y % 3 === 0 ? deckRp.dark : deckRp.mid));
       railing(E0, E0, E0, E1);
       railing(E0, E0, E1, E0);
-      if (big) {
+      if (big && tier3) {
         // pabellón de acceso a la azotea en el rincón de atrás
         const p0 = E0 + 0.14;
         const p1 = E0 + 0.5;
@@ -588,7 +620,7 @@ export function renderHouse(o) {
   }
 
   // Detalles del diseño sobre el tejado
-  if (design.extra === 'chimney' && shape !== 'flat') {
+  if (design.extra === 'chimney' && shape !== 'flat' && tier2) {
     const cu = A0 + (A1 - A0) * 0.24;
     const cv = A0 + (A1 - A0) * 0.3;
     const s = big ? 0.07 : 0.05;
@@ -598,14 +630,26 @@ export function renderHouse(o) {
     const [sx, sy] = body.project(cu, cv, base + (big ? 9 : 6));
     emitters.push({ x: sx - ox, y: sy - oy });
   }
-  if (design.extra === 'terrace' && shape === 'flat') {
+  if (design.extra === 'terrace' && shape === 'flat' && tier2) {
     const [px, py] = body.project(c, c, zw + 1);
     body.rect(px - 1, py - 7, 1, 7, WHITE.dark);
     body.disk(px, py - 8, 4, ramp(['#f97316', '#ef4444', '#3b82f6'][Math.floor(hash01(seed, 4, 4) * 3)]));
     const [qx, qy] = body.project(c - 0.28, c + 0.2, zw + 1);
     body.disk(qx, qy - 2, 2, ramp('#4ba35d'));
   }
-  if (design.extra === 'porch' && big) {
+  if (design.extra === 'porch' && big && !tier2) {
+    // alero sencillo y postes sobre la puerta
+    const [ua, va] = uv(A1, c - 0.19);
+    const [ub, vb] = uv(A1 + 0.26, c + 0.19);
+    const zr = doorH + 1;
+    body.box(Math.min(ua, ub), Math.max(ua, ub), Math.min(va, vb), Math.max(va, vb), zr, zr + 1, roofRamp);
+    for (const l of [c - 0.17, c + 0.17]) {
+      const [pu, pv] = uv(A1 + 0.24, l);
+      const [x, y] = body.project(pu, pv, 0);
+      body.rect(x, y - zr, 1, zr, WHITE.mid);
+    }
+  }
+  if (design.extra === 'porch' && big && tier2) {
     // porche con tarima, escalones, barandilla, alero y postes
     const depth = 0.3;
     const half = 0.3;
@@ -644,15 +688,16 @@ export function renderHouse(o) {
       body.box(c - 0.2, c + 0.1, c - 0.15, c + 0.15, zw + 1, zw + 3, sol, { top: () => sol.light });
     } else {
       const pv = [];
-      const u0 = front === 'u' ? E0 + 0.25 : c + 0.1;
+      const sOff = design.dormer && big ? 0.14 : 0; // los paneles dejan sitio a la buhardilla
+      const u0 = front === 'u' ? (sOff ? c + 0.1 : E0 + 0.25) : c + 0.1;
       const u1 = front === 'u' ? E1 - 0.25 : E1 - 0.12;
-      const v0 = front === 'u' ? c + 0.12 : E0 + 0.25;
+      const v0 = front === 'u' ? c + 0.12 : (sOff ? c + 0.1 : E0 + 0.25);
       const v1 = front === 'u' ? E1 - 0.12 : E1 - 0.25;
       pv.push([u0, v0], [u1, v0], [u1, v1], [u0, v1]);
       if (shape !== 'gable') {
         const hu = 0.15;
         // en el tejado a cuatro aguas los paneles caben en el faldón central
-        const cu = front === 'u' ? c : c + 0.42;
+        const cu = front === 'u' ? c + sOff : c + 0.42;
         const cv = front === 'u' ? c + 0.42 : c;
         pv.length = 0;
         pv.push([cu - hu, cv - 0.1], [cu + hu, cv - 0.1], [cu + hu, cv + 0.1], [cu - hu, cv + 0.1]);
@@ -687,10 +732,10 @@ export function renderHouse(o) {
   }
 
   // Buhardilla en el faldón que mira a la calle
-  if (design.dormer && big && !flat) {
+  if (design.dormer && big && !flat && tier3) {
     const sl = shape === 'gable' && front === 'v';
-    const du = sl ? c + 0.5 * (E1 - c) : c;
-    const dv = sl ? c : c + 0.5 * (E1 - c);
+    const du = sl ? c + 0.5 * (E1 - c) : c - 0.22;
+    const dv = sl ? c - 0.22 : c + 0.5 * (E1 - c);
     const hs = 0.11;
     const dh = 6;
     const base = Math.min(roofZ(du - hs, dv - hs), roofZ(du + hs, dv - hs), roofZ(du - hs, dv + hs), roofZ(du + hs, dv + hs)) - 0.5;

@@ -35,3 +35,14 @@ test('diseños, lotes, noche, nieve y nivel cambian el dibujo', () => {
   assert.ok(!same(base.body, house(id, { closed: true }).body), 'cerrada');
   assert.ok(house(id, { level: 3, floors: 4 }).body.topRow() <= base.body.topRow(), 'el nivel sube la altura');
 });
+
+test('cada nivel suma detalles: a igual número de pisos el dibujo es distinto y más rico', () => {
+  for (const id of ['residential_tiny', 'residential_low']) {
+    for (let variant = 0; variant < 6; variant++) {
+      const at = (level) => house(id, { variant, level, floors: CONFIG.BUILDINGS[id].floors[0] }).comp;
+      assert.ok(!same(at(1), at(2)), id + ' ' + variant + ': el nivel 2 se distingue del 1');
+      assert.ok(!same(at(2), at(3)), id + ' ' + variant + ': el nivel 3 se distingue del 2');
+      assert.ok(house(id, { variant, level: 3, floors: CONFIG.BUILDINGS[id].floors[0] }).body.opaqueCount() > house(id, { variant, level: 1, floors: CONFIG.BUILDINGS[id].floors[0] }).body.opaqueCount(), id + ' ' + variant + ': el nivel 3 es más elaborado');
+    }
+  }
+});
