@@ -257,6 +257,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 | Bulevar Gastronómico | `pixel/boulevard-art.js` | 4 × 4 × 3 (terraza con sombrillas, pérgola, azotea, invernadero; estufas en invierno) |
 | Edificio de Oficinas | `pixel/office-art.js` | 3 × 4 × 3 (9 plantas; 12 con retranqueo y jardín; rascacielos de tres tramos con aguja) |
 | Fábrica de Contratación Masiva | `pixel/factory-art.js` | 3 × 4 × 3 (diente de sierra, chimeneas con humo, silos, cinta, camiones, valla con caseta) |
+| Complejo Tecnológico | `pixel/tech-art.js` | 3 × 4 × 3 (laboratorio en voladizo, anexo de servidores, ala con pasarela, torre con corona, LED de noche) |
 | Mercado Popular | `pixel/market-art.js` | 3 × 4 × 3 (puestos al aire libre en nivel 1, nave cubierta en 2, torre del reloj en 3) |
 
 Las piezas comunes de los lotes comerciales (pavimento, plazas, setos, árboles, farolas, coches, letras de
