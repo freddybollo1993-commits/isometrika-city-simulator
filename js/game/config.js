@@ -1278,6 +1278,11 @@ export const DESIGNS = {
     { name: 'Laboratorio azul', walls: ['#dbeafe', '#60a5fa', '#2563eb'] },
     { name: 'Laboratorio violeta', walls: ['#ede9fe', '#a78bfa', '#7c3aed'] },
   ],
+  commercial_distribution: [
+    { name: 'Logística azul', walls: ['#f1f5f9', '#cbd5e1', '#94a3b8'], accent: '#2563eb' },
+    { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
+    { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
+  ],
   industrial_agro: [
     { name: 'Molino de grano', walls: ['#f5ecd7', '#e6d6b0', '#c9b98f'] },
     { name: 'Lácteos y frío', walls: ['#f8fafc', '#e2e8f0', '#93c5fd'] },

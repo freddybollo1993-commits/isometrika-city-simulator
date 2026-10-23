@@ -17,9 +17,10 @@ import { renderOffice } from './office-art.js';
 import { renderFactory } from './factory-art.js';
 import { renderTech } from './tech-art.js';
 import { renderAgro } from './agro-art.js';
+import { renderLogistics } from './logistics-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
-export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro']);
+export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -81,6 +82,9 @@ export function pixelJob(building, def, dayProgress, look, S) {
     season: look,
     seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
   };
+  if (def.id === 'commercial_distribution') {
+    return { kind: 'logistics', params: { ...common, kind: variant, walls: design.walls, accent: design.accent } };
+  }
   if (def.id === 'industrial_agro') {
     return { kind: 'agro', params: { ...common, kind: variant } };
   }
@@ -126,5 +130,6 @@ export function renderPixelJob(job) {
   if (job.kind === 'factory') return renderFactory(job.params);
   if (job.kind === 'tech') return renderTech(job.params);
   if (job.kind === 'agro') return renderAgro(job.params);
+  if (job.kind === 'logistics') return renderLogistics(job.params);
   return job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
 }

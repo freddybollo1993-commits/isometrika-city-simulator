@@ -213,7 +213,7 @@ export function planArea({ grid, sim, buildingId, rect, budget = null }) {
     const seq = designSequence(d, list.length, x0 * 977 + y0 * 131);
     list.forEach((it, i) => { it.variant = seq[i]; });
     // Viviendas y tiendas tienen además 4 diseños de lote cada una
-    if (['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro'].includes(id)) {
+    if (['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution'].includes(id)) {
       const lots = designSequence({ variants: 4 }, list.length, x0 * 131 + y0 * 977 + 7);
       list.forEach((it, i) => { it.lot = lots[i]; });
     }
