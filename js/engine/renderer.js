@@ -5,7 +5,7 @@
  * props arquitectónicos procedurales y partículas.
  */
 
-import { CONFIG, variantAt } from '../game/config.js';
+import { CONFIG, variantAt, buildingHeight } from '../game/config.js';
 import { IsoMath } from './iso.js';
 
 export class Renderer {
@@ -912,7 +912,7 @@ export class Renderer {
     }
 
     // === EDIFICIOS ESTÁNDAR Y PRISMAS ===
-    const h = (def.height || 30) + (level - 1) * 6;
+    const h = buildingHeight(def, level);
     IsoMath.drawIsoBlock(ctx, x, y, tw, th, h, def.colorTop, def.colorLeft, def.colorRight);
     const topY = y - h;
 

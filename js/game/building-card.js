@@ -116,6 +116,10 @@ export class BuildingCard {
       const prog = Math.max(0, Math.min(100, Math.round(building.upgradeProgress || 0)));
       const eff = this.game.grid.getTransportEfficiencyAt(gx, gy);
       tiles.push(this._tile('👥', 'Vecinos', `${residents}/${cap}`));
+      if (def.floors) {
+        const sq = (def.size || 1) ** 2;
+        tiles.push(this._tile('🏢', 'Pisos', `${def.floors[Math.min(level, def.floors.length) - 1]} · ${(cap / sq).toFixed(1)} hab/casilla`));
+      }
       tiles.push(this._tile('🏘️', 'Paga alquiler a', def.id === 'residential_social' ? '🏛️ Estado' : '💼 Empresa'));
       tiles.push(this._tile('🌱', 'Evolución', level < 3 ? `${prog}%` : 'Máxima', 'pos',
         level < 3 ? `<span class="bk-bar"><span style="transform:scaleX(${prog / 100})"></span></span>` : ''));

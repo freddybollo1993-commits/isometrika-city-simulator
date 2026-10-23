@@ -58,3 +58,18 @@ test('los edificios pequeños piden el preventivo con menos frecuencia', () => {
   const m = sim.maintenance;
   assert.ok(m.periodOf(CONFIG.BUILDINGS.commercial_stall) > m.periodOf(CONFIG.BUILDINGS.commercial_store));
 });
+
+test('la capacidad de las viviendas es casillas × pisos × densidad y crece con el nivel', () => {
+  for (const id of ['residential_tiny', 'residential_low', 'residential_high', 'residential_social']) {
+    const def = CONFIG.BUILDINGS[id];
+    const tiles = def.size ** 2;
+    def.floors.forEach((floors, i) => {
+      assert.equal(def.levels[i + 1].capacity, Math.round(tiles * floors * def.density), `${id} nivel ${i + 1}`);
+    });
+    assert.ok(def.levels[2].capacity > def.levels[1].capacity && def.levels[3].capacity > def.levels[2].capacity, `${id} crece con el nivel`);
+    assert.equal(def.height, def.floors[0] * def.floorPx, 'la altura sale de los pisos');
+  }
+  // La casita de 1 casilla aloja a 2 con sus 2 pisos y la casa de 2×2 a 4 con 1 piso
+  assert.equal(CONFIG.BUILDINGS.residential_tiny.levels[1].capacity, 2);
+  assert.equal(CONFIG.BUILDINGS.residential_low.levels[1].capacity, 4);
+});

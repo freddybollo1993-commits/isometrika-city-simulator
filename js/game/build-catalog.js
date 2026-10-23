@@ -36,7 +36,7 @@ export function tabOf(def) {
 /** Lo más importante que aporta un edificio, en pocas palabras. */
 function contribution(def) {
   const l = (def.levels && def.levels[1]) || def;
-  if (l.capacity) return `+${l.capacity} plazas`;
+  if (l.capacity) return def.floors ? `+${l.capacity} plazas · ${def.floors[0]} ${def.floors[0] === 1 ? 'piso' : 'pisos'}` : `+${l.capacity} plazas`;
   if (l.powerSupply) return `+${l.powerSupply} MW`;
   if (l.waterSupply) return `+${l.waterSupply} kL`;
   if (l.foodCapacity) return `+${l.foodCapacity} raciones`;

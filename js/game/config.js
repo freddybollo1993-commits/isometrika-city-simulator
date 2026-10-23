@@ -261,7 +261,7 @@ export const CONFIG = {
       upkeep: 2,
       maintenancePeriod: 45, // edificio pequeño: preventivo menos frecuente
       levels: {
-        1: { cost: 250, upkeep: 2, capacity: 2, tax: 2.2, pollution: 0, power: 1, water: 1, description: 'Casita de una planta para una pareja o dos personas (2 hab).' },
+        1: { cost: 250, upkeep: 2, capacity: 2, tax: 2.2, pollution: 0, power: 1, water: 1, description: 'Casita de dos plantas para una pareja o dos personas (2 hab).' },
         2: { cost: 450, upkeep: 4, capacity: 4, tax: 2.5, pollution: 0, power: 1, water: 2, description: 'Casita ampliada con buhardilla (4 hab).' },
         3: { cost: 800, upkeep: 7, capacity: 6, tax: 2.9, pollution: 0, power: 2, water: 3, description: 'Casita con altillo y huerto (6 hab).' },
       },
@@ -1056,6 +1056,53 @@ const BUILDING_SIZES = {
   service_seismic_radar: 2, service_research: 4, service_cityhall: 5, service_barrier: 2,
   deco_plaza: 2, deco_park: 2, deco_botanical: 5, deco_lamp: 1,
 };
+
+// =============================================================================
+// VIVIENDA: habitantes = casillas × pisos × densidad
+// Cada nivel añade pisos (y por tanto altura en el mapa); la densidad es la gente que cabe por
+// casilla y por piso. Las capacidades escritas a mano en el catálogo se sustituyen por esta cuenta.
+// =============================================================================
+
+const HOUSING = {
+  // casita: 1 casilla, 1 hab/casilla/piso, de 2 a 4 pisos
+  residential_tiny: { floors: [2, 3, 4], density: 1, floorPx: 10 },
+  // casa: 4 casillas, de 1 a 3 pisos
+  residential_low: { floors: [1, 2, 3], density: 1, floorPx: 14 },
+  // torre: 16 casillas con núcleo de escaleras y ascensores (0,5 hab/casilla/piso), de 5 a 11 pisos
+  residential_high: { floors: [5, 8, 11], density: 0.5, floorPx: 12 },
+  // vivienda social: 16 casillas, de 4 a 10 pisos
+  residential_social: { floors: [4, 7, 10], density: 0.375, floorPx: 12 },
+};
+
+/** Altura en píxeles de un edificio según su nivel (las viviendas, por pisos; el resto, como antes). */
+export function buildingHeight(def, level = 1) {
+  if (def.floors) return def.floors[Math.min(level, def.floors.length) - 1] * (def.floorPx || 12);
+  return (def.height || 30) + (level - 1) * 6;
+}
+
+const pisos = (n) => (n === 1 ? '1 piso' : `${n} pisos`);
+
+const HOUSING_TEXT = {
+  residential_tiny: (c, f) => `Vivienda mínima de una casilla para rellenar huecos: ${c[0]} habitantes que llegan a ${c[2]} al ganar pisos (de ${pisos(f[0])} a ${pisos(f[2])}).`,
+  residential_low: (c, f) => `Evoluciona desde una casa de ${pisos(f[0])} (${c[0]} hab.) hasta una villa de ${pisos(f[2])} (${c[2]} hab.).`,
+  residential_high: (c, f) => `Complejo residencial de alta densidad: de ${pisos(f[0])} (${c[0]} hab.) a ${pisos(f[2])} (${c[2]} hab.).`,
+  residential_social: (c, f) => `Bloques públicos asequibles gestionados por el municipio: de ${pisos(f[0])} (${c[0]} hab.) a ${pisos(f[2])} (${c[2]} hab.).`,
+};
+
+for (const [id, spec] of Object.entries(HOUSING)) {
+  const def = CONFIG.BUILDINGS[id];
+  const tiles = (BUILDING_SIZES[id] || 1) ** 2;
+  Object.assign(def, spec);
+  const caps = [];
+  spec.floors.forEach((f, i) => {
+    const level = def.levels[i + 1];
+    level.capacity = Math.max(1, Math.round(tiles * f * spec.density));
+    caps.push(level.capacity);
+    level.description = `${level.description.replace(/\s*\([^)]*\bhab[^)]*\)\.?/, '').replace(/\.$/, '')} (${level.capacity} hab · ${pisos(f)}).`;
+  });
+  def.description = HOUSING_TEXT[id](caps, spec.floors);
+  def.height = buildingHeight(def, 1);
+}
 
 for (const [id, def] of Object.entries(CONFIG.BUILDINGS)) {
   def.size = BUILDING_SIZES[id] || def.size || 1;
