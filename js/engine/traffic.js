@@ -2,11 +2,14 @@
  * TRÁFICO ANIMADO (solo visual, no se guarda)
  * Coches por el carril derecho de las carreteras de 2×2 y peatones por las aceras. Avanzan de un
  * tramo al siguiente siguiendo las conexiones de cada tramo (roadMask) y giran al azar en los
- * cruces. La cantidad crece con la red de carreteras y la población.
+ * cruces. La cantidad crece con la red de carreteras y la población. Cada agente lleva su tipo de
+ * vehículo o de peatón, su sentido de marcha y su paso, que los motores dibujan en pixel art
+ * (pixel/vehicle-art.js).
  */
 
 import { CONFIG } from '../game/config.js';
 import { IsoMath } from './iso.js';
+import { VEHICLES, WALKERS, pick, dirOf } from './pixel/vehicle-art.js';
 
 const DIRS = [
   { bit: 1, dx: 0, dy: -1 },
@@ -14,8 +17,8 @@ const DIRS = [
   { bit: 4, dx: 0, dy: 1 },
   { bit: 8, dx: -1, dy: 0 },
 ];
-const CAR_COLORS = ['#ef4444', '#3b82f6', '#fbbf24', '#f8fafc', '#10b981', '#a855f7', '#f97316'];
-const WALKER_COLORS = ['#1e293b', '#7c2d12', '#1d4ed8', '#be185d', '#15803d'];
+const CAR_COLORS = ['#ef4444', '#3b82f6', '#d1d5db', '#f8fafc', '#475569', '#166534', '#1e3a8a', '#9f1239', '#f97316'];
+const WALK_STEPS = [0, 1, 0, 2]; // paso de marcha de los peatones
 const CAR_SPEED = 0.9; // tramos por segundo
 const WALK_SPEED = 0.22;
 const CAR_LANE = 0.3; // desplazamiento del carril desde el centro del tramo (en casillas): mitad del carril derecho
@@ -43,12 +46,14 @@ export class Traffic {
     const r = this._roads[Math.floor(Math.random() * this._roads.length)];
     const options = DIRS.filter((d) => r.mask & d.bit);
     const d = options[Math.floor(Math.random() * options.length)];
-    const palette = kind === 'car' ? CAR_COLORS : WALKER_COLORS;
+    const type = kind === 'car' ? pick(VEHICLES, Math.random()) : pick(WALKERS, Math.random());
     this.agents.push({
-      kind, gx: r.gx, gy: r.gy, dx: d.dx, dy: d.dy, t: Math.random(),
+      kind, type, gx: r.gx, gy: r.gy, dx: d.dx, dy: d.dy, t: Math.random(),
       side: Math.random() < 0.5 ? 1 : -1, // acera izquierda o derecha (peatones)
-      color: palette[Math.floor(Math.random() * palette.length)],
-      x: 0, y: 0,
+      color: kind === 'car' ? VEHICLES[type].color || CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)] : null,
+      seed: Math.floor(Math.random() * 1000), // ropa y complementos del peatón
+      speed: kind === 'car' ? CAR_SPEED * (VEHICLES[type].speed || 1) : WALK_SPEED * (type === 'elder' ? 0.7 : type === 'child' ? 1.1 : 1),
+      walk: Math.random() * 4, frame: 0, dir: 0, px: 0, py: 0, x: 0, y: 0,
     });
   }
 
@@ -76,7 +81,7 @@ export class Traffic {
     const half = w / 2;
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
-      a.t += dt * (a.kind === 'car' ? CAR_SPEED : WALK_SPEED);
+      a.t += dt * a.speed;
       while (a.t >= 1) {
         a.t -= 1;
         a.gx += a.dx * w;
@@ -101,6 +106,13 @@ export class Traffic {
       const iso = IsoMath.gridToIso(px, py);
       a.x = iso.x;
       a.y = iso.y;
+      a.px = px; // posición en casillas: los motores ordenan por px + py con los edificios
+      a.py = py;
+      a.dir = dirOf(a.dx, a.dy);
+      if (a.kind !== 'car') {
+        a.walk += dt * 7 * a.speed / WALK_SPEED;
+        a.frame = WALK_STEPS[Math.floor(a.walk) % 4];
+      }
     }
     if (this.agents.length > cars + walkers + 10) this.agents.length = cars + walkers;
   }

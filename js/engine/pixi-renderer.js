@@ -16,6 +16,7 @@ import { CONFIG, variantAt } from '../game/config.js';
 import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor, wildTreeKey, wildTreeJob } from './pixel/pixel-buildings.js';
 import { waterGlints } from './pixel/terrain-art.js';
 import { TerrainBaker } from './terrain-baker.js';
+import { agentKey, renderAgent } from './pixel/vehicle-art.js';
 import { Preferences } from '../game/preferences.js';
 import { recordError, markGpuFailed, setEngineResult, setCurrentEngine } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
@@ -134,10 +135,11 @@ export class PixiRenderer {
     this.ghostSprite = new Sprite(Texture.EMPTY);
     this.ghostSprite.alpha = 0.55;
     this.ghostLayer.addChild(this.ghostGraphics, this.ghostSprite);
-    this.vehicleLayer = new Container();
     this.particleLayer = new Container();
+    this.agentSprites = []; // coches y peatones: van en objectLayer, ordenados con los edificios
+    this.agentCache = new Map(); // clave de figura → { texture, ox, oy, S }
     this.world.addChild(this.terrainLayer, this.waterLayer, this.objectLayer, this.effectLayer,
-      this.ghostLayer, this.vehicleLayer, this.particleLayer);
+      this.ghostLayer, this.particleLayer);
     this.screenFx = new Graphics();
     this.app.stage.addChild(this.world, this.screenFx);
 
@@ -849,22 +851,41 @@ export class PixiRenderer {
     }
   }
 
-  _drawVehicles(grid) {
-    const layer = this.vehicleLayer;
-    const vehicles = grid.vehicles || [];
-    while (layer.children.length < vehicles.length) {
-      const s = new Sprite(this.dotTexture);
-      s.anchor.set(0.5);
-      layer.addChild(s);
+  /**
+   * Coches y peatones del tráfico en pixel art. Van en la misma capa que los edificios, ordenados por
+   * profundidad: un edificio tapa al coche que pasa por detrás. Las figuras se dibujan al vuelo y se
+   * guardan (las iguales comparten imagen).
+   */
+  _drawVehicles(grid, dayProgress) {
+    const agents = grid.vehicles || [];
+    const night = dayProgress >= 0.78;
+    const S = this.detailS;
+    if (this.agentCache.size > 500) {
+      for (const e of this.agentCache.values()) e.texture.destroy(true);
+      this.agentCache.clear();
     }
-    // Coches y peatones del tráfico animado (traffic.js ya calcula su posición)
-    layer.children.forEach((s, i) => {
-      const v = vehicles[i];
-      s.visible = !!v;
-      if (!v) return;
-      s.width = s.height = v.kind === 'car' ? 5.5 : 2.8;
-      s.position.set(v.x, v.y);
-      s.tint = hexToNumber(v.color);
+    while (this.agentSprites.length < agents.length) {
+      const s = new Sprite(Texture.EMPTY);
+      this.objectLayer.addChild(s);
+      this.agentSprites.push(s);
+    }
+    this.agentSprites.forEach((s, i) => {
+      const a = agents[i];
+      s.visible = !!a;
+      if (!a) return;
+      const key = agentKey(a, night, this.qLook, S);
+      let e = this.agentCache.get(key);
+      if (!e) {
+        const out = renderAgent(a, night, this.qLook, S);
+        const texture = Texture.from(out.canvas.toCanvas());
+        texture.source.scaleMode = 'nearest';
+        e = { texture, ox: out.ox, oy: out.oy, S: out.S };
+        this.agentCache.set(key, e);
+      }
+      if (s.texture !== e.texture) s.texture = e.texture;
+      s.scale.set(1 / e.S);
+      s.position.set(Math.round((a.x - e.ox) * e.S) / e.S, Math.round((a.y - e.oy) * e.S) / e.S);
+      s.zIndex = (a.px + a.py) * 4 - 0.5; // justo antes de un edificio de la misma profundidad
     });
   }
 
@@ -1072,7 +1093,7 @@ export class PixiRenderer {
     this._applyFades();
     this._drawEffects();
     this._drawGhost(grid, ghostState);
-    this._drawVehicles(grid);
+    this._drawVehicles(grid, dayProgress);
     this._updateParticles();
     this._drawScreenFx(disasters, dayProgress);
 

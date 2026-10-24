@@ -12,6 +12,7 @@ import { Preferences } from '../game/preferences.js';
 import { DETAIL_LEVELS, defaultDetail, isPixelBuilding, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor, wildTreeKey, wildTreeJob } from './pixel/pixel-buildings.js';
 import { waterGlints } from './pixel/terrain-art.js';
 import { TerrainBaker } from './terrain-baker.js';
+import { agentKey, renderAgent } from './pixel/vehicle-art.js';
 
 const PIXEL_CACHE = 160; // imágenes de pixel art guardadas (dos lienzos cada una)
 const PIXEL_BAKE_MS = 8; // tiempo máximo de horneado por fotograma (siempre se permite uno)
@@ -170,6 +171,8 @@ export class Renderer {
         }
       }
     }
+    // coches y peatones, ordenados con los edificios (un edificio tapa al coche que pasa por detrás)
+    for (const agent of grid.vehicles || []) drawables.push({ agent, depth: agent.px + agent.py - 0.125 });
     drawables.sort((a, b) => a.depth - b.depth);
 
     // Transparencia de los edificios que tapan: objetivo cada pocos fotogramas, suavizado en cada uno
@@ -189,7 +192,8 @@ export class Renderer {
 
     const pixelFrame = new Map();
     ctx.imageSmoothingEnabled = false;
-    for (const { gx, gy } of drawables) {
+    for (const { gx, gy, agent } of drawables) {
+      if (agent) continue;
       const b = grid.tiles[gy][gx].building;
       if (!b || !b.isRoot) continue;
       const def = CONFIG.BUILDINGS[b.id];
@@ -201,7 +205,12 @@ export class Renderer {
       pixelFrame.set(`${gx},${gy}`, e);
     }
 
-    for (const { gx, gy } of drawables) {
+    const night = dayProgress >= 0.78;
+    for (const { gx, gy, agent } of drawables) {
+      if (agent) {
+        this._drawAgent(ctx, agent, night);
+        continue;
+      }
       {
         const tile = grid.tiles[gy][gx];
         const iso = IsoMath.gridToIso(gx, gy);
@@ -263,9 +272,6 @@ export class Renderer {
     if (ghostState && ghostState.active && ghostState.buildingId) {
       this.renderGhostPreview(ctx, grid, ghostState);
     }
-
-    // 3. Vehículos en carreteras
-    this.renderVehicles(ctx, grid);
 
     // 4. Partículas
     this.updateAndRenderParticles(ctx);
@@ -1959,19 +1965,18 @@ export class Renderer {
     }
   }
 
-  /** Coches y peatones del tráfico animado (traffic.js ya calcula su posición). */
-  renderVehicles(ctx, grid) {
-    (grid.vehicles || []).forEach((v) => {
-      ctx.beginPath();
-      ctx.arc(v.x, v.y, v.kind === 'car' ? 2.6 : 1.3, 0, Math.PI * 2);
-      ctx.fillStyle = v.color;
-      ctx.fill();
-      if (v.kind === 'car') {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 0.6;
-        ctx.stroke();
-      }
-    });
+  /** Coche o peatón del tráfico en pixel art (las figuras se dibujan al vuelo y se guardan). */
+  _drawAgent(ctx, a, night) {
+    this.agentCache = this.agentCache || new Map();
+    if (this.agentCache.size > 500) this.agentCache.clear();
+    const key = agentKey(a, night, this.season.look, this.detailS);
+    let e = this.agentCache.get(key);
+    if (!e) {
+      const out = renderAgent(a, night, this.season.look, this.detailS);
+      e = { canvas: out.canvas.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H };
+      this.agentCache.set(key, e);
+    }
+    ctx.drawImage(e.canvas, a.x - e.ox, a.y - e.oy, e.W, e.H);
   }
 
   updateAndRenderParticles(ctx) {
