@@ -9,6 +9,7 @@ import { renderResearch } from '../js/engine/pixel/research-art.js';
 import { renderCityHall } from '../js/engine/pixel/cityhall-art.js';
 import { renderTerminal } from '../js/engine/pixel/terminal-art.js';
 import { renderRadar, renderDike } from '../js/engine/pixel/infra-art.js';
+import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from '../js/engine/pixel/utility-art.js';
 import { seasonLook } from '../js/game/calendar.js';
 import { pixelJob, PIXEL_ART_IDS } from '../js/engine/pixel/pixel-buildings.js';
 import { CONFIG, DESIGNS } from '../js/game/config.js';
@@ -26,6 +27,10 @@ const FAMILIES = [
   ['transit_bus_terminal', 'terminal', renderTerminal],
   ['service_seismic_radar', 'radar', renderRadar],
   ['service_barrier', 'dike', renderDike],
+  ['utility_power_solar', 'solar', renderSolar],
+  ['utility_power_plant', 'powerplant', renderPowerPlant],
+  ['utility_water_tower', 'watertower', renderWaterTower],
+  ['utility_water_plant', 'waterplant', renderWaterPlant],
 ];
 const same = (a, b) => Buffer.compare(Buffer.from(a.data), Buffer.from(b.data)) === 0;
 

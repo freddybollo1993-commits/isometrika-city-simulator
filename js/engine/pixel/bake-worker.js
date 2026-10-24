@@ -32,6 +32,7 @@ import { renderCityHall } from './cityhall-art.js';
 import { renderTerminal } from './terminal-art.js';
 import { renderRadar, renderDike } from './infra-art.js';
 import { renderTower, renderSocial } from './tower-art.js';
+import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
@@ -41,6 +42,7 @@ const RENDER = {
   plaza: renderPlaza, grove: renderGrove, botanical: renderBotanical, lamp: renderLampTile, zone: renderZone,
   cityhall: renderCityHall, terminal: renderTerminal, radar: renderRadar, dike: renderDike,
   tower: renderTower, social: renderSocial,
+  solar: renderSolar, powerplant: renderPowerPlant, watertower: renderWaterTower, waterplant: renderWaterPlant,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });

@@ -1283,6 +1283,26 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  utility_power_solar: [
+    { name: 'Placas fijas', walls: ['#86c995', '#1e3a8a', '#f1f5f9'] },
+    { name: 'Placas flotantes', walls: ['#4a86b8', '#1e3a8a', '#f1f5f9'] },
+    { name: 'Agrovoltaico', walls: ['#86c995', '#1e3a8a', '#f1f5f9'] },
+  ],
+  utility_power_plant: [
+    { name: 'Central térmica', walls: ['#f1f5f9', '#e5e7eb', '#d6d3d1'] },
+    { name: 'Central hidroeléctrica', walls: ['#e5e7eb', '#cfd4da', '#3f78aa'] },
+    { name: 'Central de gas limpio', walls: ['#f1f5f9', '#e5e7eb', '#dc2626'] },
+  ],
+  utility_water_tower: [
+    { name: 'Depósito sobre patas', walls: ['#cbd5e1', '#9fb4c4', '#475569'] },
+    { name: 'Torre hongo', walls: ['#f8fafc', '#f1f5f9', '#0ea5e9'] },
+    { name: 'Torre de ladrillo', walls: ['#e7e0d0', '#a3533f', '#7c3d2c'] },
+  ],
+  utility_water_plant: [
+    { name: 'Balsas circulares', walls: ['#e2e8f0', '#4a9a8a', '#3f8f9a'] },
+    { name: 'Compacta cubierta', walls: ['#86c995', '#cbd5e1', '#4a9a8a'] },
+    { name: 'Filtros ultravioleta', walls: ['#f1f5f9', '#7c3aed', '#1e3a8a'] },
+  ],
   service_cityhall: [
     { name: 'Palacio de piedra', walls: ['#d9d0bd', '#c9bfa8', '#4b5563'] },
     { name: 'Alcaldía de cristal', walls: ['#e0f2fe', '#dbeafe', '#94a3b8'] },
