@@ -29,10 +29,14 @@ import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
 import { renderResearch } from './research-art.js';
 import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone } from './park-art.js';
+import { renderCityHall } from './cityhall-art.js';
+import { renderTerminal } from './terminal-art.js';
+import { renderRadar, renderDike } from './infra-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
 export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university', 'service_research',
-  'deco_plaza', 'deco_park', 'deco_botanical', 'deco_lamp', 'recreation_zone']);
+  'deco_plaza', 'deco_park', 'deco_botanical', 'deco_lamp', 'recreation_zone',
+  'service_cityhall', 'transit_bus_terminal', 'service_seismic_radar', 'service_barrier']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -102,6 +106,10 @@ export function pixelJob(building, def, dayProgress, look, S) {
     const zS = w * h > 64 ? Math.min(S, 2) : S;
     return { kind: 'zone', params: { ...common, S: zS, w, h, elements: building.zone.elements, zseed: building.zone.seed } };
   }
+  if (def.id === 'service_cityhall') return { kind: 'cityhall', params: { ...common, kind: variant } };
+  if (def.id === 'transit_bus_terminal') return { kind: 'terminal', params: { ...common, kind: variant } };
+  if (def.id === 'service_seismic_radar') return { kind: 'radar', params: { ...common, kind: variant } };
+  if (def.id === 'service_barrier') return { kind: 'dike', params: { ...common, kind: variant } };
   if (def.id === 'deco_plaza') return { kind: 'plaza', params: { ...common, kind: variant } };
   if (def.id === 'deco_park') return { kind: 'grove', params: { ...common, kind: variant } };
   if (def.id === 'deco_botanical') return { kind: 'botanical', params: { ...common, kind: variant } };
@@ -188,5 +196,9 @@ export function renderPixelJob(job) {
   if (job.kind === 'botanical') return renderBotanical(job.params);
   if (job.kind === 'lamp') return renderLampTile(job.params);
   if (job.kind === 'zone') return renderZone(job.params);
+  if (job.kind === 'cityhall') return renderCityHall(job.params);
+  if (job.kind === 'terminal') return renderTerminal(job.params);
+  if (job.kind === 'radar') return renderRadar(job.params);
+  if (job.kind === 'dike') return renderDike(job.params);
   return job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
 }

@@ -411,18 +411,64 @@ export function createCivicKit(kit, o, c) {
       });
     }
   };
-  const schoolBus = (f, l, alongL) => vehicle(f, l, alongL, ({ bx, along, faces }) => {
-    const y = ramp('#facc15');
+  /**
+   * Autobús: escolar (amarillo con morro) o urbano (`city`: frontal plano, ventanas corridas, puertas
+   * y techo blanco; `electric` le pone las baterías en el techo).
+   */
+  const bus = (f, l, alongL, color = '#facc15', opts = {}) => vehicle(f, l, alongL, ({ bx, along, faces }) => {
+    const y = ramp(color);
+    const city = !!opts.city;
     const side = (dk) => (u, v, z) => {
       const a = along(u, v);
       if (z < 2.1 && (Math.abs(a - 0.28) < 0.06 || Math.abs(a + 0.3) < 0.06)) return TIRE.mid;
+      if (city) {
+        if ((Math.abs(a - 0.08) < 0.05 || Math.abs(a + 0.2) < 0.05) && z > 1 && z < 5.1) return hex('#1f2937'); // puertas
+        if (z > 3.3 && z < 5.2) return ((a + 1) * 16) % 3 < 0.4 ? (dk ? y.dark : y.mid) : vglass[dk ? 1 : 0];
+        if (z > 5.6) return dk ? WHITE.mid : WHITE.light;
+        return dk ? y.dark : y.mid;
+      }
       if (z > 2.4 && z < 2.8) return hex('#1f2937');
       if (z > 3.6 && z < 5.1 && ((a + 1) * 16) % 2.4 > 0.5) return vglass[dk ? 1 : 0];
       return dk ? y.dark : y.mid;
     };
-    bx(-0.42, 0.4, -0.13, 0.13, 0.8, 6, y, faces((dk) => (u, v, z) => (z > 3.6 && z < 5.3 ? vglass[dk ? 1 : 0] : z > 1.4 && z < 2 ? (on ? hex('#fef08a') : WHITE.light) : dk ? y.dark : y.mid), side, roofTop(y)));
-    bx(0.4, 0.5, -0.12, 0.12, 0.8, 3.4, y, faces((dk) => () => (dk ? y.dark : y.mid), side, roofTop(y)));
+    const endFn = (dk) => (u, v, z) => (z > (city ? 2.8 : 3.6) && z < 5.3 ? vglass[dk ? 1 : 0] : z > 1.4 && z < 2 ? (on ? hex('#fef08a') : WHITE.light) : dk ? y.dark : y.mid);
+    bx(-0.42, city ? 0.46 : 0.4, -0.13, 0.13, 0.8, 6, y, faces(endFn, side, roofTop(city ? WHITE : y)));
+    if (!city) bx(0.4, 0.5, -0.12, 0.12, 0.8, 3.4, y, faces((dk) => () => (dk ? y.dark : y.mid), side, roofTop(y)));
+    if (opts.electric) bx(-0.25, 0.1, -0.09, 0.09, 6, 6.8, STEEL, { top: roofTop(STEEL) });
   });
+  const schoolBus = (f, l, alongL) => bus(f, l, alongL, '#facc15');
+  /** Cubierta a cuatro aguas (pizarra, cobre…) sobre un volumen; la cumbrera sigue el lado largo. */
+  const hipRoof = (B, peak, rp, e = 0.07) => {
+    const longL = (B.L1 - B.L0) >= (B.F1 - B.F0);
+    const F0 = B.F0 - e;
+    const F1 = B.F1 + e;
+    const L0 = B.L0 - e;
+    const L1 = B.L1 + e;
+    const z0 = B.h;
+    const zt = B.h + peak;
+    const cf = (F0 + F1) / 2;
+    const cl = (L0 + L1) / 2;
+    const d = longL ? (F1 - F0) / 2 : (L1 - L0) / 2;
+    const tex = (k) => (u, v, z, x, y) => {
+      if (snowAt(x, y, 1.15, 7)) return SNOW.light;
+      return Math.floor(z * 1.4) % 2 ? rp[k] : shade(rp[k], 0.9);
+    };
+    if (longL) {
+      const r0 = [cf, L0 + d, zt];
+      const r1 = [cf, L1 - d, zt];
+      body.surface([sv(F0, L0, z0), sv(F0, L1, z0), sv(...r1), sv(...r0)], tex('light'));
+      body.surface([sv(F0, L0, z0), sv(F1, L0, z0), sv(...r0)], tex('mid'));
+      body.surface([sv(F1, L0, z0), sv(F1, L1, z0), sv(...r1), sv(...r0)], tex(front === 'u' ? 'mid' : 'light'));
+      body.surface([sv(F0, L1, z0), sv(F1, L1, z0), sv(...r1)], tex(front === 'u' ? 'light' : 'mid'));
+    } else {
+      const r0 = [F0 + d, cl, zt];
+      const r1 = [F1 - d, cl, zt];
+      body.surface([sv(F0, L0, z0), sv(F1, L0, z0), sv(...r1), sv(...r0)], tex('light'));
+      body.surface([sv(F0, L0, z0), sv(F0, L1, z0), sv(...r0)], tex('mid'));
+      body.surface([sv(F0, L1, z0), sv(F1, L1, z0), sv(...r1), sv(...r0)], tex(front === 'u' ? 'light' : 'mid'));
+      body.surface([sv(F1, L0, z0), sv(F1, L1, z0), sv(...r1)], tex(front === 'u' ? 'mid' : 'light'));
+    }
+  };
   /** Pista deportiva pintada en el suelo: baloncesto (terracota) o fútbol (césped). */
   const court = (f0, f1, l0, l1, type = 'basket') => {
     kit.fl(f0, f1, l0, l1, (u, v, z, x, y) => {
@@ -495,6 +541,6 @@ export function createCivicKit(kit, o, c) {
     night, lit, on, hd, fOf, lOf, darkFace, glassAt, roofTop, glowAt,
     facade, roof, block, gdoor, garage, hvac, radioMast, flagpole, hydrant, charger, parking,
     vehicle, patrol, ambulance, fireEngine, helicopter, drone, finish,
-    portico, dome, people, schoolBus, court, hoop, goal, fountain,
+    portico, dome, people, schoolBus, bus, hipRoof, court, hoop, goal, fountain,
   };
 }

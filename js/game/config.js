@@ -1283,6 +1283,26 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  service_cityhall: [
+    { name: 'Palacio de piedra', walls: ['#d9d0bd', '#c9bfa8', '#4b5563'] },
+    { name: 'Alcaldía de cristal', walls: ['#e0f2fe', '#dbeafe', '#94a3b8'] },
+    { name: 'Alcaldía de ladrillo', walls: ['#f5f1e8', '#a3533f', '#5f9e8a'] },
+  ],
+  transit_bus_terminal: [
+    { name: 'Terminal moderna', walls: ['#f8fafc', '#e2e8f0', '#2563eb'] },
+    { name: 'Estación de ladrillo', walls: ['#e7e0d0', '#a3533f', '#b91c1c'] },
+    { name: 'Terminal ecológica', walls: ['#86c995', '#c8a165', '#16a34a'] },
+  ],
+  service_seismic_radar: [
+    { name: 'Estación de antenas', walls: ['#f1f5f9', '#e2e8f0', '#94a3b8'] },
+    { name: 'Observatorio sísmico', walls: ['#f1f5f9', '#cbd5e1', '#f97316'] },
+    { name: 'Estación en la colina', walls: ['#86c995', '#8b7d6b', '#f1f5f9'] },
+  ],
+  service_barrier: [
+    { name: 'Muro de hormigón', walls: ['#e5e7eb', '#cfd4da', '#facc15'] },
+    { name: 'Gran compuerta', walls: ['#e5e7eb', '#94a3b8', '#facc15'] },
+    { name: 'Dique verde', walls: ['#86c995', '#4f9a45', '#4b5563'] },
+  ],
   deco_plaza: [
     { name: 'Plaza de la fuente', walls: ['#e7e0d0', '#d6d0c4', '#60a5fa'] },
     { name: 'Plaza de la estatua', walls: ['#e7e0d0', '#86c995', '#9ca3af'] },

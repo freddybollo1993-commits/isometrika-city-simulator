@@ -28,6 +28,9 @@ import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
 import { renderResearch } from './research-art.js';
 import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone } from './park-art.js';
+import { renderCityHall } from './cityhall-art.js';
+import { renderTerminal } from './terminal-art.js';
+import { renderRadar, renderDike } from './infra-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
@@ -35,6 +38,7 @@ const RENDER = {
   police: renderPolice, fire: renderFire, hospital: renderHospital,
   school: renderSchool, university: renderUniversity, research: renderResearch,
   plaza: renderPlaza, grove: renderGrove, botanical: renderBotanical, lamp: renderLampTile, zone: renderZone,
+  cityhall: renderCityHall, terminal: renderTerminal, radar: renderRadar, dike: renderDike,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
