@@ -449,13 +449,29 @@ export class Grid {
   /**
    * Máscara de conexiones de un tramo: 1 = hacia −gy, 2 = +gx, 4 = +gy, 8 = −gx.
    * Se guarda en el tramo para dibujarlo (calzada hacia los lados conectados, aceras en el resto).
+   * También `bridgeMask`: qué casillas del tramo son agua (bits 0–3: (0,0), (1,0), (0,1), (1,1)) y,
+   * si sigue la carretera, las dos de delante en +gx (bits 4–5) y en +gy (bits 6–7): el tramo es puente.
    */
   updateRoadMask(gx, gy) {
     const t = this.getTile(gx, gy);
     if (!t || !t.building || !t.building.isRoot || t.building.id !== 'road') return;
+    Object.assign(t.building, this.roadShapeAt(gx, gy));
+  }
+
+  /**
+   * Uniones y puente de un tramo en (gx, gy). `planned` (conjunto de «x,y») suma los tramos que aún
+   * se están trazando, para que la vista previa muestre ya cruces, curvas y puentes.
+   */
+  roadShapeAt(gx, gy, planned = null) {
     const w = CONFIG.MAP.ROAD_WIDTH;
-    t.building.roadMask = (this._isRoadRoot(gx, gy - w) ? 1 : 0) | (this._isRoadRoot(gx + w, gy) ? 2 : 0)
-      | (this._isRoadRoot(gx, gy + w) ? 4 : 0) | (this._isRoadRoot(gx - w, gy) ? 8 : 0);
+    const road = (x, y) => this._isRoadRoot(x, y) || (!!planned && planned.has(`${x},${y}`));
+    const roadMask = (road(gx, gy - w) ? 1 : 0) | (road(gx + w, gy) ? 2 : 0) | (road(gx, gy + w) ? 4 : 0) | (road(gx - w, gy) ? 8 : 0);
+    const water = (x, y) => this.getTile(x, y)?.terrain === 'water';
+    let bridgeMask = 0;
+    for (let k = 0; k < 4; k++) if (water(gx + (k & 1), gy + (k >> 1))) bridgeMask |= 1 << k;
+    if (bridgeMask && (roadMask & 2)) bridgeMask |= (water(gx + w, gy) ? 16 : 0) | (water(gx + w, gy + 1) ? 32 : 0);
+    if (bridgeMask && (roadMask & 4)) bridgeMask |= (water(gx, gy + w) ? 64 : 0) | (water(gx + 1, gy + w) ? 128 : 0);
+    return { roadMask, bridgeMask };
   }
 
   /** Recalcula un tramo y sus cuatro vecinos (tras colocar o demoler). */

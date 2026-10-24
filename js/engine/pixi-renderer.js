@@ -936,6 +936,7 @@ export class PixiRenderer {
         }
       }
       const items = [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+      const planned = new Set(items.filter((it) => it.id === 'road').map((it) => `${it.gx},${it.gy}`));
       while (this.planSprites.length < items.length) {
         const s = new Sprite(Texture.EMPTY);
         s.alpha = 0.6;
@@ -951,6 +952,7 @@ export class PixiRenderer {
         this.ghostLayer.setChildIndex(s, Math.min(this.ghostLayer.children.length - 1, i + 2));
         const d = CONFIG.BUILDINGS[it.id];
         const mock = { id: it.id, level: 1, rotation: ghost.rotation || 0, size: it.size, isRoot: true, damage: 0, gx: it.gx, gy: it.gy, variant: it.variant !== undefined ? it.variant : variantAt(d, it.gx, it.gy) };
+        if (it.id === 'road') Object.assign(mock, grid.roadShapeAt(it.gx, it.gy, planned)); // ya con sus cruces y puentes
         const { entry } = this._entryFor(mock, d, 0.4, null);
         const iso = IsoMath.gridToIso(it.gx, it.gy);
         s.texture = entry.combinedTexture || entry.texture;
@@ -986,6 +988,7 @@ export class PixiRenderer {
     }
 
     const mock = { id: ghost.buildingId, level: 1, rotation: ghost.rotation || 0, size: bSize, isRoot: true, damage: 0, gx: ghost.gx, gy: ghost.gy, variant: variantAt(def, ghost.gx, ghost.gy) };
+    if (def.id === 'road') Object.assign(mock, grid.roadShapeAt(ghost.gx, ghost.gy));
     const { entry } = this._entryFor(mock, def, 0.4, null);
     const iso = IsoMath.gridToIso(ghost.gx, ghost.gy);
     this.ghostSprite.texture = entry.combinedTexture || entry.texture;

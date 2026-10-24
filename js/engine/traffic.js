@@ -18,7 +18,7 @@ const CAR_COLORS = ['#ef4444', '#3b82f6', '#fbbf24', '#f8fafc', '#10b981', '#a85
 const WALKER_COLORS = ['#1e293b', '#7c2d12', '#1d4ed8', '#be185d', '#15803d'];
 const CAR_SPEED = 0.9; // tramos por segundo
 const WALK_SPEED = 0.22;
-const CAR_LANE = 0.42; // desplazamiento del carril desde el centro del tramo (en casillas)
+const CAR_LANE = 0.3; // desplazamiento del carril desde el centro del tramo (en casillas): mitad del carril derecho
 const SIDEWALK = 0.84; // desplazamiento de la acera
 
 export class Traffic {

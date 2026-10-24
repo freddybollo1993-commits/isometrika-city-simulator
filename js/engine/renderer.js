@@ -315,8 +315,10 @@ export class Renderer {
         }
       }
       ctx.globalAlpha = 0.6;
+      const planned = new Set(plan.items.filter((it) => it.id === 'road').map((it) => `${it.gx},${it.gy}`));
       [...plan.items].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy)).forEach((it) => {
         const mock = { id: it.id, level: 1, rotation: rotation || 0, size: it.size, isRoot: true, damage: 0, variant: it.variant !== undefined ? it.variant : variantAt(CONFIG.BUILDINGS[it.id], it.gx, it.gy) };
+        if (it.id === 'road') Object.assign(mock, grid.roadShapeAt(it.gx, it.gy, planned));
         this.renderBuildingInstance(ctx, mock, it.gx, it.gy);
       });
       ctx.restore();

@@ -34,13 +34,14 @@ import { renderTerminal } from './terminal-art.js';
 import { renderRadar, renderDike } from './infra-art.js';
 import { renderTower, renderSocial } from './tower-art.js';
 import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
+import { renderRoad } from './road-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
 export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university', 'service_research',
   'deco_plaza', 'deco_park', 'deco_botanical', 'deco_lamp', 'recreation_zone',
   'service_cityhall', 'transit_bus_terminal', 'service_seismic_radar', 'service_barrier',
   'residential_high', 'residential_social',
-  'utility_power_solar', 'utility_power_plant', 'utility_water_tower', 'utility_water_plant']);
+  'utility_power_solar', 'utility_power_plant', 'utility_water_tower', 'utility_water_plant', 'road']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -74,7 +75,8 @@ export function lotOf(building) {
 /** Parte de la firma que cambia el pixel art: lote, estación, desgaste y densidad. */
 export function pixelKey(building, seasonKey, S) {
   const wear = building.wear || 0;
-  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}`;
+  const road = building.roadMask !== undefined ? `:r${building.roadMask}.${building.bridgeMask || 0}` : ''; // uniones y puente
+  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}${road}`;
 }
 
 /**
@@ -129,6 +131,10 @@ export function pixelJob(building, def, dayProgress, look, S) {
     const h = building.h || building.zone.h;
     const zS = w * h > 64 ? Math.min(S, 2) : S;
     return { kind: 'zone', params: { ...common, S: zS, w, h, elements: building.zone.elements, zseed: building.zone.seed } };
+  }
+  if (def.id === 'road') {
+    // misma imagen para todos los tramos iguales: la semilla sale del lote, no de la casilla
+    return { kind: 'road', params: { ...common, rotation: 0, mask: building.roadMask || 0, bridge: building.bridgeMask || 0, seed: 37 + common.lot * 131 } };
   }
   if (def.id === 'utility_power_solar') return { kind: 'solar', params: { ...common, kind: variant } };
   if (def.id === 'utility_power_plant') return { kind: 'powerplant', params: { ...common, kind: variant } };
@@ -227,6 +233,7 @@ export function renderPixelJob(job) {
   if (job.kind === 'lamp') return renderLampTile(job.params);
   if (job.kind === 'zone') return renderZone(job.params);
   if (job.kind === 'wildtree') return renderWildTree(job.params);
+  if (job.kind === 'road') return renderRoad(job.params);
   if (job.kind === 'cityhall') return renderCityHall(job.params);
   if (job.kind === 'terminal') return renderTerminal(job.params);
   if (job.kind === 'radar') return renderRadar(job.params);
