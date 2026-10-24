@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { setupInstallButton } from './install.js';
 import { Calendar } from './calendar.js';
 import { FinanceHUD } from './finance-hud.js';
 import { ManagementHub } from './management-hub.js';
@@ -421,6 +422,8 @@ export class UIManager {
         this.toggleFullscreen();
       });
     }
+    // Instalar el juego en el móvil (aplicación web)
+    setupInstallButton(document.getElementById('btn-title-install'), (msg) => this.showToast(msg));
 
     // 13. Opciones del Modal de Configuración
 

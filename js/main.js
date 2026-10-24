@@ -22,6 +22,7 @@ import { UIManager } from './game/ui.js';
 import { planArea, planRoadLine, planRecreation, isAreaBuildable } from './game/area-planner.js';
 import { Traffic } from './engine/traffic.js';
 import { setupInitialTown } from './game/initial-town.js';
+import { registerServiceWorker } from './game/install.js';
 
 // Densidad de píxeles máxima del lienzo (ver viewportSize)
 const MAX_RENDER_DPR = 1.5;
@@ -971,4 +972,5 @@ export class Game {
 // Iniciar aplicación al cargar el DOM
 window.addEventListener('DOMContentLoaded', () => {
   window.gameInstance = new Game();
+  registerServiceWorker(); // aplicación instalable que también se abre sin conexión
 });

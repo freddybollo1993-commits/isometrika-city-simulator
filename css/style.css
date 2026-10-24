@@ -1056,7 +1056,7 @@ html, body {
   position: fixed;
   bottom: 60px;
   left: 20px;
-  z-index: 75;
+  z-index: 110; /* por encima de la pantalla de inicio (100): ahí también se avisa, p. ej. cómo instalar */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1434,6 +1434,11 @@ html, body {
   align-items: center;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.title-footer-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .title-badge-version {

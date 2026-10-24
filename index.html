@@ -6,6 +6,13 @@
   <title>ISOMETRICA — Simulador de Ciudad Minimalista 2.5D</title>
   <meta name="description" content="Simulador de ciudad minimalista en perspectiva isométrica 2.5D. Ergonomía horizontal mobile-first, colocación fantasma con flechas de ajuste fino y rotación en 360 grados.">
   <meta name="theme-color" content="#0f172a">
+  <!-- Aplicación instalable: manifiesto, iconos y modo pantalla completa en el móvil -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ISOMETRICA">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- Favicon SVG -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,15 85,35 50,55 15,35' fill='%2338bdf8'/><polygon points='15,35 50,55 50,90 15,70' fill='%230284c7'/><polygon points='50,55 85,35 85,70 50,90' fill='%230369a1'/></svg>">
@@ -264,10 +271,16 @@
       <!-- Pie de Pantalla de Inicio -->
       <div class="title-footer">
         <span class="title-badge-version">v2.0 • Edición Alcalde</span>
-        <button id="btn-title-fullscreen" class="title-fs-btn" title="Alternar Pantalla Completa">
-          <span class="title-fs-icon">⛶</span>
-          <span>Pantalla Completa</span>
-        </button>
+        <div class="title-footer-actions">
+          <button id="btn-title-install" class="title-fs-btn" title="Instalar el juego en este dispositivo" hidden>
+            <span class="title-fs-icon">📲</span>
+            <span>Instalar</span>
+          </button>
+          <button id="btn-title-fullscreen" class="title-fs-btn" title="Alternar Pantalla Completa">
+            <span class="title-fs-icon">⛶</span>
+            <span>Pantalla Completa</span>
+          </button>
+        </div>
       </div>
 
     </div>
