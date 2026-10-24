@@ -224,6 +224,9 @@ export class Renderer {
           if (fade !== undefined) ctx.globalAlpha = fade;
           ctx.drawImage(pe.body, iso.x - pe.ox, iso.y - pe.oy, pe.W, pe.H);
           ctx.restore();
+          if (tile.building.construction && window.gameInstance) {
+            this.drawConstructionBar(ctx, tile.building, gx, gy, window.gameInstance.constructionProgress(tile.building));
+          }
         } else if (tile.building && tile.building.isRoot) {
           if (tile.building.suspended || tile.building.closed) {
             ctx.save();

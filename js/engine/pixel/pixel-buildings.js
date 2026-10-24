@@ -35,6 +35,7 @@ import { renderRadar, renderDike } from './infra-art.js';
 import { renderTower, renderSocial } from './tower-art.js';
 import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
 import { renderRoad } from './road-art.js';
+import { renderSite, siteStageOf, SITE_FAMILY } from './site-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
 export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university', 'service_research',
@@ -46,7 +47,15 @@ export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'co
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
 
-export const isPixelBuilding = (building, def) => !!def && PIXEL_ART_IDS.has(def.id) && !building.construction;
+export const isPixelBuilding = (building, def) => !!def && PIXEL_ART_IDS.has(def.id); // también en obras (site-art.js)
+
+/** Etapa de la obra (0–7) según su avance; −1 si no está en obras. */
+export function siteStage(building) {
+  if (!building.construction) return -1;
+  if (building.siteStage !== undefined) return building.siteStage;
+  const game = globalThis.gameInstance;
+  return siteStageOf(game ? game.constructionProgress(building) : 0);
+}
 
 /**
  * Aspecto de la estación cuantizado: cada paso cambia muy poco, así que el cambio se ve gradual y
@@ -76,7 +85,8 @@ export function lotOf(building) {
 export function pixelKey(building, seasonKey, S) {
   const wear = building.wear || 0;
   const road = building.roadMask !== undefined ? `:r${building.roadMask}.${building.bridgeMask || 0}` : ''; // uniones y puente
-  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}${road}`;
+  const site = building.construction ? `:o${siteStage(building)}` : ''; // etapa de la obra
+  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}${road}${site}`;
 }
 
 /**
@@ -110,6 +120,19 @@ export function wildTreeJob(gx, gy, look, S) {
 
 /** Parámetros de dibujo de una casa o tienda (aptos para enviar a un trabajador). */
 export function pixelJob(building, def, dayProgress, look, S) {
+  if (building.construction) {
+    // obra: el edificio terminado, recortado por la etapa, con estructura, andamios y maquinaria
+    const inner = pixelJob({ ...building, construction: null }, def, dayProgress, look, S);
+    const size = building.size || def.size || 1;
+    return {
+      kind: 'site',
+      params: {
+        inner, w: building.w || size, h: building.h || size, stage: siteStage(building), family: SITE_FAMILY[def.id] || 'concrete',
+        S: inner.params.S, season: look, night: dayProgress >= 0.78, suspended: !!(building.suspended || building.closed),
+        seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6) % 97,
+      },
+    };
+  }
   const level = building.level || 1;
   const variant = building.variant !== undefined ? building.variant : variantAt(def, building.gx || 0, building.gy || 0);
   const design = designOf(def, variant);
@@ -234,6 +257,7 @@ export function renderPixelJob(job) {
   if (job.kind === 'zone') return renderZone(job.params);
   if (job.kind === 'wildtree') return renderWildTree(job.params);
   if (job.kind === 'road') return renderRoad(job.params);
+  if (job.kind === 'site') return renderSite(job.params, renderPixelJob);
   if (job.kind === 'cityhall') return renderCityHall(job.params);
   if (job.kind === 'terminal') return renderTerminal(job.params);
   if (job.kind === 'radar') return renderRadar(job.params);

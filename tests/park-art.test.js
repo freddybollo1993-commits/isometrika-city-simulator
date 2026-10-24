@@ -96,7 +96,11 @@ test('la zona recreativa entra en los motores con el detalle limitado si es gran
   const zone = { w: 12, h: 10, seed: 9, elements: generateLayout(12, 10, 9, 0) };
   const big = { gx: 2, gy: 2, level: 1, w: 12, h: 10, zone };
   assert.ok(isPixelBuilding(big, def));
-  assert.ok(!isPixelBuilding({ ...big, construction: { days: 2 } }, def), 'en obras sigue el dibujo por etapas');
+  const site = pixelJob({ ...big, construction: { start: 0, days: 2 }, siteStage: 3 }, def, 0.4, SUMMER, 4);
+  assert.ok(isPixelBuilding({ ...big, construction: { days: 2 } }, def), 'en obras también es pixel art');
+  assert.equal(site.kind, 'site');
+  assert.equal(site.params.family, 'flat');
+  assert.equal(site.params.S, 2, 'la obra de una zona grande tampoco pasa de Alto');
   const job = pixelJob(big, def, 0.4, SUMMER, 4);
   assert.equal(job.kind, 'zone');
   assert.equal(job.params.S, 2);

@@ -35,6 +35,7 @@ import { renderTower, renderSocial } from './tower-art.js';
 import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
 import { paintTerrain } from './terrain-art.js';
 import { renderRoad } from './road-art.js';
+import { renderSite } from './site-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
@@ -46,6 +47,7 @@ const RENDER = {
   tower: renderTower, social: renderSocial,
   solar: renderSolar, powerplant: renderPowerPlant, watertower: renderWaterTower, waterplant: renderWaterPlant,
   wildtree: renderWildTree, road: renderRoad,
+  site: (p) => renderSite(p, (job) => (RENDER[job.kind] || renderHouse)(job.params)), // obra: envuelve al edificio terminado
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });

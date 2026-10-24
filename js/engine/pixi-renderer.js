@@ -458,7 +458,7 @@ export class PixiRenderer {
   }
 
   _bakeBuilding(building, def, dayProgress, frame, pixel = true) {
-    if (pixel && PIXEL_HOUSES.has(def.id) && !building.construction) return this._bakePixelHouse(building, def, dayProgress);
+    if (pixel && PIXEL_HOUSES.has(def.id)) return this._bakePixelHouse(building, def, dayProgress);
     const p = this.painter;
     const b = building.size || def.size || 1;
     const W = CONFIG.CANVAS.TILE_WIDTH * b + 96;
@@ -544,7 +544,7 @@ export class PixiRenderer {
     let entry = this.textureCache.get(sig);
     if (!entry) {
       const bad = this.badSigs.has(sig);
-      if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !building.construction && !bad) {
+      if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !bad) {
         this._requestBake(sig, this._pixelJob(building, def, dayProgress));
         return { sig, entry: null };
       }
