@@ -7,7 +7,7 @@
  */
 
 // <precache> (lo rellena scripts/stamp-version.js: no editar a mano)
-const BUILD = '20261024-0227';
+const BUILD = '20261024-1105';
 const PRECACHE = [
   '/',
   '/css/finance-hud.css',

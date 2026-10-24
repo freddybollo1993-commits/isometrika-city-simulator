@@ -126,6 +126,12 @@ export class PixiRenderer {
     this.world = new Container();
     this.terrainLayer = new Container();
     this.waterLayer = new Container();
+    // Suelos (asfalto, lotes, sombras de los árboles): capa propia y estable bajo todos los volúmenes,
+    // como en el motor compatible. Va en su propio grupo de render para que el tráfico, que se reordena
+    // en cada fotograma junto a los edificios, no cambie cómo se agrupan sus texturas (en algunas GPU de
+    // móvil eso hacía que el suelo de las carreteras saliera vacío a ratos).
+    this.lotLayer = new Container({ isRenderGroup: true });
+    this.lotLayer.sortableChildren = true;
     this.objectLayer = new Container();
     this.objectLayer.sortableChildren = true;
     this.effectLayer = new Graphics(); // inundaciones y fuego
@@ -141,7 +147,7 @@ export class PixiRenderer {
     this.fireSprites = [];
     this.agentSprites = []; // coches y peatones: van en objectLayer, ordenados con los edificios
     this.agentCache = new Map(); // clave de figura → { texture, ox, oy, S }
-    this.world.addChild(this.terrainLayer, this.waterLayer, this.objectLayer, this.floodLayer, this.fxLayer,
+    this.world.addChild(this.terrainLayer, this.waterLayer, this.lotLayer, this.objectLayer, this.floodLayer, this.fxLayer,
       this.effectLayer, this.ghostLayer, this.particleLayer);
     this.screenFx = new Graphics();
     this.app.stage.addChild(this.world, this.screenFx);
@@ -713,7 +719,7 @@ export class PixiRenderer {
         if (entry && entry.lotTexture) {
           if (!obj.lot) {
             obj.lot = new Sprite(entry.lotTexture);
-            this.objectLayer.addChild(obj.lot);
+            this.lotLayer.addChild(obj.lot);
           }
           if (obj.lot.texture !== entry.lotTexture) obj.lot.texture = entry.lotTexture;
           obj.lot.scale.set(entry.scale || 1);
