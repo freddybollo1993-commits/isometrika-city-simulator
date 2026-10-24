@@ -27,12 +27,14 @@ import { renderHospital } from './hospital-art.js';
 import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
 import { renderResearch } from './research-art.js';
+import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone } from './park-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
   stall: renderStall, boulevard: renderBoulevard, office: renderOffice, factory: renderFactory, tech: renderTech, agro: renderAgro, logistics: renderLogistics, quarry: renderQuarry, components: renderComponents, maintenance: renderMaintenance, farm: renderFarm,
   police: renderPolice, fire: renderFire, hospital: renderHospital,
   school: renderSchool, university: renderUniversity, research: renderResearch,
+  plaza: renderPlaza, grove: renderGrove, botanical: renderBotanical, lamp: renderLampTile, zone: renderZone,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });

@@ -35,7 +35,7 @@ export class Renderer {
    */
   _pixelEntry(building, def, gx, gy, dayProgress) {
     const variant = building.variant !== undefined ? building.variant : variantAt(def, gx, gy);
-    const sig = `${def.id}|${variant}|${building.level || 1}|${building.rotation || 0}|${dayProgress >= 0.78 ? 1 : 0}|${building.closed ? 1 : 0}${building.suspended ? 1 : 0}|${pixelKey(building, this.season.key, this.detailS)}`;
+    const sig = `${def.id}|${variant}|${building.level || 1}|${building.rotation || 0}|${dayProgress >= 0.78 ? 1 : 0}|${building.closed ? 1 : 0}${building.suspended ? 1 : 0}|${building.zone ? `z${building.zone.seed}:${building.w}x${building.h}` : ''}|${pixelKey(building, this.season.key, this.detailS)}`;
     const cell = `${gx},${gy}`;
     let e = this.pixelCache.get(sig);
     if (!e) {

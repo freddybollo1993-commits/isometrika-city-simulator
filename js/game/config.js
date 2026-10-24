@@ -1283,6 +1283,26 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  deco_plaza: [
+    { name: 'Plaza de la fuente', walls: ['#e7e0d0', '#d6d0c4', '#60a5fa'] },
+    { name: 'Plaza de la estatua', walls: ['#e7e0d0', '#86c995', '#9ca3af'] },
+    { name: 'Plaza de la glorieta', walls: ['#e7dcc4', '#d6c8a8', '#a3542f'] },
+  ],
+  deco_park: [
+    { name: 'Arboleda nativa', walls: ['#86c995', '#3f9e55', '#2f6b45'] },
+    { name: 'Estanque', walls: ['#86c995', '#4a86b8', '#8cc152'] },
+    { name: 'Parque infantil', walls: ['#86c995', '#e8904a', '#dc2626'] },
+  ],
+  deco_botanical: [
+    { name: 'Invernaderos', walls: ['#dbeef0', '#86c995', '#ef4444'] },
+    { name: 'Jardín francés', walls: ['#d6c8a8', '#3f7f3f', '#60a5fa'] },
+    { name: 'Jardín japonés', walls: ['#86c995', '#f9a8d4', '#b91c1c'] },
+  ],
+  deco_lamp: [
+    { name: 'Farola clásica', walls: ['#d6d0c4', '#1f2937', '#fde68a'] },
+    { name: 'Farola solar', walls: ['#d6d0c4', '#e2e8f0', '#1e3a8a'] },
+    { name: 'Señalética', walls: ['#d6d0c4', '#16a34a', '#2563eb'] },
+  ],
   service_research: [
     { name: 'Laboratorio de cristal', walls: ['#eff6ff', '#dbeafe', '#93c5fd'] },
     { name: 'Observatorio', walls: ['#ffffff', '#f1f5f9', '#0ea5e9'] },
