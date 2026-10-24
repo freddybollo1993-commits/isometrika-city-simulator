@@ -1283,6 +1283,11 @@ export const DESIGNS = {
     { name: 'Mensajería naranja', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#f97316' },
     { name: 'Cadena de frío verde', walls: ['#ffffff', '#e2e8f0', '#cbd5e1'], accent: '#16a34a' },
   ],
+  service_research: [
+    { name: 'Laboratorio de cristal', walls: ['#eff6ff', '#dbeafe', '#93c5fd'] },
+    { name: 'Observatorio', walls: ['#ffffff', '#f1f5f9', '#0ea5e9'] },
+    { name: 'Cúpula geodésica', walls: ['#ffffff', '#e2e8f0', '#94a3b8'] },
+  ],
   service_school: [
     { name: 'Escuela amarilla', walls: ['#f5ecd7', '#e9a83a', '#c98a24'] },
     { name: 'Escuela de ladrillo', walls: ['#c47a64', '#a3533f', '#7c3d2c'] },

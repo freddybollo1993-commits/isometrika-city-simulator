@@ -27,9 +27,10 @@ import { renderFire } from './fire-art.js';
 import { renderHospital } from './hospital-art.js';
 import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
+import { renderResearch } from './research-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
-export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university']);
+export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university', 'service_research']);
 
 export const DETAIL_LEVELS = [1, 2, 4]; // Estándar (1/32 de casilla), Alto (1/64) y Ultra (1/128)
 export const defaultDetail = () => ((navigator.hardwareConcurrency || 4) >= 8 ? 2 : 1);
@@ -92,6 +93,7 @@ export function pixelJob(building, def, dayProgress, look, S) {
     season: look,
     seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
   };
+  if (def.id === 'service_research') return { kind: 'research', params: { ...common, kind: variant } };
   if (def.id === 'service_school') return { kind: 'school', params: { ...common, kind: variant } };
   if (def.id === 'service_university') return { kind: 'university', params: { ...common, kind: variant } };
   if (def.id === 'service_police') return { kind: 'police', params: { ...common, kind: variant } };
@@ -167,5 +169,6 @@ export function renderPixelJob(job) {
   if (job.kind === 'hospital') return renderHospital(job.params);
   if (job.kind === 'school') return renderSchool(job.params);
   if (job.kind === 'university') return renderUniversity(job.params);
+  if (job.kind === 'research') return renderResearch(job.params);
   return job.kind === 'shop' ? renderShop(job.params) : renderHouse(job.params);
 }

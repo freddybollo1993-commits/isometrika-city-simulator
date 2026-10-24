@@ -5,6 +5,7 @@ import { renderFire } from '../js/engine/pixel/fire-art.js';
 import { renderHospital } from '../js/engine/pixel/hospital-art.js';
 import { renderSchool } from '../js/engine/pixel/school-art.js';
 import { renderUniversity } from '../js/engine/pixel/university-art.js';
+import { renderResearch } from '../js/engine/pixel/research-art.js';
 import { seasonLook } from '../js/game/calendar.js';
 import { pixelJob, PIXEL_ART_IDS } from '../js/engine/pixel/pixel-buildings.js';
 import { CONFIG, DESIGNS } from '../js/game/config.js';
@@ -17,6 +18,7 @@ const FAMILIES = [
   ['service_hospital', 'hospital', renderHospital],
   ['service_school', 'school', renderSchool],
   ['service_university', 'university', renderUniversity],
+  ['service_research', 'research', renderResearch],
 ];
 const same = (a, b) => Buffer.compare(Buffer.from(a.data), Buffer.from(b.data)) === 0;
 
