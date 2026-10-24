@@ -28,7 +28,7 @@ import { renderHospital } from './hospital-art.js';
 import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
 import { renderResearch } from './research-art.js';
-import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone } from './park-art.js';
+import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone, renderWildTree } from './park-art.js';
 import { renderCityHall } from './cityhall-art.js';
 import { renderTerminal } from './terminal-art.js';
 import { renderRadar, renderDike } from './infra-art.js';
@@ -84,6 +84,26 @@ export function pixelKey(building, seasonKey, S) {
 export function detailFor(zoom, dpr, max) {
   const px = (zoom * dpr) / 1.5;
   return Math.min(max, px >= 4 ? 4 : px >= 2 ? 2 : 1);
+}
+
+/**
+ * Árbol suelto del mapa: especie (más árboles que matorrales) y una de tres semillas según la casilla,
+ * para que se repitan pocas imágenes y aun así el bosque no parezca clonado.
+ */
+export function wildTree(gx, gy) {
+  const h = hash01(gx, gy, 21);
+  const kind = h < 0.3 ? 0 : h < 0.55 ? 1 : h < 0.72 ? 2 : h < 0.82 ? 3 : h < 0.92 ? 4 : 5;
+  return { kind, v: Math.floor(hash01(gx, gy, 22) * 3) };
+}
+
+export function wildTreeKey(gx, gy, seasonKey, S) {
+  const t = wildTree(gx, gy);
+  return `wild${t.kind}.${t.v}|${seasonKey}|s${S}`;
+}
+
+export function wildTreeJob(gx, gy, look, S) {
+  const t = wildTree(gx, gy);
+  return { kind: 'wildtree', params: { S, kind: t.kind, season: look, seed: 101 + t.kind * 7 + t.v * 977 } };
 }
 
 /** Parámetros de dibujo de una casa o tienda (aptos para enviar a un trabajador). */
@@ -206,6 +226,7 @@ export function renderPixelJob(job) {
   if (job.kind === 'botanical') return renderBotanical(job.params);
   if (job.kind === 'lamp') return renderLampTile(job.params);
   if (job.kind === 'zone') return renderZone(job.params);
+  if (job.kind === 'wildtree') return renderWildTree(job.params);
   if (job.kind === 'cityhall') return renderCityHall(job.params);
   if (job.kind === 'terminal') return renderTerminal(job.params);
   if (job.kind === 'radar') return renderRadar(job.params);

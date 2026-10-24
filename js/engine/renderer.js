@@ -9,7 +9,9 @@ import { CONFIG, variantAt, buildingHeight, designOf } from '../game/config.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 import { IsoMath } from './iso.js';
 import { Preferences } from '../game/preferences.js';
-import { DETAIL_LEVELS, defaultDetail, isPixelBuilding, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
+import { DETAIL_LEVELS, defaultDetail, isPixelBuilding, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor, wildTreeKey, wildTreeJob } from './pixel/pixel-buildings.js';
+import { waterGlints } from './pixel/terrain-art.js';
+import { TerrainBaker } from './terrain-baker.js';
 
 const PIXEL_CACHE = 160; // imágenes de pixel art guardadas (dos lienzos cada una)
 const PIXEL_BAKE_MS = 8; // tiempo máximo de horneado por fotograma (siempre se permite uno)
@@ -36,18 +38,76 @@ export class Renderer {
   _pixelEntry(building, def, gx, gy, dayProgress) {
     const variant = building.variant !== undefined ? building.variant : variantAt(def, gx, gy);
     const sig = `${def.id}|${variant}|${building.level || 1}|${building.rotation || 0}|${dayProgress >= 0.78 ? 1 : 0}|${building.closed ? 1 : 0}${building.suspended ? 1 : 0}|${building.zone ? `z${building.zone.seed}:${building.w}x${building.h}` : ''}|${pixelKey(building, this.season.key, this.detailS)}`;
-    const cell = `${gx},${gy}`;
+    return this._pixelCached(sig, `${gx},${gy}`, () => pixelJob({ ...building, gx, gy }, def, dayProgress, this.season.look, this.detailS));
+  }
+
+  /** Árbol suelto del mapa en pixel art (sin suelo propio: el terreno ya está debajo). */
+  _treeEntry(gx, gy) {
+    return this._pixelCached(wildTreeKey(gx, gy, this.season.key, this.detailS), `t${gx},${gy}`, () => wildTreeJob(gx, gy, this.season.look, this.detailS));
+  }
+
+  _pixelCached(sig, cell, job) {
     let e = this.pixelCache.get(sig);
     if (!e) {
       if (this.pixelBaked > 0 && performance.now() > this.pixelDeadline) return this.pixelLast.get(cell) || null;
       this.pixelBaked++;
-      const out = renderPixelJob(pixelJob({ ...building, gx, gy }, def, dayProgress, this.season.look, this.detailS));
+      const out = renderPixelJob(job());
       e = { ground: out.ground.toCanvas(), body: out.body.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H };
       this.pixelCache.set(sig, e);
       if (this.pixelCache.size > PIXEL_CACHE) this.pixelCache.delete(this.pixelCache.keys().next().value);
     }
     this.pixelLast.set(cell, e);
     return e;
+  }
+
+  /** Terreno en pixel art recién pintado (terrain-baker.js): un lienzo para todo el mapa. */
+  _setTerrain({ img, d, frozen }) {
+    const c = this.terrainCanvas || document.createElement('canvas');
+    c.width = img.w;
+    c.height = img.h;
+    c.getContext('2d').putImageData(new ImageData(img.data, img.w, img.h), 0, 0);
+    this.terrainCanvas = c;
+    this.terrainOriginX = img.originX;
+    // casillas de agua con destellos (el río helado no brilla)
+    this.waterTiles = [];
+    const n = d.size;
+    for (let i = 0; !frozen && i < n * n; i++) {
+      if (d.types[i] !== 2) continue;
+      const gx = i % n;
+      const gy = (i - gx) / n;
+      const iso = IsoMath.gridToIso(gx, gy);
+      this.waterTiles.push({ gx, gy, x: iso.x - 16, y: iso.y - 1 });
+    }
+    if (!this.glints) {
+      const g = waterGlints();
+      this.glints = g.frames.map((data) => {
+        const gc = document.createElement('canvas');
+        gc.width = g.w;
+        gc.height = g.h;
+        gc.getContext('2d').putImageData(new ImageData(data, g.w, g.h), 0, 0);
+        return gc;
+      });
+    }
+  }
+
+  /** Suelo del mapa y destellos del agua que caen en pantalla. */
+  _drawTerrain(ctx, camera) {
+    if (!this.terrainCanvas) return;
+    // De lejos se suaviza (con píxeles exactos el césped parpadearía al mover la cámara)
+    ctx.imageSmoothingEnabled = camera.zoom < 1;
+    ctx.drawImage(this.terrainCanvas, -this.terrainOriginX, -1);
+    ctx.imageSmoothingEnabled = false;
+    const z = camera.zoom;
+    const x0 = -camera.x / z - 32;
+    const x1 = (this.canvas.width / this.dpr - camera.x) / z;
+    const y0 = -camera.y / z - 18;
+    const y1 = (this.canvas.height / this.dpr - camera.y) / z;
+    for (const t of this.waterTiles) {
+      if (t.x < x0 || t.x > x1 || t.y < y0 || t.y > y1) continue;
+      const wave = Math.sin(this.animationTick * 1.2 + t.gx * 1.7 + t.gy * 2.3);
+      if (wave > 0.55) ctx.drawImage(this.glints[0], t.x, t.y);
+      else if (wave < -0.55) ctx.drawImage(this.glints[1], t.x, t.y);
+    }
   }
 
   /** Densidad de detalle según el zoom (cambia tras unos fotogramas estables). Aquí, como mucho Alto. */
@@ -75,6 +135,8 @@ export class Renderer {
     this.currentDayProgress = dayProgress;
     const sim = window.gameInstance ? window.gameInstance.simulation : null;
     this.season = seasonState(sim ? sim.day : 0, dayProgress);
+    if (!this.terrain) this.terrain = new TerrainBaker((r) => this._setTerrain(r));
+    this.terrain.update(grid, this.season.look);
     this._updateDetail(camera);
     this.pixelBaked = 0;
     this.pixelDeadline = performance.now() + PIXEL_BAKE_MS;
@@ -97,12 +159,11 @@ export class Renderer {
 
     // 1. Terreno completo primero; luego edificios y árboles ordenados por la profundidad de su
     // centro (así un edificio grande no queda tapado por el suelo de sus propias casillas)
+    this._drawTerrain(ctx, camera);
     const drawables = [];
     for (let gy = 0; gy < grid.size; gy++) {
       for (let gx = 0; gx < grid.size; gx++) {
         const tile = grid.tiles[gy][gx];
-        const iso = IsoMath.gridToIso(gx, gy);
-        this.renderTerrainTile(ctx, iso.x, iso.y, tile);
         if ((tile.building && tile.building.isRoot) || (!tile.building && tile.deco === 'tree') || tile.flooded || tile.onFire) {
           const size = tile.building && tile.building.isRoot ? (tile.building.size || 1) : 1;
           drawables.push({ gx, gy, depth: gx + gy + size - 1 });
@@ -186,7 +247,11 @@ export class Renderer {
             }
           }
         } else if (tile.deco === 'tree') {
-          this.renderTree(ctx, iso.x, iso.y);
+          const te = this._treeEntry(gx, gy);
+          if (te) {
+            ctx.drawImage(te.ground, iso.x - te.ox, iso.y - te.oy, te.W, te.H);
+            ctx.drawImage(te.body, iso.x - te.ox, iso.y - te.oy, te.W, te.H);
+          }
         }
 
         if (tile.flooded) this.renderFloodWater(ctx, iso.x, iso.y);
@@ -212,33 +277,6 @@ export class Renderer {
 
     // 6. Ciclo solar fluido (Día / Atardecer dorado / Noche suave)
     this.renderSolarCycle(ctx, dayProgress, w, h);
-  }
-
-  renderTerrainTile(ctx, x, y, tile) {
-    const tw = CONFIG.CANVAS.TILE_WIDTH;
-    const th = CONFIG.CANVAS.TILE_HEIGHT;
-
-    let fill = (this.grassPalette || CONFIG.PALETTE.grass)[tile.variation || 0];
-
-    if (tile.terrain === 'water') {
-      const wave = Math.sin(this.animationTick * 1.5 + tile.gx * 0.8 + tile.gy * 0.8) * 0.08;
-      fill = wave > 0 ? CONFIG.PALETTE.water : CONFIG.PALETTE.waterDeep;
-    } else if (tile.terrain === 'sand') {
-      fill = CONFIG.PALETTE.sand;
-    }
-
-    IsoMath.drawIsoDiamond(ctx, x, y, tw, th, fill, CONFIG.PALETTE.gridLines, 0.7);
-    // Terreno sin comprar: velado oscuro (se compra en Gestión › Territorio)
-    if (tile.locked) IsoMath.drawIsoDiamond(ctx, x, y, tw, th, 'rgba(15, 23, 42, 0.38)');
-
-    if (tile.terrain === 'water') {
-      ctx.beginPath();
-      ctx.moveTo(x - 8, y + th / 2);
-      ctx.lineTo(x + 8, y + th / 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
   }
 
   /**

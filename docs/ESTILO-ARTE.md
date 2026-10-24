@@ -242,7 +242,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 - El motor GPU no usa suavizado de bordes (antialias) ni ImageBitmap: los trabajadores devuelven búferes RGBA.
   Si el móvil pierde el contexto WebGL, se anota una foto del estado y a los 3 s se pasa al motor compatible.
 - **Motor gráfico** elegible en Ajustes: Automático (WebGL 2 seguro en móviles, WebGL 2 en escritorio), WebGL 2,
-  WebGL 2 seguro (lotes de 4 texturas y terreno ≤ 2048 px), WebGL 1, WebGPU (Vulkan en Android) y Compatible
+  WebGL 2 seguro (lotes de 4 texturas), WebGL 1, WebGPU (Vulkan en Android) y Compatible
   (Canvas 2D). Cada motor anota en el dispositivo si funcionó (1 min sin fallos) o falló (con la foto del
   momento); si el elegido falló, se arranca con el compatible hasta que se reintente.
 
@@ -250,6 +250,7 @@ cortinas, festón del toldo) y, en Ultra, el nombre legible de las tiendas.
 
 | Familia | Archivo | Diseños × lotes × niveles |
 |---|---|---|
+| Terreno y árboles del mapa | `pixel/terrain-art.js`, `terrain-baker.js` (+ `park-kit.js`) | Todo el suelo del mapa pintado píxel a píxel: césped de la estación (matas, flores en primavera, hojas en otoño, nieve), arena con ondas, conchas y borde mojado, agua clara en la orilla y oscura en el centro con espuma y ondas (helada en invierno) y lo no comprado apagado. Las orillas salen de campos continuos entre centros de casilla, así que las esquinas se redondean. Se pinta en el hilo principal al cargar y en un trabajador al cambiar de estación; el motor GPU lo sube en franjas de ≤ 2048 px y pone destellos sueltos sobre el agua. Árboles sueltos: roble, pino, abedul, matorral con roca, pareja de pinos y árbol joven (× 3 semillas), con las estaciones del kit de parques |
 | Casitas y casas | `pixel/house-art.js` | 6 × 4 × 3 |
 | Tienda de Barrio | `pixel/shop-art.js` | 4 × 4 × 3 |
 | Supermercado de Abasto | `pixel/super-art.js` | 3 × 4 × 3 (aparcamiento, muelle con camión, planta de cristal en nivel 3) |

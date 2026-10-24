@@ -1,6 +1,6 @@
 /**
  * TRABAJADOR DE HORNEADO
- * Dibuja casas y tiendas en pixel art fuera del hilo principal. Recibe { id, kind, params } y devuelve
+ * Dibuja edificios, árboles y el terreno en pixel art fuera del hilo principal. Recibe { id, kind, params } y devuelve
  * las tres capas (volumen, suelo y composición) como búferes RGBA transferibles; el motor GPU los
  * pasa a lienzos y de ahí a texturas (sin ImageBitmap, que algunos móviles toleran mal). Si algo
  * falla, responde con { id, error } y el motor vuelve a hornear en el hilo principal.
@@ -27,12 +27,13 @@ import { renderHospital } from './hospital-art.js';
 import { renderSchool } from './school-art.js';
 import { renderUniversity } from './university-art.js';
 import { renderResearch } from './research-art.js';
-import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone } from './park-art.js';
+import { renderPlaza, renderGrove, renderBotanical, renderLampTile, renderZone, renderWildTree } from './park-art.js';
 import { renderCityHall } from './cityhall-art.js';
 import { renderTerminal } from './terminal-art.js';
 import { renderRadar, renderDike } from './infra-art.js';
 import { renderTower, renderSocial } from './tower-art.js';
 import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
+import { paintTerrain } from './terrain-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
@@ -43,6 +44,7 @@ const RENDER = {
   cityhall: renderCityHall, terminal: renderTerminal, radar: renderRadar, dike: renderDike,
   tower: renderTower, social: renderSocial,
   solar: renderSolar, powerplant: renderPowerPlant, watertower: renderWaterTower, waterplant: renderWaterPlant,
+  wildtree: renderWildTree,
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
@@ -50,6 +52,12 @@ const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
 self.onmessage = (e) => {
   const { id, kind, params } = e.data;
   try {
+    if (kind === 'terrain') {
+      // suelo de todo el mapa (terrain-baker.js)
+      const t = paintTerrain(params.d, params.look, params.seed || 0);
+      self.postMessage({ id, terrain: { w: t.w, h: t.h, originX: t.originX, buf: t.data.buffer } }, [t.data.buffer]);
+      return;
+    }
     const out = (RENDER[kind] || renderHouse)(params);
     const body = layer(out.body);
     const ground = layer(out.ground);

@@ -213,7 +213,7 @@ export class Game {
     const forceCanvas = engine === 'canvas' || new URLSearchParams(window.location.search).has('canvas2d');
     const supported = engine === 'webgpu' ? !!navigator.gpu || webglSupported() : webglSupported();
     if (!forceCanvas && !gpuFailure(engine) && supported) {
-      const pending = { grassPalette: null, render() {}, resize() {} };
+      const pending = { render() {}, resize() {} };
       import('./engine/pixi-renderer.js')
         .then(async ({ PixiRenderer }) => {
           const pixi = new PixiRenderer(this.canvas, engine);
@@ -934,10 +934,6 @@ export class Game {
 
     // Con una pantalla completa encima, el mapa no se ve: no se dibuja
     if (!this.ui || !this.ui.isFullscreenOpen()) {
-      // El césped cambia de tono con la estación del año
-      const season = this.simulation.season;
-      this.renderer.grassPalette = (season && season.grassTint) || null;
-
       try {
         this.renderer.render(
           this.grid,

@@ -1,19 +1,21 @@
 /**
  * MOTOR DE RENDERIZADO POR GPU (PixiJS v8)
  *
- * Estrategia de "horneado": el código de dibujo Canvas 2D de `Renderer` pinta cada pieza una sola
- * vez en una imagen (terreno completo, cada edificio según su estado, árboles) y la GPU se limita a
+ * Estrategia de "horneado": cada pieza se pinta una sola vez en una imagen (el terreno completo en
+ * pixel art, cada edificio según su estado, los árboles del mapa) y la GPU se limita a
  * moverlas, escalarlas y componerlas en cada fotograma. Lo que cambia continuamente (agua, vehículos,
  * humo, fuego, inundaciones, fantasma de construcción, luz del día) se dibuja como sprites o gráficos
  * ligeros de PixiJS.
  *
- * Mantiene la misma interfaz que `Renderer` (render, resize, grassPalette) para que el resto del
+ * Mantiene la misma interfaz que `Renderer` (render, resize) para que el resto del
  * juego no note el cambio. Si el navegador no tiene WebGL, main.js usa el Renderer Canvas 2D.
  */
 
 import { Application, Container, Sprite, Texture, Graphics, Batcher } from '../vendor/pixi.min.mjs';
 import { CONFIG, variantAt } from '../game/config.js';
-import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor } from './pixel/pixel-buildings.js';
+import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pixelJob, renderPixelJob, detailFor, wildTreeKey, wildTreeJob } from './pixel/pixel-buildings.js';
+import { waterGlints } from './pixel/terrain-art.js';
+import { TerrainBaker } from './terrain-baker.js';
 import { Preferences } from '../game/preferences.js';
 import { recordError, markGpuFailed, setEngineResult, setCurrentEngine } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
@@ -21,11 +23,10 @@ import { Renderer } from './renderer.js';
 import { computeFades, gatherOcclusion, occlusionEnabled, FADE } from './occlusion.js';
 
 const BAKE_SCALE = 1.5; // Resolución de las imágenes horneadas (nitidez al hacer zoom)
-const TERRAIN_SCALE = 1.5;
 // Modo seguro (motor «WebGL 2 seguro»): en algunas GPU Adreno el sombreador de lotes con 16 texturas y
 // las subidas de texturas muy grandes provocan reinicios de la GPU («GL_GUILTY_CONTEXT_RESET»)
 const SAFE_MAX_TEXTURES = 4; // texturas por lote (sombreador más simple)
-const SAFE_TERRAIN_PX = 2048; // ancho máximo de la textura del terreno
+const TERRAIN_STRIP_PX = 2048; // el terreno va en franjas de este ancho como mucho (en todos los modos)
 const SYNC_EVERY = 4; // Fotogramas entre sincronizaciones con la cuadrícula (~15 por segundo)
 const ANIM_FRAMES = 12; // Fotogramas pregenerados para edificios animados
 const ANIM_STEP = 0.35; // Avance del reloj de animación entre fotogramas pregenerados
@@ -51,7 +52,6 @@ export class PixiRenderer {
     this.engine = engine;
     this.safe = engine === 'webgl2-safe';
     this.ready = false;
-    this.grassPalette = null;
     this.animationTick = 0;
     this.frame = 0;
 
@@ -76,10 +76,11 @@ export class PixiRenderer {
     this.jobId = 0;
     this.workerTurn = 0;
     this.waterSprites = [];
+    this.terrainTextures = [];
+    this.terrainSmooth = false;
     this.emitters = []; // chimeneas activas en coordenadas de mundo
     this.dynamicTiles = { flooded: [], fire: [] };
     this.particles = [];
-    this.terrainKey = null;
     this.lastGrid = null;
   }
 
@@ -141,6 +142,7 @@ export class PixiRenderer {
     this.app.stage.addChild(this.world, this.screenFx);
 
     this._bakeSharedTextures();
+    this.terrain = new TerrainBaker((r) => this._showTerrain(r));
     this.ready = true;
   }
 
@@ -201,7 +203,7 @@ export class PixiRenderer {
       `terreno ${this.terrainLayer ? this.terrainLayer.children.length : 0} · objetos ${this.objects.size}`,
       `caché ${this.textureCache.size} (${(this.cacheBytes / 1048576).toFixed(1)} MB)`,
       `detalle S${this.detailS} (tope ${this.detailMax})`,
-      `motor ${this.engineLabel()}${this.safe ? ` (lotes de ${SAFE_MAX_TEXTURES} texturas, terreno ≤ ${SAFE_TERRAIN_PX} px)` : ''}`,
+      `motor ${this.engineLabel()}${this.safe ? ` (lotes de ${SAFE_MAX_TEXTURES} texturas)` : ''}`,
       `trabajadores ${this.workers ? this.workers.length : 0} · pendientes ${this.pending.size}`,
     ].join(' · ');
   }
@@ -225,8 +227,6 @@ export class PixiRenderer {
   }
 
   _bakeSharedTextures() {
-    const tw = CONFIG.CANVAS.TILE_WIDTH;
-    const th = CONFIG.CANVAS.TILE_HEIGHT;
     // Círculo blanco teñible para vehículos y partículas
     this.dotTexture = this._canvasTexture(16, 16, 2, (ctx) => {
       ctx.beginPath();
@@ -234,75 +234,61 @@ export class PixiRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.fill();
     });
-    // Rombos de agua (dos tonos alternan para el oleaje)
-    const water = (color) => this._canvasTexture(tw, th + 2, TERRAIN_SCALE, (ctx) => {
-      IsoMath.drawIsoDiamond(ctx, tw / 2, 1, tw, th, color, CONFIG.PALETTE.gridLines, 0.7);
-      ctx.beginPath();
-      ctx.moveTo(tw / 2 - 8, 1 + th / 2);
-      ctx.lineTo(tw / 2 + 8, 1 + th / 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+    // Destellos del agua (dos fotogramas que se alternan casilla a casilla)
+    const g = waterGlints();
+    this.glints = g.frames.map((data) => {
+      const c = document.createElement('canvas');
+      c.width = g.w;
+      c.height = g.h;
+      c.getContext('2d').putImageData(new ImageData(data, g.w, g.h), 0, 0);
+      const t = Texture.from(c);
+      t.source.scaleMode = 'nearest';
+      return t;
     });
-    this.waterLight = water(CONFIG.PALETTE.water);
-    this.waterDeep = water(CONFIG.PALETTE.waterDeep);
-    // Árbol decorativo
-    this.treeTexture = this._canvasTexture(28, 28, BAKE_SCALE, (ctx) => this.painter.renderTree(ctx, 14, 4));
   }
 
   // ---------------------------------------------------------------------------
-  // Terreno: una imagen horneada; el agua va como sprites encima
+  // Terreno en pixel art (terrain-baker.js): franjas de textura y destellos sobre el agua
   // ---------------------------------------------------------------------------
 
-  _bakeTerrain(grid) {
-    const tw = CONFIG.CANVAS.TILE_WIDTH;
-    const th = CONFIG.CANVAS.TILE_HEIGHT;
-    const size = grid.size;
-    const W = size * tw;
-    const H = size * th + 4;
-    const originX = W / 2; // la casilla (0,0) tiene x = 0 en coordenadas de mundo
-
-    this.painter.grassPalette = this.grassPalette;
-    this.painter.animationTick = 0;
-    // Muchos móviles no admiten texturas de más de 4096 px: se baja la resolución si hace falta
-    const scale = Math.min(TERRAIN_SCALE, (this.safe ? SAFE_TERRAIN_PX : 4000) / W);
-    const texture = this._canvasTexture(W, H, scale, (ctx) => {
-      ctx.translate(originX, 1);
-      for (let gy = 0; gy < size; gy++) {
-        for (let gx = 0; gx < size; gx++) {
-          const iso = IsoMath.gridToIso(gx, gy);
-          this.painter.renderTerrainTile(ctx, iso.x, iso.y, grid.tiles[gy][gx]);
-        }
-      }
-    });
-
+  _showTerrain({ img, d, frozen }) {
     this.terrainLayer.removeChildren().forEach((c) => c.destroy({ texture: true, textureSource: true }));
-    const sprite = new Sprite(texture);
-    sprite.scale.set(1 / scale);
-    sprite.position.set(-originX, -1);
-    this.terrainLayer.addChild(sprite);
-
-    // Agua animada
-    this.waterLayer.removeChildren();
-    this.waterSprites = [];
-    for (let gy = 0; gy < size; gy++) {
-      for (let gx = 0; gx < size; gx++) {
-        if (grid.tiles[gy][gx].terrain !== 'water') continue;
-        const iso = IsoMath.gridToIso(gx, gy);
-        const s = new Sprite(this.waterLight);
-        s.scale.set(1 / TERRAIN_SCALE);
-        s.position.set(iso.x - tw / 2, iso.y - 1);
-        s.gx = gx;
-        s.gy = gy;
-        this.waterLayer.addChild(s);
-        this.waterSprites.push(s);
-      }
+    // franjas de ≤ 2048 px: algunas GPU de móvil no toleran subir una textura mayor
+    const full = new ImageData(img.data, img.w, img.h);
+    const strips = Math.ceil(img.w / TERRAIN_STRIP_PX);
+    const sw = Math.ceil(img.w / strips);
+    this.terrainTextures = [];
+    for (let i = 0; i < strips; i++) {
+      const x0 = i * sw;
+      const c = document.createElement('canvas');
+      c.width = Math.min(sw, img.w - x0);
+      c.height = img.h;
+      c.getContext('2d').putImageData(full, -x0, 0, x0, 0, c.width, img.h);
+      const t = Texture.from(c);
+      t.source.scaleMode = this.terrainSmooth ? 'linear' : 'nearest';
+      const s = new Sprite(t);
+      s.position.set(x0 - img.originX, -1);
+      this.terrainLayer.addChild(s);
+      this.terrainTextures.push(t);
     }
-  }
 
-  _terrainKey(grid) {
-    // El terreno solo cambia con la estación (paleta), las expansiones o una cuadrícula nueva
-    return `${(this.grassPalette || CONFIG.PALETTE.grass).join(',')}|${grid.mapLevel || 0}`;
+    // Destellos sobre el agua (el río helado no brilla)
+    this.waterLayer.removeChildren().forEach((c) => c.destroy());
+    this.waterSprites = [];
+    this.waterLayer.visible = !frozen;
+    const n = d.size;
+    for (let i = 0; i < n * n; i++) {
+      if (d.types[i] !== 2) continue;
+      const gx = i % n;
+      const gy = (i - gx) / n;
+      const iso = IsoMath.gridToIso(gx, gy);
+      const s = new Sprite(this.glints[0]);
+      s.position.set(iso.x - 16, iso.y - 1);
+      s.gx = gx;
+      s.gy = gy;
+      this.waterLayer.addChild(s);
+      this.waterSprites.push(s);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -434,10 +420,9 @@ export class PixiRenderer {
     this.jobs.clear();
   }
 
-  _requestBake(sig, building, def, dayProgress) {
+  _requestBake(sig, job) {
     this._reapStuckJobs();
     if (!this.workers || this.pending.has(sig) || this.pending.size >= MAX_JOBS) return;
-    const job = this._pixelJob(building, def, dayProgress);
     const id = ++this.jobId;
     const w = this.workerTurn++ % this.workers.length;
     this.pending.set(sig, id);
@@ -558,7 +543,7 @@ export class PixiRenderer {
     if (!entry) {
       const bad = this.badSigs.has(sig);
       if (allowDefer && this.workers && PIXEL_HOUSES.has(def.id) && !building.construction && !bad) {
-        this._requestBake(sig, building, def, dayProgress);
+        this._requestBake(sig, this._pixelJob(building, def, dayProgress));
         return { sig, entry: null };
       }
       // Sin tiempo de horneado este fotograma (pasa siempre al menos uno): se conserva la imagen anterior
@@ -566,6 +551,28 @@ export class PixiRenderer {
       this.bakedThisFrame++;
       const frame = Number(sig.slice(sig.lastIndexOf('|') + 1));
       entry = this._bakeBuilding(building, def, dayProgress, frame, !bad);
+      entry.bytes = this._entryBytes(entry);
+      this.cacheBytes += entry.bytes;
+      this.textureCache.set(sig, entry);
+    }
+    entry.lastUsed = this.frame;
+    return { sig, entry };
+  }
+
+  /** Árbol suelto del mapa en pixel art (comparte caché y trabajadores con los edificios). */
+  _treeEntry(gx, gy) {
+    const sig = wildTreeKey(gx, gy, this.seasonKey, this.detailS);
+    let entry = this.textureCache.get(sig);
+    if (!entry) {
+      const job = wildTreeJob(gx, gy, this.qLook, this.detailS);
+      if (this.workers && !this.badSigs.has(sig)) {
+        this._requestBake(sig, job);
+        return { sig, entry: null };
+      }
+      if (this.bakedThisFrame > 0 && performance.now() > this.bakeDeadline) return { sig, entry: null };
+      this.bakedThisFrame++;
+      const out = renderPixelJob(job);
+      entry = this._makePixelEntry({ body: out.body.toCanvas(), ground: out.ground.toCanvas(), comp: out.comp.toCanvas() }, out.ox, out.oy, out.S, []);
       entry.bytes = this._entryBytes(entry);
       this.cacheBytes += entry.bytes;
       this.textureCache.set(sig, entry);
@@ -676,8 +683,12 @@ export class PixiRenderer {
           texture = entry.texture;
         } else if (!tile.building && tile.deco === 'tree') {
           key = `t${gx},${gy}`;
-          sig = 'tree';
-          texture = this.treeTexture;
+          ({ sig, entry } = this._treeEntry(gx, gy));
+          if (!entry) {
+            if (this.objects.has(key)) seen.add(key); // conserva la imagen de la estación anterior
+            continue;
+          }
+          texture = entry.texture;
         } else {
           continue;
         }
@@ -718,11 +729,9 @@ export class PixiRenderer {
         if (entry && entry.pixel) {
           obj.sprite.position.set(Math.round((iso.x + entry.offX) * entry.S) / entry.S, Math.round((iso.y + entry.offY) * entry.S) / entry.S);
           entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
-        } else if (entry) {
+        } else {
           obj.sprite.position.set(iso.x + entry.offX, iso.y + entry.offY);
           entry.emitters.forEach((e) => emitters.push({ x: iso.x + e.x, y: iso.y + e.y, color: e.color, size: e.size }));
-        } else {
-          obj.sprite.position.set(iso.x - 14, iso.y - 4);
         }
       }
     }
@@ -1030,11 +1039,13 @@ export class PixiRenderer {
     this.world.position.set(Math.round(camera.x + (camera.shakeOffsetX || 0)), Math.round(camera.y + (camera.shakeOffsetY || 0)));
     this.world.scale.set(camera.zoom);
 
-    const key = this._terrainKey(grid);
     const gridChanged = grid !== this.lastGrid;
-    if (gridChanged || key !== this.terrainKey) {
-      this._bakeTerrain(grid);
-      this.terrainKey = key;
+    this.terrain.update(grid, this.qLook);
+    // De lejos el terreno se suaviza (con píxeles exactos el césped parpadearía al mover la cámara)
+    const smooth = camera.zoom < 1;
+    if (smooth !== this.terrainSmooth) {
+      this.terrainSmooth = smooth;
+      for (const t of this.terrainTextures) t.source.scaleMode = smooth ? 'linear' : 'nearest';
     }
     if (gridChanged) {
       for (const obj of this.objects.values()) {
@@ -1045,9 +1056,12 @@ export class PixiRenderer {
       this.lastGrid = grid;
     }
 
-    for (const s of this.waterSprites) {
-      const wave = Math.sin(this.animationTick * 1.5 + s.gx * 0.8 + s.gy * 0.8);
-      s.texture = wave > 0 ? this.waterLight : this.waterDeep;
+    if (this.waterLayer.visible) {
+      for (const s of this.waterSprites) {
+        const wave = Math.sin(this.animationTick * 1.2 + s.gx * 1.7 + s.gy * 2.3);
+        s.visible = wave > 0.55 || wave < -0.55;
+        if (s.visible) s.texture = wave > 0 ? this.glints[0] : this.glints[1];
+      }
     }
 
     if (gridChanged || this.frame % SYNC_EVERY === 0) this._syncObjects(grid, dayProgress);

@@ -19,7 +19,7 @@ import { createParkKit } from './park-kit.js';
 export const PARK_LOT_DESIGNS = ['Clásico', 'Florido', 'Arbolado', 'Equipado'];
 
 /** Lienzo para una parcela de wU × wV casillas (rectangular en las zonas recreativas). */
-function setup(o, wU, wV, top = 40) {
+function setup(o, wU, wV, top = 40, bare = false) {
   const S = o.S || 1;
   const W = (wU + wV) * 16 + 8;
   const H = (wU + wV) * 8 + top + 6;
@@ -35,7 +35,7 @@ function setup(o, wU, wV, top = 40) {
   const pk = createParkKit(kit, o, { body, ground, front, S, seed, look });
   // césped con un bordillo bajo de piedra
   const wear = o.wear || 0;
-  ground.floor(0, wU, 0, wV, 0, (u, v, z, x, y) => {
+  if (!bare) ground.floor(0, wU, 0, wV, 0, (u, v, z, x, y) => {
     if (Math.min(u, wU - u, v, wV - v) < 0.04) return kit.snowAt(x, y, 0.8) ? SNOW.light : hex('#cbc5bb');
     // calvas de hierba seca en un parque descuidado
     if (wear >= 50 && !kit.snowAt(x, y, 1) && hash01(x >> 2, y >> 2, seed + 47) < (wear >= 75 ? 0.22 : 0.1)) return hash01(x, y, seed + 48) < 0.3 ? hex('#a89a5a') : hex('#b8a868');
@@ -340,6 +340,23 @@ export function renderBotanical(o) {
 export function renderLampTile(o) {
   const c = setup(o, 1, 1, 30);
   drawLampTile(c, (o.kind || 0) % 3, Math.min(o.level || 1, 3), (o.lot || 0) % 4);
+  return finishLot(c, o, 18);
+}
+
+/**
+ * Árbol suelto del mapa, sin suelo propio (el terreno ya está pintado debajo).
+ * kind: 0 roble · 1 pino · 2 abedul · 3 matorral con roca · 4 pareja de pinos · 5 árbol joven con matas
+ */
+export function renderWildTree(o) {
+  const c = setup(o, 1, 1, 30, true);
+  const { pk } = c;
+  const k = (o.kind || 0) % 6;
+  if (k === 0) pk.broadleaf(0.5, 0.5, 5, 7);
+  else if (k === 1) pk.pine(0.5, 0.5, 18);
+  else if (k === 2) pk.birch(0.5, 0.5, 15);
+  else if (k === 3) { pk.rock(0.35, 0.4, 2); pk.shrub(0.6, 0.65, 2); }
+  else if (k === 4) { pk.pine(0.3, 0.35, 15); pk.pine(0.68, 0.7, 12); }
+  else { pk.broadleaf(0.45, 0.45, 3, 5, 'young'); pk.shrub(0.75, 0.7, 2); }
   return finishLot(c, o, 18);
 }
 
