@@ -904,7 +904,8 @@ export class Grid {
     return true;
   }
 
-  damageTile(gx, gy, amount) {
+  /** Daña el edificio de una casilla; `cause` 'fire' deja hollín en su fachada hasta que se repara. */
+  damageTile(gx, gy, amount, cause = null) {
     const tile = this.getTile(gx, gy);
     if (!tile || !tile.building) return;
 
@@ -916,6 +917,7 @@ export class Grid {
     if (rootTile && rootTile.building) {
       rootTile.damage = Math.min(100, (rootTile.damage || 0) + amount);
       rootTile.building.health = Math.max(0, 100 - rootTile.damage);
+      if (cause === 'fire') rootTile.building.burnt = true;
     }
   }
 
@@ -932,6 +934,7 @@ export class Grid {
       rootTile.damage = Math.max(0, (rootTile.damage || 0) - amount);
       rootTile.building.health = 100 - rootTile.damage;
       rootTile.onFire = false;
+      if (!rootTile.damage) delete rootTile.building.burnt;
     }
   }
 

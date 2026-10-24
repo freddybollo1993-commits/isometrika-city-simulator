@@ -249,7 +249,7 @@ export class DisasterSystem {
 
           if (!protectedByFire) {
             tile.onFire = true;
-            grid.damageTile(randGx, randGy, 25);
+            grid.damageTile(randGx, randGy, 25, 'fire');
           }
         }
       }

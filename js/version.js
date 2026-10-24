@@ -1,2 +1,2 @@
 // Generado por scripts/stamp-version.js antes de cada despliegue (no editar a mano)
-export const APP_BUILD = '20261024-0203';
+export const APP_BUILD = '20261024-0220';

@@ -36,6 +36,7 @@ import { renderTower, renderSocial } from './tower-art.js';
 import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } from './utility-art.js';
 import { renderRoad } from './road-art.js';
 import { renderSite, siteStageOf, SITE_FAMILY } from './site-art.js';
+import { applyDamage, damageTier } from './effects-art.js';
 
 /** Edificios con arte en pixel art (dos capas: suelo y volumen); el resto sigue con el dibujo procedural. */
 export const PIXEL_ART_IDS = new Set(['residential_tiny', 'residential_low', 'commercial_store', 'commercial_super', 'commercial_market', 'commercial_stall', 'commercial_gastronomy', 'commercial_tower', 'industrial_mass', 'industrial_tech', 'industrial_agro', 'commercial_distribution', 'supply_quarry', 'supply_components', 'commercial_maintenance', 'farm_organic', 'service_police', 'service_fire', 'service_hospital', 'service_school', 'service_university', 'service_research',
@@ -86,7 +87,9 @@ export function pixelKey(building, seasonKey, S) {
   const wear = building.wear || 0;
   const road = building.roadMask !== undefined ? `:r${building.roadMask}.${building.bridgeMask || 0}` : ''; // uniones y puente
   const site = building.construction ? `:o${siteStage(building)}` : ''; // etapa de la obra
-  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}${road}${site}`;
+  const dmg = damageTier(building);
+  const damage = dmg || building.burnt ? `:d${dmg}${building.burnt ? 'q' : ''}` : ''; // daños y hollín
+  return `px${lotOf(building)}:${seasonKey}:${wear >= 75 ? 2 : wear >= 50 ? 1 : 0}:s${S}${road}${site}${damage}`;
 }
 
 /**
@@ -147,6 +150,8 @@ export function pixelJob(building, def, dayProgress, look, S) {
     suspended: !!building.suspended,
     season: look,
     seed: Math.floor(hash01(building.gx || 0, building.gy || 0, 5) * 1e6),
+    damage: damageTier(building), // grietas, ventanas rotas y derrumbe (effects-art.js)
+    burnt: !!building.burnt, // hollín tras un incendio
   };
   if (def.id === 'recreation_zone' && building.zone) {
     // las zonas grandes no pasan de Alto: una de 16×16 en Ultra pesaría decenas de megas
@@ -230,7 +235,14 @@ export function pixelJob(building, def, dayProgress, look, S) {
   };
 }
 
+/** Dibuja un trabajo y le aplica los daños del edificio (las carreteras y las obras no los llevan). */
 export function renderPixelJob(job) {
+  const out = drawJob(job);
+  const p = job.params || {};
+  return job.kind !== 'road' && job.kind !== 'site' && (p.damage || p.burnt) ? applyDamage(out, p) : out;
+}
+
+function drawJob(job) {
   if (job.kind === 'super') return renderSupermarket(job.params);
   if (job.kind === 'market') return renderMarket(job.params);
   if (job.kind === 'stall') return renderStall(job.params);

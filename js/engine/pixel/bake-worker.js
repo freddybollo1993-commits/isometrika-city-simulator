@@ -36,6 +36,7 @@ import { renderSolar, renderPowerPlant, renderWaterTower, renderWaterPlant } fro
 import { paintTerrain } from './terrain-art.js';
 import { renderRoad } from './road-art.js';
 import { renderSite } from './site-art.js';
+import { applyDamage } from './effects-art.js';
 
 const RENDER = {
   house: renderHouse, shop: renderShop, super: renderSupermarket, market: renderMarket,
@@ -47,7 +48,10 @@ const RENDER = {
   tower: renderTower, social: renderSocial,
   solar: renderSolar, powerplant: renderPowerPlant, watertower: renderWaterTower, waterplant: renderWaterPlant,
   wildtree: renderWildTree, road: renderRoad,
-  site: (p) => renderSite(p, (job) => (RENDER[job.kind] || renderHouse)(job.params)), // obra: envuelve al edificio terminado
+  site: (p) => renderSite(p, (job) => {
+    const out = (RENDER[job.kind] || renderHouse)(job.params);
+    return job.params.damage || job.params.burnt ? applyDamage(out, job.params) : out;
+  }), // obra: envuelve al edificio terminado
 };
 
 const layer = (pc) => ({ w: pc.pw, h: pc.ph, buf: pc.data.buffer });
@@ -62,6 +66,7 @@ self.onmessage = (e) => {
       return;
     }
     const out = (RENDER[kind] || renderHouse)(params);
+    if (kind !== 'road' && kind !== 'site' && (params.damage || params.burnt)) applyDamage(out, params); // daños y hollín
     const body = layer(out.body);
     const ground = layer(out.ground);
     const comp = layer(out.comp);

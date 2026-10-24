@@ -17,6 +17,7 @@ import { PIXEL_ART_IDS, DETAIL_LEVELS, defaultDetail, seasonState, pixelKey, pix
 import { waterGlints } from './pixel/terrain-art.js';
 import { TerrainBaker } from './terrain-baker.js';
 import { agentKey, renderAgent } from './pixel/vehicle-art.js';
+import { renderFlame, renderPuff, renderFlood, puffFor, fireLift, FLAME } from './pixel/effects-art.js';
 import { Preferences } from '../game/preferences.js';
 import { recordError, markGpuFailed, setEngineResult, setCurrentEngine } from '../game/diagnostics.js';
 import { IsoMath } from './iso.js';
@@ -43,8 +44,6 @@ const PIXEL_HOUSES = PIXEL_ART_IDS;
 
 // Rasgos de edificio que se animan con el reloj (radar, sirenas, paneles, turbinas...)
 const ANIMATED_FLAGS = ['solarPanels', 'waterPlant', 'powerPlant', 'glow', 'siren', 'seismicRadar'];
-
-const hexToNumber = (hex) => parseInt(String(hex).replace('#', '').slice(0, 6), 16);
 
 export class PixiRenderer {
   /** @param {string} engine 'webgl2' | 'webgl2-safe' | 'webgl1' | 'webgpu' */
@@ -136,10 +135,14 @@ export class PixiRenderer {
     this.ghostSprite.alpha = 0.55;
     this.ghostLayer.addChild(this.ghostGraphics, this.ghostSprite);
     this.particleLayer = new Container();
+    this.floodLayer = new Container(); // agua turbia de las inundaciones
+    this.fxLayer = new Container(); // llamas de los incendios
+    this.floodSprites = [];
+    this.fireSprites = [];
     this.agentSprites = []; // coches y peatones: van en objectLayer, ordenados con los edificios
     this.agentCache = new Map(); // clave de figura → { texture, ox, oy, S }
-    this.world.addChild(this.terrainLayer, this.waterLayer, this.objectLayer, this.effectLayer,
-      this.ghostLayer, this.particleLayer);
+    this.world.addChild(this.terrainLayer, this.waterLayer, this.objectLayer, this.floodLayer, this.fxLayer,
+      this.effectLayer, this.ghostLayer, this.particleLayer);
     this.screenFx = new Graphics();
     this.app.stage.addChild(this.world, this.screenFx);
 
@@ -218,24 +221,16 @@ export class PixiRenderer {
   // Texturas compartidas
   // ---------------------------------------------------------------------------
 
-  _canvasTexture(w, h, scale, draw) {
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(w * scale);
-    c.height = Math.ceil(h * scale);
-    const ctx = c.getContext('2d');
-    ctx.scale(scale, scale);
-    draw(ctx);
-    return Texture.from(c);
-  }
-
   _bakeSharedTextures() {
-    // Círculo blanco teñible para vehículos y partículas
-    this.dotTexture = this._canvasTexture(16, 16, 2, (ctx) => {
-      ctx.beginPath();
-      ctx.arc(8, 8, 7.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-    });
+    // Efectos en pixel art (a densidad Alta): bocanadas blancas que se tiñen, llamas y agua turbia
+    const pixTex = (pc) => {
+      const t = Texture.from(pc.toCanvas());
+      t.source.scaleMode = 'nearest';
+      return t;
+    };
+    this.puffTex = [0, 1, 2].map((k) => pixTex(renderPuff(k, '#f8fafc', 2).canvas));
+    this.fireTex = [0, 1, 2, 3].map((f) => pixTex(renderFlame(f, 2).canvas));
+    this.floodTex = [0, 1, 2].map((v) => [0, 1].map((f) => pixTex(renderFlood(v, f, 2).canvas)));
     // Destellos del agua (dos fotogramas que se alternan casilla a casilla)
     const g = waterGlints();
     this.glints = g.frames.map((data) => {
@@ -781,15 +776,6 @@ export class PixiRenderer {
   _drawEffects() {
     const g = this.effectLayer;
     g.clear();
-    const tw = CONFIG.CANVAS.TILE_WIDTH;
-    const th = CONFIG.CANVAS.TILE_HEIGHT;
-    const floodAlpha = 0.5 + Math.sin(this.animationTick * 2) * 0.15;
-    for (const t of this.dynamicTiles.flooded) {
-      const { x, y } = IsoMath.gridToIso(t.gx, t.gy);
-      g.poly([x, y + 2, x + tw / 2, y + 2 + th / 2, x, y + 2 + th, x - tw / 2, y + 2 + th / 2])
-        .fill({ color: 0x3b82f6, alpha: floodAlpha })
-        .stroke({ color: 0x60a5fa, width: 1.5 });
-    }
     // Barras de avance de las obras
     const game = window.gameInstance;
     for (const s of this.sites || []) {
@@ -801,18 +787,53 @@ export class PixiRenderer {
       if (p > 0) g.rect(r.x, r.y, r.w * p, r.h).fill({ color: 0xf59e0b });
     }
 
-    const flameH = 14 + Math.sin(this.animationTick * 8) * 4;
-    for (const t of this.dynamicTiles.fire) {
+    // Inundación: agua turbia con ondas y restos flotando
+    const flooded = this.dynamicTiles.flooded;
+    this._fxPool(this.floodSprites, this.floodLayer, flooded.length);
+    const wave = Math.floor(this.animationTick * 2);
+    flooded.forEach((t, i) => {
+      const s = this.floodSprites[i];
       const { x, y } = IsoMath.gridToIso(t.gx, t.gy);
-      g.moveTo(x - 6, y).quadraticCurveTo(x, y - flameH, x + 6, y)
-        .fill({ color: Math.random() > 0.4 ? hexToNumber(CONFIG.PALETTE.fireOrange) : hexToNumber(CONFIG.PALETTE.fireYellow) });
-      if (Math.random() < 0.3) this._spawnParticle(x + (Math.random() - 0.5) * 8, y - 8, (Math.random() - 0.5) * 0.5, -0.8 - Math.random() * 0.5, 3, 0.6, 0xf97316);
+      s.texture = this.floodTex[(t.gx * 7 + t.gy * 13) % 3][(wave + t.gx + t.gy) % 2];
+      s.position.set(x - 16, y + 1);
+    });
+
+    // Incendios: llamas animadas sobre el edificio, humo negro y chispas
+    const fire = this.dynamicTiles.fire;
+    this._fxPool(this.fireSprites, this.fxLayer, fire.length);
+    const f = Math.floor(this.animationTick * 7);
+    fire.forEach((t, i) => {
+      const s = this.fireSprites[i];
+      const lift = fireLift(t.building && (CONFIG.BUILDINGS[t.building.id] || {}).height);
+      const { x, y } = IsoMath.gridToIso(t.gx + 0.5, t.gy + 0.5);
+      s.texture = this.fireTex[(f + i) % 4];
+      s.position.set(x - FLAME.OX, y - lift - FLAME.OY);
+      if (Math.random() < 0.35) this._spawnParticle(x + (Math.random() - 0.5) * 10, y - lift - 26, (Math.random() - 0.5) * 0.4, -0.7 - Math.random() * 0.4, 4 + Math.random() * 2, 0.75, 0x2b2b30);
+      if (Math.random() < 0.2) this._spawnParticle(x + (Math.random() - 0.5) * 8, y - lift - 20, (Math.random() - 0.5) * 0.6, -1 - Math.random() * 0.6, 1.2, 0.9, 0xfb923c);
+    });
+  }
+
+  /** Reserva `n` sprites de efecto en la capa (los sobrantes se ocultan). */
+  _fxPool(list, layer, n) {
+    while (list.length < n) {
+      const s = new Sprite(Texture.EMPTY);
+      s.scale.set(0.5); // texturas a densidad 2
+      layer.addChild(s);
+      list.push(s);
     }
+    list.forEach((s, i) => { s.visible = i < n; });
+  }
+
+  /** Bocanada del tamaño que toca a una partícula de humo (crece al subir). */
+  _puffLook(s) {
+    const { size, scale } = puffFor(s.size * 2);
+    if (s.texture !== this.puffTex[size]) s.texture = this.puffTex[size];
+    s.scale.set(scale / 2);
   }
 
   _spawnParticle(x, y, vx, vy, size, alpha, tint) {
     if (this.particles.length >= MAX_PARTICLES) return;
-    const s = this._particlePool && this._particlePool.length ? this._particlePool.pop() : new Sprite(this.dotTexture);
+    const s = this._particlePool && this._particlePool.length ? this._particlePool.pop() : new Sprite(this.puffTex[0]);
     s.anchor.set(0.5);
     s.position.set(x, y);
     s.tint = tint;
@@ -820,7 +841,7 @@ export class PixiRenderer {
     s.vx = vx;
     s.vy = vy;
     s.size = size;
-    s.width = s.height = size * 2;
+    this._puffLook(s);
     s.visible = true;
     this.particleLayer.addChild(s);
     this.particles.push(s);
@@ -842,7 +863,7 @@ export class PixiRenderer {
       s.y += s.vy;
       s.alpha -= 0.015;
       s.size += 0.08;
-      s.width = s.height = s.size * 2;
+      this._puffLook(s);
       if (s.alpha <= 0) {
         this.particleLayer.removeChild(s);
         this.particles.splice(i, 1);

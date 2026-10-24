@@ -13,6 +13,7 @@ import { DETAIL_LEVELS, defaultDetail, isPixelBuilding, seasonState, pixelKey, p
 import { waterGlints } from './pixel/terrain-art.js';
 import { TerrainBaker } from './terrain-baker.js';
 import { agentKey, renderAgent } from './pixel/vehicle-art.js';
+import { renderFlame, renderPuff, renderFlood, puffFor, puffColor, fireLift, FLAME } from './pixel/effects-art.js';
 
 const PIXEL_CACHE = 160; // imágenes de pixel art guardadas (dos lienzos cada una)
 const PIXEL_BAKE_MS = 8; // tiempo máximo de horneado por fotograma (siempre se permite uno)
@@ -53,7 +54,7 @@ export class Renderer {
       if (this.pixelBaked > 0 && performance.now() > this.pixelDeadline) return this.pixelLast.get(cell) || null;
       this.pixelBaked++;
       const out = renderPixelJob(job());
-      e = { ground: out.ground.toCanvas(), body: out.body.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H };
+      e = { ground: out.ground.toCanvas(), body: out.body.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H, emitters: out.emitters || [] };
       this.pixelCache.set(sig, e);
       if (this.pixelCache.size > PIXEL_CACHE) this.pixelCache.delete(this.pixelCache.keys().next().value);
     }
@@ -223,6 +224,12 @@ export class Renderer {
           ctx.save();
           if (fade !== undefined) ctx.globalAlpha = fade;
           ctx.drawImage(pe.body, iso.x - pe.ox, iso.y - pe.oy, pe.W, pe.H);
+          // humo de las chimeneas (como en el motor GPU)
+          for (const em of pe.emitters || []) {
+            if (Math.random() < 0.28 && this.particles.length < 200) {
+              this.particles.push({ x: iso.x + em.x, y: iso.y + em.y, vx: (Math.random() - 0.5) * 0.3 + 0.5, vy: -0.7 - Math.random() * 0.5, size: 1.6 * (1 + Math.random() * 0.6), alpha: 0.45, color: '120, 113, 108' });
+            }
+          }
           ctx.restore();
           if (tile.building.construction && window.gameInstance) {
             this.drawConstructionBar(ctx, tile.building, gx, gy, window.gameInstance.constructionProgress(tile.building));
@@ -267,7 +274,7 @@ export class Renderer {
         }
 
         if (tile.flooded) this.renderFloodWater(ctx, iso.x, iso.y);
-        if (tile.onFire) this.renderFire(ctx, iso.x, iso.y);
+        if (tile.onFire) this.renderFire(ctx, tile);
       }
     }
 
@@ -1940,31 +1947,38 @@ export class Renderer {
     ctx.fill();
   }
 
-  renderFloodWater(ctx, x, y) {
-    const tw = CONFIG.CANVAS.TILE_WIDTH;
-    const th = CONFIG.CANVAS.TILE_HEIGHT;
-    const alpha = 0.5 + Math.sin(this.animationTick * 2) * 0.15;
-    IsoMath.drawIsoDiamond(ctx, x, y + 2, tw, th, `rgba(59, 130, 246, ${alpha})`, '#60a5fa', 1.5);
+  /** Imagen de efecto en pixel art (llamas, humo, agua turbia), dibujada una vez y guardada. */
+  _fx(key, make) {
+    this.fxCache = this.fxCache || new Map();
+    let c = this.fxCache.get(key);
+    if (!c) {
+      const out = make();
+      c = { canvas: out.canvas.toCanvas(), ox: out.ox, oy: out.oy, W: out.W, H: out.H };
+      this.fxCache.set(key, c);
+    }
+    return c;
   }
 
-  renderFire(ctx, x, y) {
-    const flameH = 14 + Math.sin(this.animationTick * 8) * 4;
-    ctx.beginPath();
-    ctx.moveTo(x - 6, y);
-    ctx.quadraticCurveTo(x, y - flameH, x + 6, y);
-    ctx.fillStyle = Math.random() > 0.4 ? CONFIG.PALETTE.fireOrange : CONFIG.PALETTE.fireYellow;
-    ctx.fill();
+  /** Agua turbia de una casilla inundada, con ondas y restos flotando. */
+  renderFloodWater(ctx, x, y) {
+    const variant = Math.abs(Math.round(x * 7 + y * 13)) % 3;
+    const frame = (((Math.floor(this.animationTick * 2) + Math.round((x + y) / 16)) % 2) + 2) % 2;
+    const f = this._fx(`flood${variant}.${frame}`, () => renderFlood(variant, frame, 2));
+    ctx.drawImage(f.canvas, x - f.ox, y + 2 - f.oy, f.W, f.H);
+  }
 
-    if (Math.random() < 0.3) {
-      this.particles.push({
-        x: x + (Math.random() - 0.5) * 8,
-        y: y - 8,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -0.8 - Math.random() * 0.5,
-        size: 3,
-        alpha: 0.6,
-        color: '249, 115, 22',
-      });
+  /** Llamas animadas sobre el edificio de la casilla, con humo negro y chispas. */
+  renderFire(ctx, tile) {
+    const { x, y } = IsoMath.gridToIso(tile.gx + 0.5, tile.gy + 0.5);
+    const lift = fireLift(tile.building && (CONFIG.BUILDINGS[tile.building.id] || {}).height);
+    const frame = (Math.floor(this.animationTick * 7) + tile.gx) % 4;
+    const f = this._fx(`fire${frame}`, () => renderFlame(frame, 2));
+    ctx.drawImage(f.canvas, x - FLAME.OX, y - lift - FLAME.OY, f.W, f.H);
+    if (Math.random() < 0.35 && this.particles.length < 200) {
+      this.particles.push({ x: x + (Math.random() - 0.5) * 10, y: y - lift - 26, vx: (Math.random() - 0.5) * 0.4, vy: -0.7 - Math.random() * 0.4, size: 4 + Math.random() * 2, alpha: 0.75, color: '43, 43, 48' });
+    }
+    if (Math.random() < 0.2 && this.particles.length < 200) {
+      this.particles.push({ x: x + (Math.random() - 0.5) * 8, y: y - lift - 20, vx: (Math.random() - 0.5) * 0.6, vy: -1 - Math.random() * 0.6, size: 1.2, alpha: 0.9, color: '251, 146, 60' });
     }
   }
 
@@ -1995,10 +2009,14 @@ export class Renderer {
         continue;
       }
 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`;
-      ctx.fill();
+      // bocanada de pixel art del color y tamaño de la partícula
+      const { size, scale } = puffFor(p.size * 2);
+      const color = puffColor(p.color);
+      const f = this._fx(`puff${size}${color}`, () => renderPuff(size, color, 2));
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.drawImage(f.canvas, p.x - f.ox * scale, p.y - f.oy * scale, f.W * scale, f.H * scale);
+      ctx.restore();
     }
   }
 
